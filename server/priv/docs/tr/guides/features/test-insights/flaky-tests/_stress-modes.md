@@ -3,6 +3,6 @@
 Kontrol varsayılan olarak kapalıdır. Bir mod belirleyin:
 
 - **`report`**: her kararsız test senaryosu için uyarı verir. Çalıştırma yine kendi sonucuyla sonlanır.
-- **`enforce`**: bir kararsız test senaryosu çalıştırmayı başarısız kılar; çıkış kodu başarısız bir testle aynı olur.
+- **`enforce`**: kararsız bir test senaryosu çalıştırmayı başarısız kılar; çıkış kodu başarısız bir testle aynı olur.
 
-Birkaç hafta boyunca `report` ile başlayarak `enforce` modunun neleri engelleyeceğini görün.
+`enforce` hangi durumları engellerdi görmek için birkaç hafta `report` ile başlayın.

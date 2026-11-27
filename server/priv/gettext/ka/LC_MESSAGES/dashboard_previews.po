@@ -14,7 +14,7 @@ msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/preview_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "%{app_name} icon"
-msgstr "%{app_name}-ის ხატულა"
+msgstr "%{app_name}-ის აიკონი"
 
 #: lib/tuist_web/live/preview_live.ex:43
 #, elixir-autogen, elixir-format
@@ -36,23 +36,23 @@ msgstr "აგებულია"
 #: lib/tuist_web/live/preview_live.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Bundle identifier"
-msgstr "ბანდლის იდენტიფიკატორი"
+msgstr "Bundle identifier"
 
 #: lib/tuist_web/live/preview_live.html.heex:182
 #: lib/tuist_web/live/previews_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
-msgstr "კომიტის SHA"
+msgstr "Commit SHA"
 
 #: lib/tuist_web/live/preview_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Created by"
-msgstr "შექმნილია"
+msgstr "შექმნა:"
 
 #: lib/tuist_web/live/preview_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Delete preview"
-msgstr "წინასწარი ჩვენების წაშლა"
+msgstr "წინასწარი გადახედვის წაშლა"
 
 #: lib/tuist_web/live/preview_live.html.heex:132
 #, elixir-autogen, elixir-format
@@ -62,7 +62,7 @@ msgstr "დეტალები"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "Tuist აპლიკაცია არ გაქვთ დაინსტალირებული?"
+msgstr "Tuist-ის აპლიკაცია არ გაქვთ დაინსტალირებული?"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:110
@@ -78,7 +78,7 @@ msgstr "აპლიკაციის ინსტალაცია"
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "უახლესი პრივიუსები სახელების მიხედვით"
+msgstr "აპლიკაციის უახლესი პრივიუები"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -89,7 +89,7 @@ msgstr "სახელი"
 #: lib/tuist_web/live/previews_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "None"
-msgstr "არცერთი"
+msgstr "არ არის"
 
 #: lib/tuist_web/live/preview_live.html.heex:325
 #, elixir-autogen, elixir-format
@@ -134,7 +134,7 @@ msgstr "გაშვება"
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "აპლიკაციის Preview-ის გასაზიარებლად შეასრულეთ შემდეგი ბრძანება."
+msgstr "აპლიკაციის Previews-ის გასაზიარებლად შეასრულეთ შემდეგი ბრძანება."
 
 #: lib/tuist_web/live/preview_live.html.heex:227
 #: lib/tuist_web/live/preview_live.html.heex:273
@@ -145,7 +145,7 @@ msgstr "QR კოდის სკანირება"
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "დაასკანერეთ ეს QR კოდი თქვენს iOS მოწყობილობაზე ამ ვერსიის დასაყენებლად"
+msgstr "დაასკანერეთ ეს QR კოდი თქვენს iOS მოწყობილობაზე, რათა დააინსტალიროთ აპლიკაციის ეს ვერსია"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -160,17 +160,17 @@ msgstr "მხარდაჭერილი პლატფორმები"
 #: lib/tuist_web/live/preview_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "ეს პრევიუ მხოლოდ სიმულატორებზეა მხარდაჭერილი და ფიზიკურ მოწყობილობაზე ვერ დამონტაჟდება"
+msgstr "ეს პრევიუ მხოლოდ სიმულატორებზეა მხარდაჭერილი და ფიზიკურ მოწყობილობაზე ვერ დაინსტალირდება"
 
 #: lib/tuist_web/live/preview_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
-msgstr "ეს პრევიუ არ არის ხელმისაწვდომი მოწყობილობაზე დასაყენებლად"
+msgstr "ეს პრევიუ ხელმისაწვდომი არ არის მოწყობილობაზე დასაყენებლად"
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "ბრაუზერიდან პრევიუს პირდაპირ გასაშვებად, ჩამოტვირთეთ და დააინსტალირეთ Tuist-ის macOS აპლიკაცია"
+msgstr "ბრაუზერიდან პრევიუს გასაშვებად ჩამოტვირთეთ და დააინსტალირეთ Tuist-ის macOS აპლიკაცია"
 
 #: lib/tuist_web/live/preview_live.html.heex:95
 #, elixir-autogen, elixir-format
@@ -185,7 +185,7 @@ msgstr "ფილტრი"
 #: lib/tuist_web/live/previews_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Search..."
-msgstr "ძიება..."
+msgstr "ძებნა..."
 
 #: lib/tuist_web/live/preview_live.html.heex:190
 #: lib/tuist_web/live/previews_live.ex:168
@@ -227,7 +227,7 @@ msgstr "პრივიუ"
 #: lib/tuist_web/live/preview_live.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "Release notes"
-msgstr "გამოცემის შენიშვნები"
+msgstr "გამოშვების შენიშვნები"
 
 #: lib/tuist_web/live/preview_live.html.heex:83
 #, elixir-autogen, elixir-format
@@ -237,22 +237,22 @@ msgstr "CLI"
 #: lib/tuist_web/live/preview_live.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "Command-line preview"
-msgstr "ბრძანების სტრიქონიდან გაშვებული პრივიუ"
+msgstr "კომანდური სტრიქონის პრევიუ"
 
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "დესკტოპზე პრივიუები თქვენი მომხმარებლის სახელით იწყება და აქვს წვდომა თქვენს ფაილებსა და გარემოზე. ისინი არ არის იზოლირებული."
+msgstr "დესკტოპის პრევიუები გაეშვება თქვენი მომხმარებლის სახელით, თქვენს ფაილებზე და გარემოზე წვდომით. ისინი არ არის იზოლირებული."
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "Only run previews you trust"
-msgstr "გაუშვით მხოლოდ სანდო პრივიუები"
+msgstr "გაუშვით მხოლოდ სანდო პრევიუები"
 
 #: lib/tuist_web/live/preview_live.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Run preview"
-msgstr "პრივიუს გაშვება"
+msgstr "პრევიუს გაშვება"
 
 #: lib/tuist_web/live/preview_live.html.heex:103
 #, elixir-autogen, elixir-format

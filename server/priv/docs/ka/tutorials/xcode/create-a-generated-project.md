@@ -5,7 +5,7 @@
   "description": "შეიტყვეთ, როგორ შექმნათ თქვენი პირველი Tuist-ით გენერირებული Xcode პროექტი და დაამატოთ მას დამოკიდებულებები"
 }
 ---
-# შექმენით გენერირებული პროექტი {#create-a-generated-project}
+# გენერირებული პროექტის შექმნა {#create-a-generated-project}
 
 გაუშვით `tuist init` ცარიელ დირექტორიაში ან არსებული პროექტის დირექტორიაში:
 
@@ -21,17 +21,17 @@ tuist init
 <!-- -->
 :::
 
-ბრძანება გაგივლით ნაბიჯებს <.localized_link href="/guides/features/projects">გენერირებული პროექტის შესაქმნელად</.localized_link> ან არსებული Xcode-ის პროექტის ან სამუშაო სივრცის ინტეგრაციისთვის. ის გეხმარებათ თქვენი გარემოს დაკავშირებაში удален სერვერთან, რაც გაძლევთ წვდომას ისეთ ფუნქციებზე, როგორიცაა <.localized_link href="/guides/features/selective-testing">შერჩევითი ტესტირება</.localized_link>, <.localized_link href="/guides/features/previews">პრივიუები</.localized_link> და <.localized_link href="/guides/features/package-registries/swift">რეესტრი</.localized_link>.
+ბრძანება გაგივლით ნაბიჯებს <.localized_link href="/guides/features/projects">გენერირებული პროექტის შესაქმნელად</.localized_link> ან არსებული Xcode-ის პროექტის ან სამუშაო სივრცის ინტეგრაციისთვის. ის გეხმარებათ თქვენი გარემოს დაკავშირებაში удален серверთან, რაც გაძლევთ წვდომას ისეთ ფუნქციებზე, როგორიცაა <.localized_link href="/guides/features/selective-testing">შერჩევითი ტესტირება</.localized_link>, <.localized_link href="/guides/features/previews">წინასწარი გადახედვები</.localized_link> და <.localized_link href="/guides/features/package-registries/swift">რეესტრი</.localized_link>.
 
 > [!NOTE]
 > **არსებული პროექტის მიგრაცია**
 >
-> თუ გსურთ არსებული პროექტის გადაყვანა გენერირებულ პროექტებზე დეველოპერული გამოცდილების გასაუმჯობესებლად და ჩვენი <.localized_link href="/guides/features/cache">ქეშის</.localized_link> გამოყენებისთვის, იხილეთ ჩვენი <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">მიგრაციის სახელმძღვანელო</.localized_link>.
+> თუ გსურთ არსებული პროექტის მიგრაცია გენერირებულ პროექტებზე დეველოპერული გამოცდილების გასაუმჯობესებლად და ჩვენი <.localized_link href="/guides/features/cache">ქეშის</.localized_link> გამოყენებისთვის, იხილეთ ჩვენი <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">მიგრაციის სახელმძღვანელო</.localized_link>.
 
 
-## დამატეთ დამოკიდებულებები {#add-dependencies}
+## დამოკიდებულებების დამატება {#add-dependencies}
 
-ხშირია, რომ პროექტები ეყრდნობიან მესამე მხარის ბიბლიოთეკებს დამატებითი ფუნქციონალის უზრუნველსაყოფად. ამისათვის, გაუშვით შემდეგი ბრძანება, რათა მიიღოთ საუკეთესო გამოცდილება თქვენი პროექტის რედაქტირებისას:
+ხშირია, რომ პროექტები ეყრდნობიან მესამე მხარის ბიბლიოთეკებს დამატებითი ფუნქციონალის უზრუნველსაყოფად. ამისთვის გაუშვით შემდეგი ბრძანება, რათა მიიღოთ საუკეთესო გამოცდილება თქვენი პროექტის რედაქტირებისას:
 
 ```bash
 tuist edit
@@ -105,15 +105,15 @@ let project = Project(
 )
 ```
 
-შემდეგ გაუშვით `tuist install`, რათა გადაწყვიტოთ და ჩამოტვირთოთ დამოკიდებულებები [Swift Package Manager](https://www.swift.org/documentation/package-manager/)-ის გამოყენებით.
+შემდეგ გაუშვით `tuist install` დამოკიდებულებების გადასაწყვეტად და ჩამოსატვირთად [Swift Package Manager](https://www.swift.org/documentation/package-manager/)-ის გამოყენებით.
 
 > [!NOTE]
-> **SwiftPM, როგორც დამოკიდებულობების ამომხსნელი**
+> **SwiftPM როგორც დამოკიდებულებების ამომწყვეტი**
 >
 > Tuist-ის რეკომენდებული მიდგომა დამოკიდებულებების მიმართ იყენებს Swift Package Manager-ს (SPM) მხოლოდ დამოკიდებულებების გადასაწყვეტად. Tuist შემდეგ გარდაქმნის მათ Xcode-ის პროექტებად და სამიზნეებად მაქსიმალური კონფიგურირებადობისა და კონტროლისთვის.
 
 
-## ვიზუალიზაცია პროექტის {#visualize-the-project}
+## პროექტის ვიზუალიზაცია {#visualize-the-project}
 
 შეგიძლიათ ვიზუალიზაცია გაუკეთოთ პროექტის სტრუქტურას შემდეგი ბრძანების გაშვებით:
 
@@ -123,11 +123,11 @@ tuist graph
 
 ბრძანება შექმნის და გახსნის `graph.png` ფაილს პროექტის დირექტორიაში:
 
-![პროექტის გრაფი](/images/guides/quick-start/graph.png)
+![პროექტის გრაფიკი](/images/guides/quick-start/graph.png)
 
-## გამოიყენეთ დამოკიდებულება {#use-the-dependency}
+## დამოკიდებულების გამოყენება {#use-the-dependency}
 
-გაუშვით `tuist generate`, რათა გახსნათ პროექტი Xcode-ში და შეიტანეთ შემდეგი ცვლილებები `ContentView.swift` ფაილში:
+გაუშვით `tuist generate` პროექტის Xcode-ში გასახსნელად და შეიტანეთ შემდეგი ცვლილებები `ContentView.swift` ფაილში:
 
 ```swift
 import SwiftUI
@@ -149,4 +149,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-გაუშვით აპლიკაცია Xcode-დან და თქვენ უნდა დაინახოთ სურათი, რომელიც ჩაიტვირთა URL-დან.
+გაუშვით აპლიკაცია Xcode-დან და თქვენ უნდა დაინახოთ სურათი, რომელიც ჩაიტვირთა URL-იდან.

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "5409a61c6ad32a15630100755d880b941d46e7c1470afd25868e683d7fc7bfa0",
+  "hash": "f6aff497baa815a77d89062b10bdaaf10f588bba1b719aba615336e5d9bfa1f6",
   "hash_tree": {
     "root": {
       "children": [
@@ -142,7 +142,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -155,13 +155,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -190,11 +184,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -277,21 +271,21 @@
             }
           ],
           "details": {},
-          "hash": "f1f48fde58ee8adecafb0cf28e996d0ba4690ec0b890e8e5c586e8bccf5f1d2e",
+          "hash": "064099e6b59e1602597a88bed588b51f358512472c5107a38e24a8561d888220",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "5409a61c6ad32a15630100755d880b941d46e7c1470afd25868e683d7fc7bfa0",
+      "hash": "f6aff497baa815a77d89062b10bdaaf10f588bba1b719aba615336e5d9bfa1f6",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/server/authentication.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "47a8eedba4febf233d84360fd06834974d50d9bd0b601cc80bd7ef57df09596d",
+  "output_hash": "b904e335983a452354ba55267f60de354e16962f14f5fa281fbca5fa215ed8b2",
   "output_path": "server/priv/docs/yue_Hant/guides/server/authentication.md",
   "protection_state": "recorded",
   "provider": "",
@@ -312,8 +306,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "2a3b5068a734c13ff5acd10a9873fd219016dc42",
+  "source_commit_sha": "34db301b3702475c2d88774059699ea0c7526e92",
   "source_path": "server/priv/docs/en/guides/server/authentication.md",
-  "translated_at": "2026-11-19T01:00:04.580820Z",
-  "translation_session_id": "01a1f11e-0ed8-7d81-867f-2ee4f5133c32"
+  "translated_at": "2026-11-19T17:53:05.422809Z",
+  "translation_session_id": "01a1f4ee-6098-7cf8-9c7c-70a83209f9b3"
 }

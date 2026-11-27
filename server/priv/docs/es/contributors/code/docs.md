@@ -15,7 +15,7 @@ El sitio de documentación aloja la documentación del producto y para colaborad
 
 ## Cómo contribuir {#how-to-contribute}
 
-Edita las páginas en inglés en `server/priv/docs/en`. Las traducciones se gestionan por separado, así que no edites los demás directorios de idiomas. La barra lateral se define en `server/lib/tuist/docs_sidebar.ex`; añade allí las nuevas páginas para que los lectores puedan encontrarlas.
+Edita las páginas en inglés en `server/priv/docs/en`. Las traducciones se gestionan por separado, así que no edites los demás directorios de localización. La barra lateral se define en `server/lib/tuist/docs_sidebar.ex`; añade allí las nuevas páginas para que los lectores puedan encontrarlas.
 
 Cuando varias páginas comparten el mismo texto, por ejemplo la misma sección entre sistemas de compilación, colócalo en un archivo cuyo nombre empiece por `_` junto a esas páginas e inclúyelo con un comentario HTML `@snippet:` que apunte al archivo, como hacen las páginas de tests inestables. Los archivos que empiezan por `_` no se publican como páginas independientes.
 

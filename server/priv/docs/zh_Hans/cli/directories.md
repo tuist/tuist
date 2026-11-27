@@ -11,12 +11,12 @@ Tuist 遵循 [XDG Base Directory Specification](https://specifications.freedeskt
 
 ## 支持的环境变量 {#supported-environment-variables}
 
-Tuist 支持标准 XDG 变量以及带有 Tuist 特定前缀的变体。Tuist 特定变体（以 `TUIST_` 为前缀）具有更高优先级，允许你独立于其他应用程序配置 Tuist。
+Tuist 同时支持标准的 XDG 变量和带有 Tuist 特定前缀的变体。Tuist 特定变体（以 `TUIST_` 为前缀）具有更高优先级，允许你将 Tuist 与其他应用程序分开配置。
 
 ### 配置目录 {#configuration-directory}
 
 **环境变量：**
-- `TUIST_XDG_CONFIG_HOME`（优先）
+- `TUIST_XDG_CONFIG_HOME`（具有更高优先级）
 - `XDG_CONFIG_HOME`
 
 **默认值：** `~/.config/tuist`
@@ -38,7 +38,7 @@ tuist auth login
 ### 缓存目录 {#cache-directory}
 
 **环境变量：**
-- `TUIST_XDG_CACHE_HOME`（优先）
+- `TUIST_XDG_CACHE_HOME`（具有更高优先级）
 - `XDG_CACHE_HOME`
 
 **默认值：** `~/.cache/tuist`
@@ -50,7 +50,7 @@ tuist auth login
 - **Projects**：生成的自动化项目缓存
 - **EditProjects**：edit 命令的缓存
 - **Runs**：测试和构建运行的分析数据
-- **Binaries**：构建产物二进制文件（不可在不同环境间共享）
+- **Binaries**：构建产物二进制文件（无法在不同环境间共享）
 - **SelectiveTests**：选择性测试缓存
 
 **示例：**
@@ -67,7 +67,7 @@ tuist cache
 ### 状态目录 {#state-directory}
 
 **环境变量：**
-- `TUIST_XDG_STATE_HOME`（优先）
+- `TUIST_XDG_STATE_HOME`（具有更高优先级）
 - `XDG_STATE_HOME`
 
 **默认值：** `~/.local/state/tuist`
@@ -89,15 +89,15 @@ tuist generate
 
 ## 优先级顺序 {#precedence-order}
 
-在确定使用哪个目录时，Tuist 按以下顺序检查环境变量：
+在确定使用哪个目录时，Tuist 会按以下顺序检查环境变量：
 
-1. **Tuist 特定变量**（例如，`TUIST_XDG_CONFIG_HOME`）
-2. **标准 XDG 变量**（例如，`XDG_CONFIG_HOME`）
-3. **默认位置**（例如，`~/.config/tuist`）
+1. **Tuist 特定变量**（例如 `TUIST_XDG_CONFIG_HOME`）
+2. **标准 XDG 变量**（例如 `XDG_CONFIG_HOME`）
+3. **默认位置**（例如 `~/.config/tuist`）
 
 这使你可以：
-- 使用标准 XDG 变量来一致地组织所有应用程序
-- 当需要为 Tuist 使用不同位置时，可通过 Tuist 特定变量进行覆盖
+- 使用标准 XDG 变量来统一组织所有应用程序
+- 在需要为 Tuist 使用不同位置时，通过 Tuist 特定变量进行覆盖
 - 无需任何配置即可依赖合理的默认值
 
 ## 常见用例 {#common-use-cases}

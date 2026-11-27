@@ -14,17 +14,17 @@ msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/pulse_live.ex:958
 #, elixir-autogen, elixir-format
 msgid "All log entries with a service name in the selected period, independently of table search. The chart shows entries per interval."
-msgstr "ყველა ლოგის ჩანაწერი მომსახურების სახელით შერჩეულ პერიოდში, ცხრილის ძებნის მიუხედავად. დიაგრამა აჩვენებს ჩანაწერებს ინტერვალების მიხედვით."
+msgstr "ყველა ლოგის ჩანაწერი სერვისის სახელით შერჩეულ პერიოდში, ცხრილის ძიებისგან დამოუკიდებლად. გრაფიკი აჩვენებს ჩანაწერებს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_live.ex:992
 #, elixir-autogen, elixir-format
 msgid "All recorded spans in the selected period, not distinct traces. The chart shows spans per interval."
-msgstr "ყველა დაფიქსირებული სპანი შერჩეულ პერიოდში, არა განცალკევებული ტრეისები. დიაგრამა აჩვენებს სპანებს ინტერვალების მიხედვით."
+msgstr "ყველა დაფიქსირებული სპანი შერჩეულ პერიოდში, არა უნიკალური ტრეისები. გრაფიკი აჩვენებს სპანებს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_live.ex:1012
 #, elixir-autogen, elixir-format
 msgid "Approximate 95th percentile of span durations over the entire selected period, in milliseconds. The chart shows the percentile per interval."
-msgstr "სპანების ხანგრძლივობის მიახლოებითი 95-ე პროცენტილი მთელ შერჩეულ პერიოდზე, მილიწამებში. დიაგრამა აჩვენებს პროცენტილს ინტერვალების მიხედვით."
+msgstr "სპანების ხანგრძლივობის მიახლოებითი 95-ე პროცენტილი მთელ შერჩეულ პერიოდში, მილიწამებში. გრაფიკი აჩვენებს პროცენტილს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_live.ex:1057
 #, elixir-autogen, elixir-format
@@ -39,7 +39,7 @@ msgstr "ხანგრძლივობა (მწმ)"
 #: lib/tuist_web/live/pulse_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "Each point is the p95 span duration for one interval, not an individual span."
-msgstr "თითოეული წერტილი წარმოადგენს p95 სპანის ხანგრძლივობას ერთი ინტერვალისთვის და არა ცალკეულ სპანს."
+msgstr "თითოეული წერტილი წარმოადგენს p95 სპანის ხანგრძლივობას ერთი ინტერვალისთვის და არა ინდივიდუალურ სპანს."
 
 #: lib/tuist_web/live/pulse_live.ex:965
 #, elixir-autogen, elixir-format
@@ -49,7 +49,7 @@ msgstr "შეცდომის ლოგები"
 #: lib/tuist_web/live/pulse_live.ex:999
 #, elixir-autogen, elixir-format
 msgid "Error spans"
-msgstr "შეცდომების დიაპაზონები"
+msgstr "შეცდომის სპანები"
 
 #: lib/tuist_web/live/pulse_live.ex:935
 #, elixir-autogen, elixir-format
@@ -67,6 +67,7 @@ msgid "Last 15 minutes"
 msgstr "ბოლო 15 წუთი"
 
 #: lib/tuist_web/live/pulse_live.ex:918
+#: lib/tuist_web/live/pulse_symptoms_live.ex:577
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr "ბოლო 24 საათი"
@@ -102,14 +103,16 @@ msgstr "ლოგის ჩანაწერები"
 #: lib/tuist_web/live/pulse_live.ex:968
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled error or fatal in the selected period. The chart shows entries per interval."
-msgstr "ჩანაწერები, რომლებიც არჩეულ პერიოდში შეფასებულია როგორც error ან fatal. დიაგრამა აჩვენებს ჩანაწერების რაოდენობას ინტერვალების მიხედვით."
+msgstr "არჩეულ პერიოდში შეცდომად (error) ან კრიტიკულად (fatal) მონიშნული ლოგის ჩანაწერები. დიაგრამა ასახავს ჩანაწერებს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_live.ex:978
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled warn or warning in the selected period. The chart shows entries per interval."
-msgstr "ჩანაწერები, რომლებიც არჩეულ პერიოდში შეფასებულია როგორც warn ან warning. დიაგრამა აჩვენებს ჩანაწერების რაოდენობას ინტერვალების მიხედვით."
+msgstr "არჩეულ პერიოდში გაფრთხილებად (warn/warning) მონიშნული ლოგის ჩანაწერები. დიაგრამა ასახავს ჩანაწერებს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_live.ex:906
+#: lib/tuist_web/live/pulse_symptom_live.ex:462
+#: lib/tuist_web/live/pulse_symptoms_live.ex:451
 #, elixir-autogen, elixir-format
 msgid "Logs"
 msgstr "ლოგები"
@@ -126,6 +129,8 @@ msgid "Metric"
 msgstr "მეტრიკა"
 
 #: lib/tuist_web/live/pulse_live.ex:905
+#: lib/tuist_web/live/pulse_symptom_live.ex:460
+#: lib/tuist_web/live/pulse_symptoms_live.ex:450
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr "მეტრიკები"
@@ -138,9 +143,10 @@ msgstr "ამ პერიოდში გაზომვები არ ა�
 #: lib/tuist_web/live/pulse_live.ex:465
 #, elixir-autogen, elixir-format
 msgid "No telemetry matches this query and time range."
-msgstr "ტელემეტრია ამ მოთხოვნასა და დროის დიაპაზონში არ შეესაბამება."
+msgstr "ამ მოთხოვნასა და დროის ინტერვალში ტელემეტრია არ იძებნება."
 
 #: lib/tuist_web/live/pulse_live.ex:257
+#: lib/tuist_web/live/pulse_symptoms_live.ex:138
 #, elixir-autogen, elixir-format
 msgid "Period:"
 msgstr "პერიოდი:"
@@ -153,17 +159,17 @@ msgstr "Pulse-მა ვერ შეასრულა ეს მოთხო�
 #: lib/tuist_web/live/pulse_live.ex:925
 #, elixir-autogen, elixir-format
 msgid "Reporting targets"
-msgstr "ანგარიშგების სამიზნეები"
+msgstr "სამიზნეები ანგარიშგებისთვის"
 
 #: lib/tuist_web/live/pulse_live.ex:251
 #, elixir-autogen, elixir-format
 msgid "Resume live"
-msgstr "პირდაპირი ეთერის განახლება"
+msgstr "დაუბრუნდეთ პირდაპირ რეჟიმს"
 
 #: lib/tuist_web/live/pulse_live.ex:799
 #, elixir-autogen, elixir-format
 msgid "Root span"
-msgstr "ძირითადი სპანი"
+msgstr "ფესვა (Root span)"
 
 #: lib/tuist_web/live/pulse_live.ex:442
 #, elixir-autogen, elixir-format
@@ -173,18 +179,20 @@ msgstr "მოთხოვნის შესრულება"
 #: lib/tuist_web/live/pulse_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "Search telemetry"
-msgstr "ტელემეტრიის ძიება"
+msgstr "ტელემეტრიის ძებნა"
 
 #: lib/tuist_web/live/pulse_live.ex:387
+#: lib/tuist_web/live/pulse_symptoms_live.ex:224
 #, elixir-autogen, elixir-format
 msgid "Search..."
-msgstr "ძიება..."
+msgstr "ძებნა..."
 
 #: lib/tuist_web/live/pulse_live.ex:522
 #: lib/tuist_web/live/pulse_live.ex:798
 #: lib/tuist_web/live/pulse_live.ex:807
 #: lib/tuist_web/live/pulse_live.ex:816
 #: lib/tuist_web/live/pulse_live.ex:831
+#: lib/tuist_web/live/pulse_symptom_live.ex:209
 #, elixir-autogen, elixir-format
 msgid "Service"
 msgstr "სერვისი"
@@ -192,12 +200,12 @@ msgstr "სერვისი"
 #: lib/tuist_web/live/pulse_live.ex:989
 #, elixir-autogen, elixir-format
 msgid "Spans"
-msgstr "Spans"
+msgstr "სპანები"
 
 #: lib/tuist_web/live/pulse_live.ex:1002
 #, elixir-autogen, elixir-format
 msgid "Spans with error status in the selected period. The chart shows spans per interval."
-msgstr "Spans შეცდომის სტატუსით შერჩეულ პერიოდში. დიაგრამა აჩვენებს spans-ებს ინტერვალებით."
+msgstr "სპანები შეცდომის სტატუსით შერჩეულ პერიოდში. გრაფიკზე ნაჩვენებია სპანების რაოდენობა ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_live.ex:797
 #, elixir-autogen, elixir-format
@@ -207,17 +215,17 @@ msgstr "დაწყებული (UTC)"
 #: lib/tuist_web/live/pulse_live.ex:944
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 0 at the end of the period. Missing samples are not counted as unhealthy."
-msgstr "პერიოდის ბოლოს up = 0-ს აცხადებენ სამიზნეები. გამოტოვებული ნიმუშები არ ითვლება არაჯანსაღად."
+msgstr "მიზნები, რომლებიც პერიოდის ბოლოს ანგარიშობენ up = 0-ს. გამოტოვებული ნიმუშები არ ითვლება ჯანმრთელად."
 
 #: lib/tuist_web/live/pulse_live.ex:937
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 1 at the end of the period."
-msgstr "პერიოდის ბოლოს up = 1-ს აცხადებენ სამიზნეები."
+msgstr "მიზნები, რომლებიც პერიოდის ბოლოს ანგარიშობენ up = 1-ს."
 
 #: lib/tuist_web/live/pulse_live.ex:928
 #, elixir-autogen, elixir-format
 msgid "Targets with an up sample at the end of the period. The chart shows the target count over time."
-msgstr "სამიზნეები, რომლებსაც პერიოდის ბოლოს აქვთ up ნიმუში. გრაფიკი აჩვენებს სამიზნეების რაოდენობას დროთა განმავლობაში."
+msgstr "მიზნები up ნიმუშით პერიოდის ბოლოს. გრაფიკზე ნაჩვენებია მიზნების რაოდენობა დროის განმავლობაში."
 
 #: lib/tuist_web/live/pulse_live.ex:588
 #, elixir-autogen, elixir-format
@@ -232,7 +240,7 @@ msgstr "ტელემეტრია მიუწვდომელია"
 #: lib/tuist_web/live/pulse_live.ex:1054
 #, elixir-autogen, elixir-format
 msgid "The Pulse connection is not configured. Contact your administrator."
-msgstr "Pulse კავშირი არ არის კონფიგურირებული. დაუკავშირდით თქვენს ადმინისტრატორს."
+msgstr "Pulse-თან კავშირი არ არის კონფიგურირებული. დაუკავშირდით თქვენს ადმინისტრატორს."
 
 #: lib/tuist_web/live/pulse_live.ex:1061
 #, elixir-autogen, elixir-format
@@ -254,19 +262,21 @@ msgid "Trace ID"
 msgstr "Trace ID"
 
 #: lib/tuist_web/live/pulse_live.ex:907
+#: lib/tuist_web/live/pulse_symptom_live.ex:461
+#: lib/tuist_web/live/pulse_symptoms_live.ex:452
 #, elixir-autogen, elixir-format
 msgid "Traces"
-msgstr "Trace-ები"
+msgstr "ტრეისები"
 
 #: lib/tuist_web/live/pulse_live.ex:941
 #, elixir-autogen, elixir-format
 msgid "Unhealthy targets"
-msgstr "არასტაბილური სამიზნეები"
+msgstr "არაჯანსაღი სამიზნეები"
 
 #: lib/tuist_web/live/pulse_live.ex:975
 #, elixir-autogen, elixir-format
 msgid "Warning logs"
-msgstr "გაფრთხილების ჟურნალები"
+msgstr "გაფრთხილების ჟურნალი"
 
 #: lib/tuist_web/live/pulse_live.ex:1009
 #, elixir-autogen, elixir-format
@@ -279,6 +289,7 @@ msgid "vs previous 15 minutes"
 msgstr "წინა 15 წუთთან შედარებით"
 
 #: lib/tuist_web/live/pulse_live.ex:653
+#: lib/tuist_web/live/pulse_symptoms_live.ex:584
 #, elixir-autogen, elixir-format
 msgid "vs previous 24 hours"
 msgstr "წინა 24 საათთან შედარებით"
@@ -313,6 +324,7 @@ msgstr "კონტექსტები"
 #: lib/tuist_web/live/pulse_error_live.ex:376
 #: lib/tuist_web/live/pulse_live.ex:528
 #: lib/tuist_web/live/pulse_live.ex:833
+#: lib/tuist_web/live/pulse_symptom_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "გარემო"
@@ -324,6 +336,8 @@ msgstr "შეცდომის მოვლენები"
 
 #: lib/tuist_web/live/pulse_error_live.ex:87
 #: lib/tuist_web/live/pulse_live.ex:908
+#: lib/tuist_web/live/pulse_symptom_live.ex:463
+#: lib/tuist_web/live/pulse_symptoms_live.ex:453
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "შეცდომები"
@@ -337,6 +351,7 @@ msgstr "მოვლენის ID"
 #: lib/tuist_web/live/pulse_error_live.ex:220
 #: lib/tuist_web/live/pulse_live.ex:574
 #: lib/tuist_web/live/pulse_live.ex:808
+#: lib/tuist_web/live/pulse_symptom_live.ex:288
 #, elixir-autogen, elixir-format
 msgid "Events"
 msgstr "მოვლენები"
@@ -365,7 +380,7 @@ msgstr "პირველად გამოჩნდა"
 #: lib/tuist_web/live/pulse_error_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "First seen in this period"
-msgstr "პირველად გამოჩნდა ამ პერიოდში"
+msgstr "ამ პერიოდში პირველად გამოჩნდა"
 
 #: lib/tuist_web/live/pulse_error_live.ex:413
 #, elixir-autogen, elixir-format
@@ -376,14 +391,14 @@ msgstr "აპლიკაციაში"
 #: lib/tuist_web/live/pulse_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Issue"
-msgstr "საჩივარი"
+msgstr "შეცდომა"
 
 #: lib/tuist_web/live/pulse_error_live.ex:202
 #: lib/tuist_web/live/pulse_live.ex:759
 #: lib/tuist_web/live/pulse_live.ex:810
 #, elixir-autogen, elixir-format
 msgid "Last seen"
-msgstr "ბოლოს ნანახია"
+msgstr "ბოლოს გამოჩნდა"
 
 #: lib/tuist_web/live/pulse_error_live.ex:371
 #, elixir-autogen, elixir-format
@@ -393,36 +408,37 @@ msgstr "უახლესი მოვლენა"
 #: lib/tuist_web/live/pulse_error_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "No exception recorded"
-msgstr "გამონაკლისები არ დაფიქსირებულა"
+msgstr "გამონაკლისი არ დაფიქსირებულა"
 
 #: lib/tuist_web/live/pulse_error_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "No stack frames recorded"
-msgstr "სტეკის კადრები არ დაფიქსირებულა"
+msgstr "სტეკის ფრეიმები არ ჩაწერილა"
 
 #: lib/tuist_web/live/pulse_error_live.ex:158
 #: lib/tuist_web/live/pulse_error_live.ex:211
 #: lib/tuist_web/live/pulse_error_live.ex:248
+#: lib/tuist_web/live/pulse_symptom_live.ex:267
 #, elixir-autogen, elixir-format
 msgid "Occurrences"
-msgstr "გამოვლენები"
+msgstr "შემთხვევები"
 
 #: lib/tuist_web/live/pulse_error_live.ex:123
 #: lib/tuist_web/live/pulse_error_live.ex:270
 #: lib/tuist_web/live/pulse_error_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "Release"
-msgstr "გამოშვება"
+msgstr "გამოცემა"
 
 #: lib/tuist_web/live/pulse_error_live.ex:356
 #, elixir-autogen, elixir-format
 msgid "Stack trace"
-msgstr "Stack trace"
+msgstr "სტეკის ტრასირება"
 
 #: lib/tuist_web/live/pulse_error_live.ex:457
 #, elixir-autogen, elixir-format
 msgid "Tags"
-msgstr "ტეგები"
+msgstr "ჭდეები"
 
 #: lib/tuist_web/live/pulse_live.ex:1043
 #, elixir-autogen, elixir-format
@@ -432,12 +448,12 @@ msgstr "დაზარალებული სერვისები"
 #: lib/tuist_web/live/pulse_error_live.ex:86
 #, elixir-autogen, elixir-format
 msgid "Back to issue"
-msgstr "დაბრუნება პრობლემაზე"
+msgstr "უკან პრობლემაზე"
 
 #: lib/tuist_web/live/pulse_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "Distinct named services with Sentry events in the selected period. The chart shows affected services per interval."
-msgstr "განსხვავებული დასახელებული სერვისები Sentry-ის მოვლენებით შერჩეულ პერიოდში. დიაგრამა აჩვენებს დაზარალებულ სერვისებს თითოეული ინტერვალისთვის."
+msgstr "Sentry-ის მოვლენების მქონე განსხვავებული დასახელებული სერვისები შერჩეულ პერიოდში. დიაგრამა აჩვენებს დაზარალებულ სერვისებს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_error_live.ex:42
 #: lib/tuist_web/live/pulse_error_live.ex:95
@@ -464,15 +480,16 @@ msgstr "მოვლენები შერჩეულ პერიოდშ�
 #: lib/tuist_web/live/pulse_live.ex:1033
 #, elixir-autogen, elixir-format
 msgid "Fatal events"
-msgstr "ფატალური მოვლენები"
+msgstr "კრიტიკული მოვლენები"
 
 #: lib/tuist_web/live/pulse_error_live.ex:278
 #, elixir-autogen, elixir-format
 msgid "No occurrences in this period"
-msgstr "ამ პერიოდში შემთხვევები არ არის"
+msgstr "ამ პერიოდში შემთხვევები არ ფიქსირდება"
 
 #: lib/tuist_web/live/pulse_error_live.ex:182
 #: lib/tuist_web/live/pulse_live.ex:731
+#: lib/tuist_web/live/pulse_symptom_live.ex:409
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
 msgstr "არ არის ჩაწერილი"
@@ -480,7 +497,7 @@ msgstr "არ არის ჩაწერილი"
 #: lib/tuist_web/live/pulse_error_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Occurrence pages"
-msgstr "გამოვლენის გვერდები"
+msgstr "შემთხვევის გვერდები"
 
 #: lib/tuist_web/live/pulse_error_live.ex:190
 #, elixir-autogen, elixir-format
@@ -490,17 +507,17 @@ msgstr "პლატფორმა"
 #: lib/tuist_web/live/pulse_error_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Pulse could not load these details. Return to Errors and try again."
-msgstr "Pulse-მა ვერ ჩატვირთა ეს დეტალები. დაბრუნდით შეცდომებში და სცადეთ ხელახლა."
+msgstr "Pulse-მა ვერ ჩატვირთა ეს დეტალები. დაბრუნდით შეცდომებზე და სცადეთ ხელახლა."
 
 #: lib/tuist_web/live/pulse_live.ex:1026
 #, elixir-autogen, elixir-format
 msgid "Sentry events in the selected period, not grouped issues. The chart shows events per interval."
-msgstr "Sentry-ის მოვლენები შერჩეულ პერიოდში, დაჯგუფებული პრობლემების გარეშე. დიაგრამა აჩვენებს მოვლენებს ინტერვალებით."
+msgstr "Sentry-ის მოვლენები შერჩეულ პერიოდში, დაჯგუფებული პრობლემების გარეშე. გრაფიკი აჩვენებს მოვლენებს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_live.ex:1036
 #, elixir-autogen, elixir-format
 msgid "Sentry events labelled fatal in the selected period. The chart shows events per interval."
-msgstr "Sentry-ის მოვლენები, რომლებიც შერჩეულ პერიოდში fatal-ად მონიშნულია. დიაგრამა აჩვენებს მოვლენებს ინტერვალებით."
+msgstr "Sentry-ის მოვლენები, რომლებიც შერჩეულ პერიოდში fatal-ად იყო მონიშნული. გრაფიკი აჩვენებს მოვლენებს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_error_live.ex:137
 #, elixir-autogen, elixir-format
@@ -510,7 +527,7 @@ msgstr "Span ID"
 #: lib/tuist_web/live/pulse_error_live.ex:692
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
-msgstr "ეს პრობლემა ან მოვლენა არსებულ პერიოდში ვერ მოიძებნა."
+msgstr "ეს პრობლემა ან მოვლენა შერჩეულ პერიოდში ვერ მოიძებნა."
 
 #: lib/tuist_web/live/pulse_live.ex:547
 #, elixir-autogen, elixir-format
@@ -525,12 +542,12 @@ msgstr "მოვლენის ნახვა"
 #: lib/tuist_web/live/pulse_error_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "This event recorded a message, not an exception."
-msgstr "ეს მოვლენა შეიცავს შეტყობინებას და არა გამონაკლისს."
+msgstr "ამ მოვლენაში ჩაიწერა შეტყობინება, არა გამონაკლისი."
 
 #: lib/tuist_web/live/pulse_error_live.ex:524
 #, elixir-autogen, elixir-format
 msgid "Breadcrumbs"
-msgstr "ნავიგაციის ჯაჭვი"
+msgstr "ნავიგაციის ბილიკები"
 
 #: lib/tuist_web/live/pulse_error_live.ex:570
 #, elixir-autogen, elixir-format
@@ -555,10 +572,472 @@ msgstr "ვერსია"
 #: lib/tuist_web/live/pulse_live.ex:293
 #, elixir-autogen, elixir-format
 msgid "Unavailable"
-msgstr "მიუწვდომელი"
+msgstr "მიუწვდომელია"
 
 #: lib/tuist_web/live/pulse_live.ex:753
 #, elixir-autogen, elixir-format
 msgid "Seen in %{count} environment"
 msgid_plural "Seen in %{count} environments"
-msgstr[0] "ნაპოვნია %{count} გარემოში"
+msgstr[0] "ნანახია %{count} გარემოში"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:363
+#, elixir-autogen, elixir-format
+msgid "Activity"
+msgstr "აქტივობა"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:439
+#, elixir-autogen, elixir-format
+msgid "Annotated"
+msgstr "ანოტირებული"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:332
+#, elixir-autogen, elixir-format
+msgid "At"
+msgstr "დრო"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:487
+#, elixir-autogen, elixir-format
+msgid "Audit"
+msgstr "აუდიტი"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:479
+#, elixir-autogen, elixir-format
+msgid "Availability"
+msgstr "ხელმისაწვდომობა"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:486
+#, elixir-autogen, elixir-format
+msgid "Board"
+msgstr "დაფა"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:223
+#: lib/tuist_web/live/pulse_symptoms_live.ex:333
+#: lib/tuist_web/live/pulse_symptoms_live.ex:515
+#, elixir-autogen, elixir-format
+msgid "Confidence"
+msgstr "ნდობა"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:435
+#, elixir-autogen, elixir-format
+msgid "De-escalated"
+msgstr "დე-ესკალაცია"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:466
+#: lib/tuist_web/live/pulse_symptoms_live.ex:456
+#, elixir-autogen, elixir-format
+msgid "Deployments"
+msgstr "განთავსებები"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:240
+#, elixir-autogen, elixir-format
+msgid "Detection feedback"
+msgstr "აღმოჩენის უკუკავშირი"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:55
+#, elixir-autogen, elixir-format
+msgid "Detection feedback saved."
+msgstr "აღმოჩენის უკუკავშირი შენახულია."
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:434
+#, elixir-autogen, elixir-format
+msgid "Escalated"
+msgstr "ესკალირებული"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:323
+#, elixir-autogen, elixir-format
+msgid "Estimated probability that this service is degraded, not the percentage of requests affected."
+msgstr "შეფასებული ალბათობა, რომ ეს სერვისი გაუარესდა და არა მოთხოვნების პროცენტული მაჩვენებელი, რომლებზეც გავლენა იქონია."
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:341
+#, elixir-autogen, elixir-format
+msgid "Evidence"
+msgstr "მტკიცებულება"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:304
+#, elixir-autogen, elixir-format
+msgid "Evidence sources"
+msgstr "მტკიცებულების წყაროები"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:347
+#, elixir-autogen, elixir-format
+msgid "Example IDs"
+msgstr "მაგალითის ID-ები"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:125
+#, elixir-autogen, elixir-format
+msgid "For 1 hour"
+msgstr "1 საათის განმავლობაში"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:126
+#, elixir-autogen, elixir-format
+msgid "For 24 hours"
+msgstr "24 საათის განმავლობაში"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:127
+#, elixir-autogen, elixir-format
+msgid "For 7 days"
+msgstr "7 დღის განმავლობაში"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:368
+#, elixir-autogen, elixir-format
+msgid "History"
+msgstr "ისტორია"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:212
+#, elixir-autogen, elixir-format
+msgid "Impact"
+msgstr "გავლენა"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:324
+#, elixir-autogen, elixir-format
+msgid "Kind"
+msgstr "ტიპი"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:465
+#: lib/tuist_web/live/pulse_symptoms_live.ex:455
+#, elixir-autogen, elixir-format
+msgid "Kubernetes events"
+msgstr "Kubernetes-ის მოვლენები"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:578
+#, elixir-autogen, elixir-format
+msgid "Last 30 days"
+msgstr "ბოლო 30 დღე"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:579
+#, elixir-autogen, elixir-format
+msgid "Last 7 days"
+msgstr "ბოლო 7 დღე"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:230
+#, elixir-autogen, elixir-format
+msgid "Last updated"
+msgstr "ბოლო განახლება"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:477
+#, elixir-autogen, elixir-format
+msgid "Latency"
+msgstr "დაყოვნება"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:360
+#, elixir-autogen, elixir-format
+msgid "Masked excerpts"
+msgstr "დამალული ამონარიდები"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:275
+#, elixir-autogen, elixir-format
+msgid "Measurements are unavailable for this window. Missing data is not zero events."
+msgstr "გაზომვები ხელმიუწვდომელია ამ პერიოდისთვის. მონაცემთა ნაკლებობა არ ნიშნავს, რომ მოვლენების რაოდენობა ნულია."
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:436
+#: lib/tuist_web/live/pulse_symptoms_live.ex:496
+#, elixir-autogen, elixir-format
+msgid "Merged"
+msgstr "გაერთიანებული"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:161
+#, elixir-autogen, elixir-format
+msgid "Mute %{phenomenon}"
+msgstr "ჩააყუჩე %{phenomenon}"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:258
+#, elixir-autogen, elixir-format
+msgid "Muted until %{time}"
+msgstr "ჩაყუჩებულია %{time}-მდე"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:510
+#, elixir-autogen, elixir-format
+msgid "No symptoms match these filters."
+msgstr "ამ ფილტრებს არ შეესაბამება არცერთი სიმპტომი."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:505
+#, elixir-autogen, elixir-format
+msgid "No symptoms on this page."
+msgstr "ამ გვერდზე სიმპტომები არ არის."
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:426
+#, elixir-autogen, elixir-format
+msgid "No, not a problem"
+msgstr "არა, პრობლემა არ არის"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:430
+#: lib/tuist_web/live/pulse_symptom_live.ex:454
+#, elixir-autogen, elixir-format
+msgid "Not a problem"
+msgstr "პრობლემა არ არის"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:508
+#, elixir-autogen, elixir-format
+msgid "Nothing has needed investigation yet."
+msgstr "ჯერ არაფერი საჭიროებს გამოკვლევას."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:481
+#, elixir-autogen, elixir-format
+msgid "Novelty"
+msgstr "სიახლე"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:516
+#, elixir-autogen, elixir-format
+msgid "Observation"
+msgstr "დაკვირვება"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:495
+#, elixir-autogen, elixir-format
+msgid "Open"
+msgstr "გახსნა"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:614
+#, elixir-autogen, elixir-format
+msgid "Open symptoms"
+msgstr "სიმპტომების გახსნა"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:219
+#: lib/tuist_web/live/pulse_symptom_live.ex:433
+#: lib/tuist_web/live/pulse_symptoms_live.ex:514
+#, elixir-autogen, elixir-format
+msgid "Opened"
+msgstr "გახსნილი"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:374
+#, elixir-autogen, elixir-format
+msgid "Opened %{time}"
+msgstr "გახსნილი %{time}"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:196
+#, elixir-autogen, elixir-format
+msgid "Overview"
+msgstr "მიმოხილვა"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:485
+#, elixir-autogen, elixir-format
+msgid "Page"
+msgstr "გვერდი"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:560
+#, elixir-autogen, elixir-format
+msgid "Phenomenon"
+msgstr "ფენომენი"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:43
+#, elixir-autogen, elixir-format
+msgid "Phenomenon muted on this entity."
+msgstr "ამ ერთეულზე ფენომენი დადუმებულია."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:480
+#, elixir-autogen, elixir-format
+msgid "Platform events"
+msgstr "პლატფორმის მოვლენები"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:464
+#: lib/tuist_web/live/pulse_symptoms_live.ex:454
+#, elixir-autogen, elixir-format
+msgid "Probes"
+msgstr "ზონდები"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:429
+#: lib/tuist_web/live/pulse_symptom_live.ex:453
+#, elixir-autogen, elixir-format
+msgid "Real problem"
+msgstr "რეალური პრობლემა"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:328
+#, elixir-autogen, elixir-format
+msgid "Reference"
+msgstr "მითითება"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:261
+#, elixir-autogen, elixir-format
+msgid "Refresh the page to try again."
+msgstr "გადატვირთეთ გვერდი და სცადეთ ხელახლა."
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:438
+#, elixir-autogen, elixir-format
+msgid "Reopened"
+msgstr "ხელახლა გაიხსნა"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:476
+#, elixir-autogen, elixir-format
+msgid "Request errors"
+msgstr "მოთხოვნის შეცდომები"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:235
+#: lib/tuist_web/live/pulse_symptom_live.ex:437
+#: lib/tuist_web/live/pulse_symptoms_live.ex:497
+#, elixir-autogen, elixir-format
+msgid "Resolved"
+msgstr "მოგვარებულია"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:478
+#, elixir-autogen, elixir-format
+msgid "Saturation"
+msgstr "გაჯერება"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "Search symptoms"
+msgstr "სიმპტომების ძიება"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:354
+#, elixir-autogen, elixir-format
+msgid "Series"
+msgstr "სერია"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:202
+#, elixir-autogen, elixir-format
+msgid "Severity"
+msgstr "მნიშვნელობა"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:381
+#, elixir-autogen, elixir-format
+msgid "Severity: %{severity}"
+msgstr "მნიშვნელობა: %{severity}"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:244
+#: lib/tuist_web/live/pulse_symptoms_live.ex:301
+#, elixir-autogen, elixir-format
+msgid "Sources"
+msgstr "წყაროები"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:206
+#, elixir-autogen, elixir-format
+msgid "State"
+msgstr "მდგომარეობა"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:294
+#: lib/tuist_web/live/pulse_symptoms_live.ex:553
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "სტატუსი"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:318
+#, elixir-autogen, elixir-format
+msgid "Suspected change"
+msgstr "სავარაუდო ცვლილება"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:77
+#: lib/tuist_web/live/pulse_symptoms_live.ex:279
+#, elixir-autogen, elixir-format
+msgid "Symptom"
+msgstr "სიმპტომი"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:389
+#, elixir-autogen, elixir-format
+msgid "Symptom pages"
+msgstr "სიმპტომების გვერდები"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:204
+#, elixir-autogen, elixir-format
+msgid "Symptoms"
+msgstr "სიმპტომები"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:592
+#, elixir-autogen, elixir-format
+msgid "Symptoms opened"
+msgstr "გახსნილი სიმპტომები"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:603
+#, elixir-autogen, elixir-format
+msgid "Symptoms resolved"
+msgstr "მოგვარებული სიმპტომები"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:260
+#, elixir-autogen, elixir-format
+msgid "Symptoms unavailable"
+msgstr "მიუწვდომელი სიმპტომები"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:467
+#: lib/tuist_web/live/pulse_symptoms_live.ex:457
+#, elixir-autogen, elixir-format
+msgid "Telemetry health"
+msgstr "ტელემეტრიის მდგომარეობა"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:61
+#, elixir-autogen, elixir-format
+msgid "The symptom could not be updated."
+msgstr "სიმპტომის განახლება ვერ მოხდა."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:556
+#, elixir-autogen, elixir-format
+msgid "Tier"
+msgstr "დონე"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:149
+#: lib/tuist_web/live/pulse_symptoms_live.ex:283
+#, elixir-autogen, elixir-format
+msgid "Untitled symptom"
+msgstr "უსათაურო სიმპტომი"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:517
+#, elixir-autogen, elixir-format
+msgid "Updated"
+msgstr "განახლებულია"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:369
+#, elixir-autogen, elixir-format
+msgid "Updated %{time}"
+msgstr "განახლდა %{time}"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:431
+#, elixir-autogen, elixir-format
+msgid "Was this a real problem?"
+msgstr "იყო ეს რეალური პრობლემა?"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:425
+#, elixir-autogen, elixir-format
+msgid "Yes, a real problem"
+msgstr "დიახ, რეალური პრობლემა"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:471
+#, elixir-autogen, elixir-format
+msgid "affected users/min"
+msgstr "დაზარალებული მომხმარებელი/წთ"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:469
+#, elixir-autogen, elixir-format
+msgid "failed requests/min"
+msgstr "შეცდომით დასრულებული მოთხოვნა/წთ"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:470
+#, elixir-autogen, elixir-format
+msgid "stuck jobs/min"
+msgstr "გაჭედილი დავალება/წთ"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:581
+#, elixir-autogen, elixir-format
+msgid "vs 24 hours ago"
+msgstr "24 საათის წინანდელთან შედარებით"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:582
+#, elixir-autogen, elixir-format
+msgid "vs 30 days ago"
+msgstr "30 დღის წინანდელთან შედარებით"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:583
+#, elixir-autogen, elixir-format
+msgid "vs 7 days ago"
+msgstr "7 დღის წინანდელთან შედარებით"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:585
+#, elixir-autogen, elixir-format
+msgid "vs previous 30 days"
+msgstr "წინა 30-დღიან პერიოდთან შედარებით"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:586
+#, elixir-autogen, elixir-format
+msgid "vs previous 7 days"
+msgstr "წინა 7 დღესთან შედარებით"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Board or page symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
+msgstr "დაფაზე ან გვერდის სიმპტომები, რომლებიც ახლა ღიაა, შედარებული პერიოდის დასაწყისთან. დიაგრამა აჩვენებს, რამდენი იყო ღია თითოეული საათის ან დღის ბოლოს."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:607
+#, elixir-autogen, elixir-format
+msgid "Times board or page symptoms resolved in the selected period, after several quiet windows."
+msgstr "ჯერები, როდესაც დაფაზე ან გვერდის სიმპტომები გადაწყდა შერჩეულ პერიოდში, რამდენიმე მშვიდი ფანჯრის შემდეგ."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Times symptoms that reached the board or paged opened or reopened in the selected period. Symptoms that stayed at audit tier, which the evaluator only logs, are not counted."
+msgstr "ჯერები, როდესაც სიმპტომები, რომლებმაც დაფას მიაღწიეს ან გვერდზე გაიგზავნა, გაიხსნა ან ხელახლა გაიხსნა შერჩეულ პერიოდში. სიმპტომები, რომლებიც აუდიტის დონეზე დარჩა და რომლებსაც შემფასებელი მხოლოდ აღრიცხავს, არ შედის."

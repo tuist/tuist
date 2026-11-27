@@ -2,12 +2,12 @@
 {
   "title": "Previews de Xcode",
   "titleTemplate": ":title · Previews · Tuist",
-  "description": "Comparte previews de aplicaciones desde proyectos existentes de Xcode y proyectos generados con Tuist."
+  "description": "Comparte previews de aplicaciones desde proyectos existentes de Xcode y proyectos generados por Tuist."
 }
 ---
 # Previsualizaciones de Xcode
 
-Compila tu aplicación y luego usa `tuist share` para publicarla en tu proyecto de Tuist. Conecta primero tu proyecto siguiendo la guía de <.localized_link href="/guides/get-started/existing-xcode-project">proyecto de Xcode existente</.localized_link> o de <.localized_link href="/guides/get-started/generated-xcode-project">proyecto generado</.localized_link>.
+Compila tu aplicación y luego usa `tuist share` para publicarla en tu proyecto de Tuist. Conecta primero tu proyecto siguiendo la guía de <.localized_link href="/guides/get-started/existing-xcode-project">proyecto de Xcode existente</.localized_link> o <.localized_link href="/guides/get-started/generated-xcode-project">proyecto generado</.localized_link>.
 
 ## Compilar y compartir
 
@@ -28,7 +28,7 @@ tuist xcodebuild build -scheme App -project App.xcodeproj \
 tuist share App --configuration Debug --platforms iOS
 ```
 
-Sustituye los nombres del esquema, el proyecto y el espacio de trabajo por los tuyos. Para compartir una compilación de Release, usa `-configuration Release` al compilar y `--configuration Release` al compartir.
+Reemplaza los nombres del scheme, el proyecto y el workspace por los tuyos. Para compartir una compilación de Release, usa `-configuration Release` al compilar y `--configuration Release` al compartir.
 
 ## Dispositivos físicos
 
@@ -50,14 +50,14 @@ Los destinatarios pueden abrir un enlace de previsualización de IPA en su dispo
 
 ## CI y números de compilación
 
-Usa tu <.localized_link href="/guides/integrations/continuous-integration">autenticación de CI</.localized_link> existente y haz que `CFBundleVersion` sea único para cada nueva compilación. Por ejemplo, usa <code v-pre>${{ github.run_number }}</code> de GitHub Actions. Volver a subir el mismo binario y número de compilación mediante `tuist share` produce un error en lugar de crear un duplicado.
+Usa tu <.localized_link href="/guides/integrations/continuous-integration">autenticación de CI</.localized_link> existente y haz que `CFBundleVersion` sea único para cada nueva compilación. Por ejemplo, usa <code v-pre>${{ github.run_number }}</code> de GitHub Actions. Volver a subir el mismo binario y número de compilación a través de `tuist share` falla en lugar de crear un duplicado.
 
 ```bash
 tuist share App --track beta --release-notes "Fix sign-in"
 ```
 
-Consulta <.localized_link href="/guides/features/previews#run-a-preview">Ejecutar una previsualización</.localized_link> para ejecutar compilaciones publicadas, gestionar el acceso, los canales y las insignias del README.
+Consulta <.localized_link href="/guides/features/previews#run-a-preview">Ejecutar una previsualización</.localized_link> para ejecutar compilaciones publicadas, gestionar el acceso, los tracks y las insignias de README.
 
 <!-- @snippet: ./_tuist-share -->
 
-Los destinatarios pueden usar la <.localized_link href="/guides/features/previews/run/macos">app de Tuist para macOS</.localized_link> o la <.localized_link href="/guides/features/previews/run/ios">app para iPhone</.localized_link> con independencia de la integración con el sistema de compilación. La guía para iPhone también cubre las <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">notificaciones de actualización dentro de la app</.localized_link> con el SDK de Tuist.
+Los destinatarios pueden usar la <.localized_link href="/guides/features/previews/run/macos">app de Tuist para macOS</.localized_link> o la <.localized_link href="/guides/features/previews/run/ios">app para iPhone</.localized_link> independientemente de la integración con el sistema de compilación. La guía para iPhone también cubre las <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">notificaciones de actualización dentro de la app</.localized_link> con el SDK de Tuist.

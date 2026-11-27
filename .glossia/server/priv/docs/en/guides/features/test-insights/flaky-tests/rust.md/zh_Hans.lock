@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "d497c1e8a9b0dff46b0ab7cd6665e62c42fe148a5b42dab3513582e9c4c94073",
+  "hash": "e5de14c112d10ea16fa0e68721d6339b0c82b633a713bd30f17085cfe87b2e58",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "5b1cb327491d208cae90a7efc3c5b82a34c74f9a4261e09c7213e962afbe5262"
                 },
                 "## How flaky detection works {#how-it-works}": {
-                  "content_hash": "370569107ca3c14eb51cd31a39407b55ff7fc814014d353387849f27ea0bd8df"
+                  "content_hash": "ec35c9726de87e1f3d8e23287f920d1b789ba52f2e5919853f77680672e1aeaf"
                 },
                 "## Quarantining flaky tests {#quarantining}": {
                   "content_hash": "7176173e6fbf0a6e149af0af9bf7e7d5e8a9ce1f01ada44ea1f148b718dcd294"
@@ -32,11 +32,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "58d5ea43437f2c1e8aeada54c70137a1517ea786f5590eaf255f2e24b562ce71",
+          "hash": "f18576cc60af8a6e4c849a0535b4af5b04aa70471015ed78157351c9e86b5545",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/rust.md",
           "metadata": {
-            "content_hash": "cbc1f09e3842273c6ebf2ee510132de23448c446c318888da77c0593dc6d5bae"
+            "content_hash": "fc074e715f388b3cba19b54ec447a9d4a2dd4a22ac4e45951b5fff3f2e8f3618"
           }
         },
         {
@@ -97,7 +97,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -110,13 +110,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -145,11 +139,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -238,21 +232,21 @@
             }
           ],
           "details": {},
-          "hash": "54b2dfce730030519e9da29cefa5dfa0401f865ceefa4deee4ee39c874f34751",
+          "hash": "a8d51549222518ca3769d00dd9d785505c8dd517bb45d284bfbde66a3668a0c1",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "d497c1e8a9b0dff46b0ab7cd6665e62c42fe148a5b42dab3513582e9c4c94073",
+      "hash": "e5de14c112d10ea16fa0e68721d6339b0c82b633a713bd30f17085cfe87b2e58",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/rust.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "9d498bd3bce37bbae73e6b7abb6fecce31a08a74eabbb5d4f709610d83fff39a",
+  "output_hash": "f12f1ba7f523f6eb18e2804bef983ca9e4b5010ac0f18b6dc9ce13a4b4dc06c5",
   "output_path": "server/priv/docs/zh_Hans/guides/features/test-insights/flaky-tests/rust.md",
   "protection_state": "recorded",
   "provider": "",
@@ -274,8 +268,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "767cbc2f349ce75607638cd1c17b18bb78537661",
+  "source_commit_sha": "f7a130066e7c84375b6beeb8b41a06499daeecdb",
   "source_path": "server/priv/docs/en/guides/features/test-insights/flaky-tests/rust.md",
-  "translated_at": "2026-11-18T23:36:08.255255Z",
-  "translation_session_id": "01a1f0f7-4a9b-7495-8f5e-d56427682acc"
+  "translated_at": "2026-11-25T13:20:49.122283Z",
+  "translation_session_id": "01a212d7-ff3d-7bca-9928-be88c2589034"
 }

@@ -1,7 +1,7 @@
 ---
 {
   "title": "Server",
-  "titleTemplate": ":title · Code · Contributors · Tuist",
+  "titleTemplate": ":title · 程式碼 · 貢獻者 · Tuist",
   "description": "為 Tuist Server 做出貢獻。"
 }
 ---
@@ -11,11 +11,11 @@
 
 ## 用途 {#what-it-is-for}
 
-此伺服器驅動 Tuist 的伺服器端功能，包括身分驗證、帳號與專案管理、快取儲存、分析洞察、預覽、套件註冊中心，以及整合服務（GitHub、Slack 與 SSO）。它是一個基於 Phoenix/Elixir 的應用程式，搭配 Postgres 與 ClickHouse。
+此伺服器驅動 Tuist 的後端功能，包括身分驗證、帳號與專案管理、快取儲存、洞察分析、預覽、註冊中心，以及整合服務（GitHub、Slack 與 SSO）。它是一個基於 Phoenix/Elixir 的應用程式，搭配 Postgres 與 ClickHouse。
 
 ## 如何貢獻 {#how-to-contribute}
 
-對伺服器的貢獻需要簽署 CLA（`server/CLA.md`）。
+貢獻伺服器程式碼需要簽署 CLA (`server/CLA.md`)。
 
 ### 本機設定 {#set-up-locally}
 
@@ -34,14 +34,14 @@ mise run install
 mise run dev
 ```
 
-在瀏覽器中開啟 `http://localhost:8080`。在開發環境中，登入頁面包含一個 **以測試使用者身分登入** 按鈕，可讓你使用預先建立的帳號登入（`tuistrocks@tuist.dev` / `tuistrocks`）。
+在瀏覽器中開啟 `http://localhost:8080`。在開發環境中，登入頁面包含一個 **以測試使用者身分登入** 按鈕，可使用預先建立的帳號 (`tuistrocks@tuist.dev` / `tuistrocks`) 登入。
 
 > [!NOTE]
-> 內部開發人員透過 fnox 從 1Password 載入開發密鑰 — `mise run dev` 會將伺服器包裝在 `fnox exec` 中（請參閱 `server/fnox.toml`）。外部貢獻者不需要存取 1Password；伺服器可以在沒有它的情況下於本機執行。OAuth、Stripe 與其他第三方整合將會停用，但核心功能仍可正常運作。
+> 內部開發人員透過 fnox 從 1Password 載入開發金鑰 — `mise run dev` 將伺服器包裝在 `fnox exec` 中（請參閱 `server/fnox.toml`）。外部貢獻者不需要存取 1Password；伺服器可在沒有它的情況下於本機執行。OAuth、Stripe 與其他第三方整合將會停用，但核心功能仍可正常運作。
 
 ### 本機 Helm 測試 {#local-helm-testing}
 
-你可以使用 [kind](https://kind.sigs.k8s.io/) 與內建的 mise 工作，在本機啟動完整堆疊。這會在本機建置 Docker 映像、建立 kind 叢集、安裝 Helm chart，並自動轉發所有服務的連接埠：
+你可以使用 [kind](https://kind.sigs.k8s.io/) 與內建的 mise 任務，在本機啟動完整堆疊。這會在本機建置 Docker 映像檔、建立 kind 叢集、安裝 Chart，並自動轉發所有服務的連接埠：
 
 ```bash
 # Deploy everything (builds images from source)

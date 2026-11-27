@@ -47,7 +47,7 @@ msgstr "SHA commita"
 #: lib/tuist_web/live/preview_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Created by"
-msgstr "Utworzono przez"
+msgstr "Utworzone przez"
 
 #: lib/tuist_web/live/preview_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -124,7 +124,7 @@ msgstr "Uruchomiono o"
 #: lib/tuist_web/live/previews_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Ran by"
-msgstr "Uruchomione przez"
+msgstr "Uruchomiono przez"
 
 #: lib/tuist_web/live/preview_live.html.heex:121
 #, elixir-autogen, elixir-format
@@ -160,7 +160,7 @@ msgstr "Obsługiwane platformy"
 #: lib/tuist_web/live/preview_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "Ten podgląd jest obsługiwany tylko na symulatorach i nie można go zainstalować na fizycznym urządzeniu"
+msgstr "Ten podgląd jest obsługiwany tylko na symulatorach i nie może zostać zainstalowany na fizycznym urządzeniu"
 
 #: lib/tuist_web/live/preview_live.html.heex:310
 #, elixir-autogen, elixir-format
@@ -202,7 +202,7 @@ msgstr "Nazwa pakietu"
 #: lib/tuist_web/live/preview_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "Zeskanuj ten kod QR na swoim urządzeniu z Androidem, aby pobrać i zainstalować tę wersję aplikacji"
+msgstr "Zeskanuj ten kod QR na urządzeniu z Androidem, aby pobrać i zainstalować tę wersję aplikacji"
 
 #: lib/tuist_web/live/preview_live.html.heex:258
 #, elixir-autogen, elixir-format
@@ -242,7 +242,7 @@ msgstr "Podgląd z wiersza poleceń"
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "Podglądy desktopowe działają jako Twój użytkownik, mając dostęp do Twoich plików i środowiska. Nie są piaskownicowane."
+msgstr "Podglądy desktopowe działają jako Twój użytkownik, z dostępem do Twoich plików i środowiska. Nie są izolowane."
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format

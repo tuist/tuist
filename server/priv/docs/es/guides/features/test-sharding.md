@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Sharding de tests",
+  "title": "Test Sharding",
   "titleTemplate": ":title · Funcionalidades · Guías · Tuist",
-  "description": "Distribuye los tests entre varios runners de CI para acelerar tu suite de pruebas con el sharding de tests de Tuist."
+  "description": "Distribuye los tests entre varios runners de CI para acelerar tu suite de tests con Test Sharding de Tuist."
 }
 ---
 # Fragmentación de tests {#test-sharding}
@@ -11,7 +11,7 @@ Los hosts de CI modernos ofrecen entornos multinúcleo que permiten cierto grado
 
 En esos casos, necesitas un sistema que distribuya los tests entre varios runners de CI y agregue los resultados en una vista unificada. Eso es exactamente lo que hace la fragmentación de tests.
 
-Tuist utiliza datos históricos de tiempos de ejecución de tests para equilibrar inteligentemente la carga entre fragmentos mediante un [algoritmo de empaquetado en contenedores](https://en.wikipedia.org/wiki/Bin_packing_problem), de modo que cada runner termine aproximadamente al mismo tiempo. Los resultados de todos los fragmentos se agregan automáticamente en <.localized_link href="/guides/features/test-insights">Análisis de tests</.localized_link>, ofreciéndote una vista unificada de tu suite de tests en todos los fragmentos. La fragmentación reduce el tiempo real transcurrido, pero puede aumentar el tiempo de máquina; [Tests lentos](https://tuist.dev/solutions/slow-tests) y [Costes de CI](https://tuist.dev/solutions/ci-costs) explican cómo sopesar ambos factores.
+Tuist utiliza datos históricos de tiempos de ejecución de tests para equilibrar inteligentemente la carga entre fragmentos mediante un [algoritmo de empaquetado](https://en.wikipedia.org/wiki/Bin_packing_problem), de modo que cada runner termine aproximadamente al mismo tiempo. Los resultados de todos los fragmentos se agregan automáticamente en <.localized_link href="/guides/features/test-insights">Análisis de tests</.localized_link>, lo que te ofrece una única vista unificada de tu suite de tests en todos los fragmentos. La fragmentación reduce el tiempo real transcurrido, pero puede aumentar el tiempo de máquina; [Tests lentos](https://tuist.dev/solutions/slow-tests) y [Costes de CI](https://tuist.dev/solutions/ci-costs) explican cómo sopesar ambos factores.
 
 <.home_cards>
   <.home_card
@@ -31,17 +31,17 @@ Tuist utiliza datos históricos de tiempos de ejecución de tests para equilibra
 />
   <.home_card
     title="Elixir"
-    details="Fragmenta los tests de tu proyecto de Elixir entre runners de CI en paralelo."
+    details="Fragmenta los tests de tu proyecto Elixir entre runners de CI en paralelo."
     link="/guides/features/test-sharding/elixir"
 />
   <.home_card
     title="Rust"
-    details="Distribuye los targets de test de Cargo entre workers de CI en paralelo."
+    details="Distribuye targets de test de Cargo entre workers de CI en paralelo."
     link="/guides/features/test-sharding/rust"
 />
   <.home_card
-    title="Once"
-    details="Distribuye los lotes de tests de Once detectados entre workers de CI con un plan alojado y resultados combinados."
-    link="/guides/features/test-sharding/once"
+    title="Struo"
+    details="Distribuye lotes de tests de Struo detectados entre workers de CI con un plan alojado y resultados combinados."
+    link="/guides/features/test-sharding/struo"
 />
 </.home_cards>

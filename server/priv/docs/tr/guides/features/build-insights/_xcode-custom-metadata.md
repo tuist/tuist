@@ -6,12 +6,12 @@ Filtrelemeyi iyileştirmek için derlemelere ortam değişkenleriyle meta veri e
 
 | Değişken | Biçim | Açıklama |
 |----------|--------|-------------|
-| `TUIST_BUILD_TAGS` | Virgülle ayrılmış | Tek bir değişkende birden fazla etiket. |
+| `TUIST_BUILD_TAGS` | Virgülle ayrılmış | Tek bir değişkende birden çok etiket. |
 | `TUIST_BUILD_VALUE_*` | Tek değer | Son ekin anahtar olduğu anahtar-değer çifti. |
 
 ### Örnekler
 
-Derlemenizi çağırmadan önce bu değerleri CI sisteminizde veya kabuğunuzda ayarlayın:
+Derlemenizi çağırmadan önce bu değerleri CI'da veya kabuğunuzda ayarlayın:
 
 ```sh
 export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"

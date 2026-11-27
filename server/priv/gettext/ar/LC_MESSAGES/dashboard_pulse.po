@@ -14,17 +14,17 @@ msgstr "Language: ar\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/pulse_live.ex:958
 #, elixir-autogen, elixir-format
 msgid "All log entries with a service name in the selected period, independently of table search. The chart shows entries per interval."
-msgstr "جميع إدخالات السجل التي تحتوي على اسم خدمة خلال الفترة المحددة، بغض النظر عن البحث في الجدول. يعرض الرسم البياني عدد الإدخالات لكل فترة."
+msgstr "جميع سجلات الأحداث التي تحتوي على اسم خدمة خلال الفترة المحددة، بغضّ النظر عن البحث في الجدول. يعرض الرسم البياني عدد السجلات لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_live.ex:992
 #, elixir-autogen, elixir-format
 msgid "All recorded spans in the selected period, not distinct traces. The chart shows spans per interval."
-msgstr "جميع الفترات المسجلة (Spans) خلال الفترة المحددة، وليس التتبعات المميزة. يعرض الرسم البياني عدد الفترات لكل فترة."
+msgstr "جميع الفترات المسجَّلة خلال الفترة المحددة، وليست التتبُّعات المتميزة. يعرض الرسم البياني عدد الفترات لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_live.ex:1012
 #, elixir-autogen, elixir-format
 msgid "Approximate 95th percentile of span durations over the entire selected period, in milliseconds. The chart shows the percentile per interval."
-msgstr "تقريباً النسبة المئوية الخامسة والتسعون (p95) لفترات الفترات (Span durations) خلال كامل الفترة المحددة، بالمللي ثانية. يعرض الرسم البياني النسبة المئوية لكل فترة."
+msgstr "القيمة التقريبية للمئين الخامس والتسعين (p95) لمدة الفترات خلال الفترة المحددة بالكامل، بالمللي ثانية. يعرض الرسم البياني قيمة المئين لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_live.ex:1057
 #, elixir-autogen, elixir-format
@@ -39,7 +39,7 @@ msgstr "المدة (مللي ثانية)"
 #: lib/tuist_web/live/pulse_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "Each point is the p95 span duration for one interval, not an individual span."
-msgstr "تمثل كل نقطة المدة الزمنية للمدى عند النسبة المئوية الخامسة والتسعين (p95) لفترة زمنية واحدة، وليس مدىً فردياً."
+msgstr "تمثل كل نقطة مدة المئين الخامس والتسعين (p95) للفترة خلال فترة زمنية واحدة، وليس فترة فردية."
 
 #: lib/tuist_web/live/pulse_live.ex:965
 #, elixir-autogen, elixir-format
@@ -67,6 +67,7 @@ msgid "Last 15 minutes"
 msgstr "آخر 15 دقيقة"
 
 #: lib/tuist_web/live/pulse_live.ex:918
+#: lib/tuist_web/live/pulse_symptoms_live.ex:577
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr "آخر 24 ساعة"
@@ -97,19 +98,21 @@ msgstr "المستوى"
 #: lib/tuist_web/live/pulse_live.ex:955
 #, elixir-autogen, elixir-format
 msgid "Log entries"
-msgstr "إدخالات السجل"
+msgstr "سجلات الأحداث"
 
 #: lib/tuist_web/live/pulse_live.ex:968
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled error or fatal in the selected period. The chart shows entries per interval."
-msgstr "إدخالات السجل المصنفة كخطأ أو حرجة في الفترة المحددة. يعرض الرسم البياني عدد الإدخالات لكل فترة."
+msgstr "سجلات الأحداث الموسومة كـ error أو fatal خلال الفترة المحددة. يعرض المخطط عدد السجلات لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_live.ex:978
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled warn or warning in the selected period. The chart shows entries per interval."
-msgstr "إدخالات السجل المصنفة كتحذير في الفترة المحددة. يعرض الرسم البياني عدد الإدخالات لكل فترة."
+msgstr "سجلات الأحداث الموسومة كـ warn أو warning خلال الفترة المحددة. يعرض المخطط عدد السجلات لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_live.ex:906
+#: lib/tuist_web/live/pulse_symptom_live.ex:462
+#: lib/tuist_web/live/pulse_symptoms_live.ex:451
 #, elixir-autogen, elixir-format
 msgid "Logs"
 msgstr "السجلات"
@@ -126,6 +129,8 @@ msgid "Metric"
 msgstr "المقياس"
 
 #: lib/tuist_web/live/pulse_live.ex:905
+#: lib/tuist_web/live/pulse_symptom_live.ex:460
+#: lib/tuist_web/live/pulse_symptoms_live.ex:450
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr "المقاييس"
@@ -138,9 +143,10 @@ msgstr "لا توجد قياسات في هذه الفترة"
 #: lib/tuist_web/live/pulse_live.ex:465
 #, elixir-autogen, elixir-format
 msgid "No telemetry matches this query and time range."
-msgstr "لا تتطابق بيانات القياس عن بُعد مع هذا الاستعلام والنطاق الزمني."
+msgstr "لا توجد بيانات قياس عن بُعد تطابق هذا الاستعلام ونطاق الوقت المحدد."
 
 #: lib/tuist_web/live/pulse_live.ex:257
+#: lib/tuist_web/live/pulse_symptoms_live.ex:138
 #, elixir-autogen, elixir-format
 msgid "Period:"
 msgstr "الفترة:"
@@ -163,7 +169,7 @@ msgstr "استئناف البث المباشر"
 #: lib/tuist_web/live/pulse_live.ex:799
 #, elixir-autogen, elixir-format
 msgid "Root span"
-msgstr "الجذر الأساسي"
+msgstr "امتداد الجذر"
 
 #: lib/tuist_web/live/pulse_live.ex:442
 #, elixir-autogen, elixir-format
@@ -173,9 +179,10 @@ msgstr "تنفيذ الاستعلام"
 #: lib/tuist_web/live/pulse_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "Search telemetry"
-msgstr "البحث في القياسات عن بُعد"
+msgstr "البحث في بيانات القياس عن بُعد"
 
 #: lib/tuist_web/live/pulse_live.ex:387
+#: lib/tuist_web/live/pulse_symptoms_live.ex:224
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr "بحث..."
@@ -185,6 +192,7 @@ msgstr "بحث..."
 #: lib/tuist_web/live/pulse_live.ex:807
 #: lib/tuist_web/live/pulse_live.ex:816
 #: lib/tuist_web/live/pulse_live.ex:831
+#: lib/tuist_web/live/pulse_symptom_live.ex:209
 #, elixir-autogen, elixir-format
 msgid "Service"
 msgstr "الخدمة"
@@ -192,32 +200,32 @@ msgstr "الخدمة"
 #: lib/tuist_web/live/pulse_live.ex:989
 #, elixir-autogen, elixir-format
 msgid "Spans"
-msgstr "الامتدادات (Spans)"
+msgstr "المقاطع الزمنية"
 
 #: lib/tuist_web/live/pulse_live.ex:1002
 #, elixir-autogen, elixir-format
 msgid "Spans with error status in the selected period. The chart shows spans per interval."
-msgstr "الامتدادات ذات حالة الخطأ في الفترة المحددة. يعرض الرسم البياني الامتدادات لكل فترة زمنية."
+msgstr "المقاطع الزمنية التي تحمل حالة خطأ خلال الفترة المحددة. يعرض الرسم البياني عدد المقاطع لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_live.ex:797
 #, elixir-autogen, elixir-format
 msgid "Started (UTC)"
-msgstr "وقت البدء (بتوقيت UTC)"
+msgstr "بدأت (بتوقيت UTC)"
 
 #: lib/tuist_web/live/pulse_live.ex:944
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 0 at the end of the period. Missing samples are not counted as unhealthy."
-msgstr "الأهداف التي تُبلغ عن حالة التشغيل = 0 في نهاية الفترة. لا تُحتسب العينات المفقودة كغير صحية."
+msgstr "الأهداف التي تُبلغ عن قيمة up = 0 في نهاية الفترة. لا تُحتسب العينات المفقودة على أنها غير سليمة."
 
 #: lib/tuist_web/live/pulse_live.ex:937
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 1 at the end of the period."
-msgstr "الأهداف التي تُبلغ عن حالة التشغيل = 1 في نهاية الفترة."
+msgstr "الأهداف التي تُبلغ عن قيمة up = 1 في نهاية الفترة."
 
 #: lib/tuist_web/live/pulse_live.ex:928
 #, elixir-autogen, elixir-format
 msgid "Targets with an up sample at the end of the period. The chart shows the target count over time."
-msgstr "الأهداف التي لديها عينة تشغيل في نهاية الفترة. يُظهر الرسم البياني عدد الأهداف عبر الزمن."
+msgstr "الأهداف التي لديها عينة up في نهاية الفترة. يعرض الرسم البياني عدد الأهداف عبر الزمن."
 
 #: lib/tuist_web/live/pulse_live.ex:588
 #, elixir-autogen, elixir-format
@@ -232,12 +240,12 @@ msgstr "القياس عن بُعد غير متاح"
 #: lib/tuist_web/live/pulse_live.ex:1054
 #, elixir-autogen, elixir-format
 msgid "The Pulse connection is not configured. Contact your administrator."
-msgstr "لم يتم تكوين اتصال Pulse. تواصل مع مسؤول النظام."
+msgstr "لم يتم تكوين اتصال Pulse. تواصل مع المسؤول."
 
 #: lib/tuist_web/live/pulse_live.ex:1061
 #, elixir-autogen, elixir-format
 msgid "This query exceeds the result limit. Narrow the time range or native query and try again."
-msgstr "تتجاوز هذه الاستعلامات حد النتائج. قلّص النطاق الزمني أو الاستعلام الأصلي وحاول مرة أخرى."
+msgstr "هذا الاستعلام يتجاوز حد النتائج. قلّص النطاق الزمني أو الاستعلام الأصلي وحاول مرة أخرى."
 
 #: lib/tuist_web/live/pulse_error_live.ex:115
 #: lib/tuist_web/live/pulse_error_live.ex:258
@@ -254,14 +262,16 @@ msgid "Trace ID"
 msgstr "معرف التتبع"
 
 #: lib/tuist_web/live/pulse_live.ex:907
+#: lib/tuist_web/live/pulse_symptom_live.ex:461
+#: lib/tuist_web/live/pulse_symptoms_live.ex:452
 #, elixir-autogen, elixir-format
 msgid "Traces"
-msgstr "عمليات التتبع"
+msgstr "التتبعات"
 
 #: lib/tuist_web/live/pulse_live.ex:941
 #, elixir-autogen, elixir-format
 msgid "Unhealthy targets"
-msgstr "الأهداف غير الصحية"
+msgstr "الأهداف غير السليمة"
 
 #: lib/tuist_web/live/pulse_live.ex:975
 #, elixir-autogen, elixir-format
@@ -271,7 +281,7 @@ msgstr "سجلات التحذيرات"
 #: lib/tuist_web/live/pulse_live.ex:1009
 #, elixir-autogen, elixir-format
 msgid "p95 span duration"
-msgstr "مدة الامتداد p95"
+msgstr "مدة امتداد p95"
 
 #: lib/tuist_web/live/pulse_live.ex:651
 #, elixir-autogen, elixir-format
@@ -279,6 +289,7 @@ msgid "vs previous 15 minutes"
 msgstr "مقارنة بالـ 15 دقيقة السابقة"
 
 #: lib/tuist_web/live/pulse_live.ex:653
+#: lib/tuist_web/live/pulse_symptoms_live.ex:584
 #, elixir-autogen, elixir-format
 msgid "vs previous 24 hours"
 msgstr "مقارنة بالـ 24 ساعة السابقة"
@@ -296,7 +307,7 @@ msgstr "مقارنة بالساعة السابقة"
 #: lib/tuist_web/live/pulse_live.ex:910
 #, elixir-autogen, elixir-format
 msgid "Text search (* for all)"
-msgstr "البحث النصي (* للكل)"
+msgstr "بحث نصي (* للكل)"
 
 #: lib/tuist_web/live/pulse_error_live.ex:548
 #, elixir-autogen, elixir-format
@@ -313,6 +324,7 @@ msgstr "السياقات"
 #: lib/tuist_web/live/pulse_error_live.ex:376
 #: lib/tuist_web/live/pulse_live.ex:528
 #: lib/tuist_web/live/pulse_live.ex:833
+#: lib/tuist_web/live/pulse_symptom_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "البيئة"
@@ -324,6 +336,8 @@ msgstr "أحداث الأخطاء"
 
 #: lib/tuist_web/live/pulse_error_live.ex:87
 #: lib/tuist_web/live/pulse_live.ex:908
+#: lib/tuist_web/live/pulse_symptom_live.ex:463
+#: lib/tuist_web/live/pulse_symptoms_live.ex:453
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "الأخطاء"
@@ -337,6 +351,7 @@ msgstr "معرف الحدث"
 #: lib/tuist_web/live/pulse_error_live.ex:220
 #: lib/tuist_web/live/pulse_live.ex:574
 #: lib/tuist_web/live/pulse_live.ex:808
+#: lib/tuist_web/live/pulse_symptom_live.ex:288
 #, elixir-autogen, elixir-format
 msgid "Events"
 msgstr "الأحداث"
@@ -376,7 +391,7 @@ msgstr "داخل التطبيق"
 #: lib/tuist_web/live/pulse_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Issue"
-msgstr "المشكلة"
+msgstr "مشكلة"
 
 #: lib/tuist_web/live/pulse_error_live.ex:202
 #: lib/tuist_web/live/pulse_live.ex:759
@@ -393,19 +408,20 @@ msgstr "أحدث حدث"
 #: lib/tuist_web/live/pulse_error_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "No exception recorded"
-msgstr "لم يتم تسجيل أي استثناءات"
+msgstr "لم يتم تسجيل أي استثناء"
 
 #: lib/tuist_web/live/pulse_error_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "No stack frames recorded"
-msgstr "لم يتم تسجيل إطارات مكدس"
+msgstr "لم يتم تسجيل إطارات المكدس"
 
 #: lib/tuist_web/live/pulse_error_live.ex:158
 #: lib/tuist_web/live/pulse_error_live.ex:211
 #: lib/tuist_web/live/pulse_error_live.ex:248
+#: lib/tuist_web/live/pulse_symptom_live.ex:267
 #, elixir-autogen, elixir-format
 msgid "Occurrences"
-msgstr "الحدوثات"
+msgstr "التكرارات"
 
 #: lib/tuist_web/live/pulse_error_live.ex:123
 #: lib/tuist_web/live/pulse_error_live.ex:270
@@ -417,7 +433,7 @@ msgstr "الإصدار"
 #: lib/tuist_web/live/pulse_error_live.ex:356
 #, elixir-autogen, elixir-format
 msgid "Stack trace"
-msgstr "تتبع المكدس (Stack trace)"
+msgstr "تتبع المكدس"
 
 #: lib/tuist_web/live/pulse_error_live.ex:457
 #, elixir-autogen, elixir-format
@@ -437,7 +453,7 @@ msgstr "العودة إلى المشكلة"
 #: lib/tuist_web/live/pulse_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "Distinct named services with Sentry events in the selected period. The chart shows affected services per interval."
-msgstr "الخدمات المسماة المميزة التي ظهرت فيها أحداث Sentry خلال الفترة المحددة. يعرض الرسم البياني الخدمات المتأثرة لكل فترة زمنية."
+msgstr "الخدمات المسماة المتميزة التي تحتوي على أحداث Sentry خلال الفترة المحددة. يعرض الرسم البياني الخدمات المتأثرة لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_error_live.ex:42
 #: lib/tuist_web/live/pulse_error_live.ex:95
@@ -473,14 +489,15 @@ msgstr "لا توجد حالات في هذه الفترة"
 
 #: lib/tuist_web/live/pulse_error_live.ex:182
 #: lib/tuist_web/live/pulse_live.ex:731
+#: lib/tuist_web/live/pulse_symptom_live.ex:409
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
-msgstr "غير مسجل"
+msgstr "غير مسجّل"
 
 #: lib/tuist_web/live/pulse_error_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Occurrence pages"
-msgstr "صفحات الحدوث"
+msgstr "صفحات الحالات"
 
 #: lib/tuist_web/live/pulse_error_live.ex:190
 #, elixir-autogen, elixir-format
@@ -500,17 +517,17 @@ msgstr "أحداث Sentry في الفترة المحددة، وليست المش
 #: lib/tuist_web/live/pulse_live.ex:1036
 #, elixir-autogen, elixir-format
 msgid "Sentry events labelled fatal in the selected period. The chart shows events per interval."
-msgstr "أحداث Sentry المصنفة كـ \"قاتلة\" في الفترة المحددة. يعرض الرسم البياني الأحداث لكل فترة زمنية."
+msgstr "أحداث Sentry المُصنَّفة كقاتلة في الفترة المحددة. يعرض الرسم البياني الأحداث لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_error_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "Span ID"
-msgstr "معرف الامتداد (Span ID)"
+msgstr "معرف النطاق (Span ID)"
 
 #: lib/tuist_web/live/pulse_error_live.ex:692
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
-msgstr "لم يتم العثور على هذه المشكلة أو الحدث في الفترة المحددة."
+msgstr "لم يتم العثور على هذه المشكلة أو هذا الحدث في الفترة المحددة."
 
 #: lib/tuist_web/live/pulse_live.ex:547
 #, elixir-autogen, elixir-format
@@ -561,9 +578,471 @@ msgstr "غير متوفر"
 #, elixir-autogen, elixir-format
 msgid "Seen in %{count} environment"
 msgid_plural "Seen in %{count} environments"
-msgstr[0] "شوهد في %{count} بيئة"
+msgstr[0] "مُشاهَد في %{count} بيئة"
 msgstr[1] "شوهد في %{count} بيئات"
 msgstr[2] "شوهد في %{count} بيئات"
 msgstr[3] "شوهد في %{count} بيئات"
 msgstr[4] "شوهد في %{count} بيئات"
 msgstr[5] "شوهد في %{count} بيئات"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:363
+#, elixir-autogen, elixir-format
+msgid "Activity"
+msgstr "النشاط"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:439
+#, elixir-autogen, elixir-format
+msgid "Annotated"
+msgstr "مُعلَّق"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:332
+#, elixir-autogen, elixir-format
+msgid "At"
+msgstr "في"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:487
+#, elixir-autogen, elixir-format
+msgid "Audit"
+msgstr "التدقيق"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:479
+#, elixir-autogen, elixir-format
+msgid "Availability"
+msgstr "التوفر"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:486
+#, elixir-autogen, elixir-format
+msgid "Board"
+msgstr "اللوح"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:223
+#: lib/tuist_web/live/pulse_symptoms_live.ex:333
+#: lib/tuist_web/live/pulse_symptoms_live.ex:515
+#, elixir-autogen, elixir-format
+msgid "Confidence"
+msgstr "الثقة"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:435
+#, elixir-autogen, elixir-format
+msgid "De-escalated"
+msgstr "تم خفض التصعيد"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:466
+#: lib/tuist_web/live/pulse_symptoms_live.ex:456
+#, elixir-autogen, elixir-format
+msgid "Deployments"
+msgstr "عمليات النشر"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:240
+#, elixir-autogen, elixir-format
+msgid "Detection feedback"
+msgstr "ملاحظات الكشف"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:55
+#, elixir-autogen, elixir-format
+msgid "Detection feedback saved."
+msgstr "تم حفظ ملاحظات الكشف."
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:434
+#, elixir-autogen, elixir-format
+msgid "Escalated"
+msgstr "تصعيد"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:323
+#, elixir-autogen, elixir-format
+msgid "Estimated probability that this service is degraded, not the percentage of requests affected."
+msgstr "الاحتمال التقديري لتدهور حالة هذه الخدمة، وليس نسبة الطلبات المتأثرة."
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:341
+#, elixir-autogen, elixir-format
+msgid "Evidence"
+msgstr "الأدلة"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:304
+#, elixir-autogen, elixir-format
+msgid "Evidence sources"
+msgstr "مصادر الأدلة"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:347
+#, elixir-autogen, elixir-format
+msgid "Example IDs"
+msgstr "معرفات نموذجية"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:125
+#, elixir-autogen, elixir-format
+msgid "For 1 hour"
+msgstr "لمدة ساعة واحدة"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:126
+#, elixir-autogen, elixir-format
+msgid "For 24 hours"
+msgstr "لمدة 24 ساعة"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:127
+#, elixir-autogen, elixir-format
+msgid "For 7 days"
+msgstr "لمدة 7 أيام"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:368
+#, elixir-autogen, elixir-format
+msgid "History"
+msgstr "السجل"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:212
+#, elixir-autogen, elixir-format
+msgid "Impact"
+msgstr "التأثير"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:324
+#, elixir-autogen, elixir-format
+msgid "Kind"
+msgstr "النوع"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:465
+#: lib/tuist_web/live/pulse_symptoms_live.ex:455
+#, elixir-autogen, elixir-format
+msgid "Kubernetes events"
+msgstr "أحداث Kubernetes"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:578
+#, elixir-autogen, elixir-format
+msgid "Last 30 days"
+msgstr "آخر 30 يومًا"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:579
+#, elixir-autogen, elixir-format
+msgid "Last 7 days"
+msgstr "آخر 7 أيام"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:230
+#, elixir-autogen, elixir-format
+msgid "Last updated"
+msgstr "آخر تحديث"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:477
+#, elixir-autogen, elixir-format
+msgid "Latency"
+msgstr "زمن الاستجابة"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:360
+#, elixir-autogen, elixir-format
+msgid "Masked excerpts"
+msgstr "مقتطفات مخفية"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:275
+#, elixir-autogen, elixir-format
+msgid "Measurements are unavailable for this window. Missing data is not zero events."
+msgstr "القياسات غير متاحة لهذه الفترة. البيانات المفقودة لا تعني انعدام الأحداث."
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:436
+#: lib/tuist_web/live/pulse_symptoms_live.ex:496
+#, elixir-autogen, elixir-format
+msgid "Merged"
+msgstr "مدمج"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:161
+#, elixir-autogen, elixir-format
+msgid "Mute %{phenomenon}"
+msgstr "إسكات %{phenomenon}"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:258
+#, elixir-autogen, elixir-format
+msgid "Muted until %{time}"
+msgstr "مسكت حتى %{time}"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:510
+#, elixir-autogen, elixir-format
+msgid "No symptoms match these filters."
+msgstr "لا توجد أعراض تطابق هذه الفلاتر."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:505
+#, elixir-autogen, elixir-format
+msgid "No symptoms on this page."
+msgstr "لا توجد أعراض في هذه الصفحة."
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:426
+#, elixir-autogen, elixir-format
+msgid "No, not a problem"
+msgstr "لا، ليست مشكلة"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:430
+#: lib/tuist_web/live/pulse_symptom_live.ex:454
+#, elixir-autogen, elixir-format
+msgid "Not a problem"
+msgstr "ليست مشكلة"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:508
+#, elixir-autogen, elixir-format
+msgid "Nothing has needed investigation yet."
+msgstr "لم يحتج أي شيء إلى التحقيق بعد."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:481
+#, elixir-autogen, elixir-format
+msgid "Novelty"
+msgstr "الجدة"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:516
+#, elixir-autogen, elixir-format
+msgid "Observation"
+msgstr "ملاحظة"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:495
+#, elixir-autogen, elixir-format
+msgid "Open"
+msgstr "فتح"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:614
+#, elixir-autogen, elixir-format
+msgid "Open symptoms"
+msgstr "فتح الأعراض"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:219
+#: lib/tuist_web/live/pulse_symptom_live.ex:433
+#: lib/tuist_web/live/pulse_symptoms_live.ex:514
+#, elixir-autogen, elixir-format
+msgid "Opened"
+msgstr "مفتوح"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:374
+#, elixir-autogen, elixir-format
+msgid "Opened %{time}"
+msgstr "مُفتوح منذ %{time}"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:196
+#, elixir-autogen, elixir-format
+msgid "Overview"
+msgstr "نظرة عامة"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:485
+#, elixir-autogen, elixir-format
+msgid "Page"
+msgstr "صفحة"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:560
+#, elixir-autogen, elixir-format
+msgid "Phenomenon"
+msgstr "ظاهرة"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:43
+#, elixir-autogen, elixir-format
+msgid "Phenomenon muted on this entity."
+msgstr "تم كتم هذه الظاهرة على هذه الكيان."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:480
+#, elixir-autogen, elixir-format
+msgid "Platform events"
+msgstr "أحداث المنصة"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:464
+#: lib/tuist_web/live/pulse_symptoms_live.ex:454
+#, elixir-autogen, elixir-format
+msgid "Probes"
+msgstr "مسبارات"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:429
+#: lib/tuist_web/live/pulse_symptom_live.ex:453
+#, elixir-autogen, elixir-format
+msgid "Real problem"
+msgstr "مشكلة حقيقية"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:328
+#, elixir-autogen, elixir-format
+msgid "Reference"
+msgstr "مرجع"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:261
+#, elixir-autogen, elixir-format
+msgid "Refresh the page to try again."
+msgstr "أعد تحميل الصفحة للمحاولة مرة أخرى."
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:438
+#, elixir-autogen, elixir-format
+msgid "Reopened"
+msgstr "أُعيد فتحه"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:476
+#, elixir-autogen, elixir-format
+msgid "Request errors"
+msgstr "أخطاء الطلبات"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:235
+#: lib/tuist_web/live/pulse_symptom_live.ex:437
+#: lib/tuist_web/live/pulse_symptoms_live.ex:497
+#, elixir-autogen, elixir-format
+msgid "Resolved"
+msgstr "مُحلَّل"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:478
+#, elixir-autogen, elixir-format
+msgid "Saturation"
+msgstr "التشبع"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "Search symptoms"
+msgstr "البحث في الأعراض"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:354
+#, elixir-autogen, elixir-format
+msgid "Series"
+msgstr "السلسلة"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:202
+#, elixir-autogen, elixir-format
+msgid "Severity"
+msgstr "الخطورة"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:381
+#, elixir-autogen, elixir-format
+msgid "Severity: %{severity}"
+msgstr "الخطورة: %{severity}"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:244
+#: lib/tuist_web/live/pulse_symptoms_live.ex:301
+#, elixir-autogen, elixir-format
+msgid "Sources"
+msgstr "المصادر"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:206
+#, elixir-autogen, elixir-format
+msgid "State"
+msgstr "الحالة"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:294
+#: lib/tuist_web/live/pulse_symptoms_live.ex:553
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "الحالة"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:318
+#, elixir-autogen, elixir-format
+msgid "Suspected change"
+msgstr "التغيير المشتبه به"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:77
+#: lib/tuist_web/live/pulse_symptoms_live.ex:279
+#, elixir-autogen, elixir-format
+msgid "Symptom"
+msgstr "العَرَض"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:389
+#, elixir-autogen, elixir-format
+msgid "Symptom pages"
+msgstr "صفحات الأعراض"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:204
+#, elixir-autogen, elixir-format
+msgid "Symptoms"
+msgstr "الأعراض"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:592
+#, elixir-autogen, elixir-format
+msgid "Symptoms opened"
+msgstr "أعراض فُتحت"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:603
+#, elixir-autogen, elixir-format
+msgid "Symptoms resolved"
+msgstr "أعراض حُلّت"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:260
+#, elixir-autogen, elixir-format
+msgid "Symptoms unavailable"
+msgstr "أعراض غير متاحة"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:467
+#: lib/tuist_web/live/pulse_symptoms_live.ex:457
+#, elixir-autogen, elixir-format
+msgid "Telemetry health"
+msgstr "حالة القياس عن بُعد"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:61
+#, elixir-autogen, elixir-format
+msgid "The symptom could not be updated."
+msgstr "لم يتم تحديث العَرَض."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:556
+#, elixir-autogen, elixir-format
+msgid "Tier"
+msgstr "المستوى"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:149
+#: lib/tuist_web/live/pulse_symptoms_live.ex:283
+#, elixir-autogen, elixir-format
+msgid "Untitled symptom"
+msgstr "عَرَض بدون عنوان"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:517
+#, elixir-autogen, elixir-format
+msgid "Updated"
+msgstr "تم التحديث"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:369
+#, elixir-autogen, elixir-format
+msgid "Updated %{time}"
+msgstr "تم التحديث %{time}"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:431
+#, elixir-autogen, elixir-format
+msgid "Was this a real problem?"
+msgstr "هل كانت هذه مشكلة حقيقية؟"
+
+#: lib/tuist_web/live/pulse_symptom_live.ex:425
+#, elixir-autogen, elixir-format
+msgid "Yes, a real problem"
+msgstr "نعم، مشكلة حقيقية"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:471
+#, elixir-autogen, elixir-format
+msgid "affected users/min"
+msgstr "المستخدمون المتأثرون/دقيقة"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:469
+#, elixir-autogen, elixir-format
+msgid "failed requests/min"
+msgstr "الطلبات الفاشلة/دقيقة"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:470
+#, elixir-autogen, elixir-format
+msgid "stuck jobs/min"
+msgstr "المهام العالقة/دقيقة"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:581
+#, elixir-autogen, elixir-format
+msgid "vs 24 hours ago"
+msgstr "مقارنةً بـ 24 ساعة مضت"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:582
+#, elixir-autogen, elixir-format
+msgid "vs 30 days ago"
+msgstr "مقارنةً بـ 30 يومًا مضت"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:583
+#, elixir-autogen, elixir-format
+msgid "vs 7 days ago"
+msgstr "مقارنةً بـ 7 أيام مضت"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:585
+#, elixir-autogen, elixir-format
+msgid "vs previous 30 days"
+msgstr "مقارنةً بآخر 30 يومًا"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:586
+#, elixir-autogen, elixir-format
+msgid "vs previous 7 days"
+msgstr "مقارنة بالأيام السبعة السابقة"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Board or page symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
+msgstr "عدد الأعراض المفتوحة في اللوحة أو التي تسببت في تنبيهات الصفحة الآن، مقارنةً ببداية الفترة. يوضح الرسم البياني عدد الأعراض التي كانت مفتوحة في نهاية كل ساعة أو يوم."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:607
+#, elixir-autogen, elixir-format
+msgid "Times board or page symptoms resolved in the selected period, after several quiet windows."
+msgstr "عدد المرات التي تم فيها حل أعراض اللوحة أو تنبيهات الصفحة خلال الفترة المحددة، بعد عدة فترات هدوء."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Times symptoms that reached the board or paged opened or reopened in the selected period. Symptoms that stayed at audit tier, which the evaluator only logs, are not counted."
+msgstr "عدد المرات التي فتحت أو أعيد فيها فتح أعراض وصلت إلى اللوحة أو تسببت في تنبيهات صفحة خلال الفترة المحددة. لا تُحتسب الأعراض التي بقيت في مرحلة التدقيق، والتي يسجلها المُقيّم فقط."

@@ -87,12 +87,12 @@ msgstr "Uygula"
 #: lib/tuist_web/live/gradle_build_live.html.heex:773
 #, elixir-autogen, elixir-format
 msgid "Artifact"
-msgstr "Yapıt"
+msgstr "Yapı Çıktısı"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:664
 #, elixir-autogen, elixir-format
 msgid "Artifact Transforms"
-msgstr "Yapıt Dönüşümleri"
+msgstr "Yapı Çıktısı Dönüşümleri"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:672
 #, elixir-autogen, elixir-format
@@ -216,7 +216,7 @@ msgstr "Derleme başarı oranı"
 #: lib/tuist_web/live/mix_overview_live.html.heex:366
 #, elixir-autogen, elixir-format
 msgid "Builds"
-msgstr "Dermeler"
+msgstr "Derlemeler"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:152
 #, elixir-autogen, elixir-format
@@ -289,7 +289,7 @@ msgstr "Önbellek isabeti oranı"
 #: lib/tuist_web/live/gradle_overview_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache rather than being executed."
-msgstr "Önbellek isabeti oranı, önbellenebilir görevlerin çalıştırılmak yerine önbellekten çözümlenme yüzdesini temsil eder."
+msgstr "Önbellek isabeti oranı, yürütülmek yerine önbellekten çözümlenen önbelleklenebilir görevlerin yüzdesini temsil eder."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1212
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:107
@@ -312,7 +312,7 @@ msgstr "Önbellek yüklemeleri, belirtilen dönemde uzak depolamaya yüklenen ö
 #: lib/tuist_web/live/gradle_build_live.html.heex:908
 #, elixir-autogen, elixir-format
 msgid "Cacheable Tasks"
-msgstr "Önbellenebilir Görevler"
+msgstr "Önbelleklenebilir Görevler"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:967
 #, elixir-autogen, elixir-format
@@ -322,7 +322,7 @@ msgstr "Önbelleklenebilir görevler"
 #: lib/tuist_web/live/gradle_build_live.html.heex:866
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were not found in cache."
-msgstr "Önbellekte bulunmayan önbelleklenebilir görevler."
+msgstr "Önbellekte bulunamayan önbelleklenebilir görevler."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:855
 #, elixir-autogen, elixir-format
@@ -375,7 +375,7 @@ msgstr "Yapılandırma"
 #: lib/tuist_web/live/mix_builds_live.html.heex:457
 #, elixir-autogen, elixir-format
 msgid "Configuration Insights"
-msgstr "Yapılandırma Analizleri"
+msgstr "Yapılandırma İçgörüleri"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:394
 #, elixir-autogen, elixir-format
@@ -385,7 +385,7 @@ msgstr "Yapılandırma önbelleği"
 #: lib/tuist_web/live/gradle_build_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "Configuration cache load"
-msgstr "Yapılandırma önbelleği yükleme"
+msgstr "Yapılandırma önbelleği yükleme süresi"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:384
 #, elixir-autogen, elixir-format
@@ -415,7 +415,7 @@ msgstr "Özel"
 #: lib/tuist_web/live/gradle_build_live.html.heex:1044
 #, elixir-autogen, elixir-format
 msgid "Download throughput"
-msgstr "İndirme hızı"
+msgstr "İndirme verim hızı"
 
 #: lib/tuist_web/live/gradle_build_live.ex:577
 #: lib/tuist_web/live/gradle_build_live.ex:617
@@ -467,7 +467,7 @@ msgstr "Ortam:"
 #: lib/tuist_web/live/gradle_build_live.ex:727
 #, elixir-autogen, elixir-format
 msgid "Executed"
-msgstr "Yürütüldü"
+msgstr "Çalıştırıldı"
 
 #: lib/tuist_web/helpers/gradle_task.ex:18
 #: lib/tuist_web/live/gradle_build_live.ex:728
@@ -661,12 +661,12 @@ msgstr "Yerel isabet"
 #: lib/tuist_web/live/gradle_build_live.html.heex:1174
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "Iskalamalı"
+msgstr "Isabet yok"
 
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "N/A"
-msgstr "N/A"
+msgstr "Yok"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:825
 #, elixir-autogen, elixir-format
@@ -682,7 +682,7 @@ msgstr "Henüz derleme yok"
 #: lib/tuist_web/live/gradle_build_live.html.heex:1218
 #, elixir-autogen, elixir-format
 msgid "No cacheable tasks"
-msgstr "Önbelleğe alınabilir görev yok"
+msgstr "Önbelleklenebilir görev yok"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:645
 #, elixir-autogen, elixir-format
@@ -777,19 +777,19 @@ msgstr "Kısmen geçersiz"
 #: lib/tuist_web/live/mix_builds_live.html.heex:691
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "Başarılı"
+msgstr "Geçti"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:524
 #: lib/tuist_web/live/mix_overview_live.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Passed builds"
-msgstr "Başarılı derlemeler"
+msgstr "Geçen derlemeler"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:333
 #: lib/tuist_web/live/mix_overview_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "Passed runs"
-msgstr "Başarılı çalıştırmalar"
+msgstr "Geçen çalıştırmalar"
 
 #: lib/tuist_web/live/gradle_build_live.ex:578
 #: lib/tuist_web/live/gradle_build_live.ex:647
@@ -823,7 +823,7 @@ msgstr "Proje"
 #: lib/tuist_web/live/mix_builds_live.html.heex:721
 #, elixir-autogen, elixir-format
 msgid "Ran at"
-msgstr "Çalıştırılma Zamanı"
+msgstr "Çalıştırılma zamanı"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:303
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:45
@@ -850,14 +850,14 @@ msgstr "Uzak"
 #: lib/tuist_web/live/gradle_build_live.ex:725
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
-msgstr "Uzak Önbellek İsabeti"
+msgstr "Uzak önbellek isabeti"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:178
 #: lib/tuist_web/live/gradle_build_runs_live.ex:257
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Requested tasks"
-msgstr "İstenen Görevler"
+msgstr "İstenen görevler"
 
 #: lib/tuist_web/live/gradle_build_live.ex:811
 #, elixir-autogen, elixir-format
@@ -894,7 +894,7 @@ msgstr "Ara..."
 #: lib/tuist_web/live/gradle_cache_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Set up Gradle cache for your project"
-msgstr "Projeniz için Gradle önbelleğini kurun"
+msgstr "Projeniz için Gradle önbelleğini yapılandırın"
 
 #: lib/tuist_web/live/gradle_build_live.ex:652
 #: lib/tuist_web/live/gradle_build_live.ex:819
@@ -948,7 +948,7 @@ msgstr "Durum"
 #: lib/tuist_web/live/gradle_build_live.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "Status of Gradle's configuration cache for this build."
-msgstr "Bu derleme için Gradle'ın yapılandırma önbelleğinin durumu."
+msgstr "Bu derleme için Gradle yapılandırma önbelleğinin durumu."
 
 #: lib/tuist_web/live/gradle_build_live.ex:616
 #: lib/tuist_web/live/gradle_build_live.ex:698
@@ -1011,13 +1011,13 @@ msgstr "Testler"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:454
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "10.000 kayıt sınırına ulaşıldı, veriler yalnızca %{date} tarihine kadar dahil edilmiştir. Veri kümesini daraltmak için filtrelemeyi deneyin."
+msgstr "10.000 giriş limiti aşıldı, veriler yalnızca %{date} tarihine kadar dahil edilmiştir. Veri kümesini daraltmak için filtrelemeyi deneyin."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:177
 #: lib/tuist_web/live/mix_builds_live.html.heex:168
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "Bireysel yüzdelik dilim aralıklarıyla ortalama derleme süresi."
+msgstr "Tek tek yüzdelik dilim aralıklarıyla ortalama derleme süresi."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:146
 #: lib/tuist_web/live/mix_builds_live.html.heex:137
@@ -1029,12 +1029,12 @@ msgstr "Başarısız olan derleme sayısı."
 #: lib/tuist_web/live/mix_builds_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "The percentage of builds that succeeded."
-msgstr "Başarılı olan derleme yüzdesi."
+msgstr "Başarılı olan derlemelerin yüzdesi."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:874
 #, elixir-autogen, elixir-format
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "Önbelleğe alınabilir görevlerin önbellek isabeti (yerel + uzak) oranı."
+msgstr "Önbelleklenebilir görevlerden önbellek isabeti (yerel + uzak) olanların yüzdesi."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:111
 #, elixir-autogen, elixir-format
@@ -1044,12 +1044,12 @@ msgstr "Toplam Gradle derleme sayısı."
 #: lib/tuist_web/live/gradle_build_live.html.heex:1219
 #, elixir-autogen, elixir-format
 msgid "This build has no cacheable task data."
-msgstr "Bu derlemeye ait önbelleğe alınabilir görev verisi yok."
+msgstr "Bu derlemenin önbelleklenebilir görev verisi yok."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:358
 #, elixir-autogen, elixir-format
 msgid "This build has no task data."
-msgstr "Bu derlemeye ait görev verisi yok."
+msgstr "Bu derlemenin görev verisi yok."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:386
 #, elixir-autogen, elixir-format
@@ -1059,13 +1059,13 @@ msgstr "Gradle'ın bu derlemeyi yapılandırmak için harcadığı süre."
 #: lib/tuist_web/live/gradle_build_live.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Time spent loading a reused configuration cache entry."
-msgstr "Yeniden kullanılan bir yapılandırma önbelleği girdisinin yüklenmesi için harcanan süre."
+msgstr "Yeniden kullanılan bir yapılandırma önbelleği girdisinin yüklenmesi için geçen süre."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:109
 #: lib/tuist_web/live/mix_builds_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Total builds"
-msgstr "Toplam derleme"
+msgstr "Toplam derleme sayısı"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:886
 #, elixir-autogen, elixir-format
@@ -1104,7 +1104,7 @@ msgstr "Dönüşümler"
 #: lib/tuist_web/live/gradle_build_live.html.heex:826
 #, elixir-autogen, elixir-format
 msgid "Try adjusting your search or filters."
-msgstr "Aramanızı veya filtrelerinizi ayarlamayı deneyin."
+msgstr "Aramanızı veya filtrelerinizi değiştirmeyi deneyin."
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:29
 #, elixir-autogen, elixir-format
@@ -1135,7 +1135,7 @@ msgstr "Güncel"
 #: lib/tuist_web/live/gradle_build_live.html.heex:1062
 #, elixir-autogen, elixir-format
 msgid "Upload throughput"
-msgstr "Yükleme hızı"
+msgstr "Yükleme verimliliği"
 
 #: lib/tuist_web/live/gradle_build_live.ex:812
 #, elixir-autogen, elixir-format
@@ -1156,12 +1156,12 @@ msgstr "Daha fazla görüntüle"
 #: lib/tuist_web/live/gradle_build_live.html.heex:1209
 #, elixir-autogen, elixir-format
 msgid "Why it missed"
-msgstr "Neden isabet olmadı"
+msgstr "Neden isabet etmedi"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "You can set up the Gradle cache for your project by running:"
-msgstr "Projeniz için Gradle önbelleğini şu komutu çalıştırarak kurabilirsiniz:"
+msgstr "Gradle önbelleğini projeniz için şu komutu çalıştırarak kurabilirsiniz:"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:371
 #: lib/tuist_web/live/gradle_cache_live.html.heex:438
@@ -1277,7 +1277,7 @@ msgstr "—"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Analytics could not be loaded"
-msgstr "Analitikler yüklenemedi"
+msgstr "Analizler yüklenemedi"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:513
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:345
@@ -1310,7 +1310,7 @@ msgstr "Eşleşen yol bulunamadı"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Refresh the page to try again."
-msgstr "Sayfayı yenileyerek tekrar deneyin."
+msgstr "Tekrar denemek için sayfayı yenileyin."
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:232
 #, elixir-autogen, elixir-format
@@ -1320,7 +1320,7 @@ msgstr "Yola göre ara"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Showing the 10,000 entities with the most execution time. Narrow the filters to see more."
-msgstr "En çok yürütme süresi harcayan 10.000 varlık gösteriliyor. Daha fazlasını görmek için filtreleri daraltın."
+msgstr "En çok yürütme süresine sahip 10.000 varlık gösteriliyor. Daha fazlasını görmek için filtreleri daraltın."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:356
 #, elixir-autogen, elixir-format
@@ -1335,7 +1335,7 @@ msgstr "Farklı bir tarih aralığı deneyin veya filtreleri ayarlayın."
 #: lib/tuist_web/live/gradle_tasks_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "Distinct tasks observed in matching builds. Each chart point counts distinct tasks in that interval."
-msgstr "Eşleşen derlemelerde gözlemlenen benzersiz görevler. Grafikteki her nokta, o aralıktaki benzersiz görev sayısını temsil eder."
+msgstr "Eşleşen yapımlarda gözlemlenen benzersiz görevler. Her grafik noktası, o aralıktaki benzersiz görev sayısını temsil eder."
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:198
 #, elixir-autogen, elixir-format
@@ -1373,12 +1373,12 @@ msgstr "p99 süre"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:308
 #, elixir-autogen, elixir-format
 msgid "Misses"
-msgstr "Iska"
+msgstr "Kaçırmalar"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "Task duration percentile across executions in the selected period."
-msgstr "Seçilen dönemdeki tüm yürütmeler için görev süresi yüzdelik dilimi."
+msgstr "Seçilen dönemdeki yürütmeler genelinde görev süresi yüzdeliği."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:379
 #, elixir-autogen, elixir-format
@@ -1398,7 +1398,7 @@ msgstr "p99 görev süresi"
 #: lib/tuist_web/live/gradle_tasks_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Average task duration across executions in the selected period."
-msgstr "Seçilen dönemdeki tüm yürütmeler için ortalama görev süresi."
+msgstr "Seçilen dönemdeki yürütmeler genelinde ortalama görev süresi."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:377
 #, elixir-autogen, elixir-format
@@ -1438,7 +1438,7 @@ msgstr "Önbellek isabet oranı bu görev için geçerli değildir."
 #: lib/tuist_web/live/gradle_tasks_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Remote cache hits divided by hits and confirmed misses. Local cache hits and up-to-date tasks are excluded."
-msgstr "Uzak önbellek isabetleri, isabetler ve doğrulanmış isabetsizliklere bölünerek hesaplanır. Yerel önbellek isabetleri ve güncel görevler hariç tutulur."
+msgstr "Uzak önbellek isabetlerinin, isabetler ve doğrulanmış ıskalamaların toplamına bölümü. Yerel önbellek isabetleri ve güncel görevler hariçtir."
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:181
 #, elixir-autogen, elixir-format
@@ -1469,7 +1469,7 @@ msgstr "Önbellenebilir"
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "Execution details"
-msgstr "Çalıştırma ayrıntıları"
+msgstr "Çalıştırma detayları"
 
 #: lib/tuist_web/live/gradle_task_execution_live.ex:48
 #, elixir-autogen, elixir-format
@@ -1479,7 +1479,7 @@ msgstr "İsabet"
 #: lib/tuist_web/live/gradle_task_execution_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Miss"
-msgstr "Iska"
+msgstr "Isırmama"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:97
 #, elixir-autogen, elixir-format
@@ -1532,24 +1532,24 @@ msgstr "Raporlanmadı"
 #: lib/tuist_web/components/build_health.ex:34
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved. Only builds with a reported estimate are included."
-msgstr "Önbellek isabetleriyle tahmin edilen görev yürütme süresi tasarrufu. Paralel görevler örtüşebileceğinden bu, geçen derleme süresi tasarrufu değildir. Yalnızca tahmini raporlanan derlemeler dahildir."
+msgstr "Önbellek isabetleriyle tahmini olarak kazanılan görev yürütme süresi. Paralel görevler çakışabileceğinden bu, geçen derleme süresindeki tasarruf değildir. Yalnızca tahmini süre raporlanan derlemeler dahil edilir."
 
 #: lib/tuist_web/components/build_health.ex:133
 #, elixir-autogen, elixir-format
 msgid "No task time estimates reported for this period."
-msgstr "Bu dönem için bildirilen görev süresi tahmini yok."
+msgstr "Bu dönem için herhangi bir görev süresi tahmini raporlanmadı."
 
 #: lib/tuist_web/components/build_health.ex:31
 #: lib/tuist_web/components/build_health.ex:112
 #: lib/tuist_web/live/gradle_build_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Cumulative task time saved"
-msgstr "Birikimli görev süresi tasarrufu"
+msgstr "Birikimli kazanılan görev süresi"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved."
-msgstr "Önbellek isabetleriyle tahmin edilen görev yürütme süresi tasarrufu. Paralel görevler örtüşebileceğinden bu, geçen derleme süresi tasarrufu değildir."
+msgstr "Önbellek isabetleriyle tahmini olarak kazanılan görev yürütme süresi. Paralel görevler çakışabileceğinden bu, geçen derleme süresindeki tasarruf değildir."
 
 #: lib/tuist_web/components/build_health.ex:66
 #, elixir-autogen, elixir-format

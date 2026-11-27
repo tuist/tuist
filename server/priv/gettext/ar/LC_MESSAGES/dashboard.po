@@ -14,7 +14,7 @@ msgstr "Language: ar\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/components/previews/app_preview.ex:24
 #, elixir-autogen, elixir-format
 msgid "%{app_name} icon"
-msgstr "أيقونة %{app_name}"
+msgstr "رمز %{app_name}"
 
 #: lib/tuist_web/controllers/error_html.ex:25
 #, elixir-autogen, elixir-format
@@ -79,7 +79,7 @@ msgstr "عمليات تشغيل البناء"
 #: lib/tuist_web/components/dashboard_navigation.ex:298
 #, elixir-autogen, elixir-format
 msgid "Builds"
-msgstr "البناءات"
+msgstr "عمليات البناء"
 
 #: lib/tuist_web/components/app_layout_components.ex:482
 #: lib/tuist_web/components/dashboard_navigation.ex:207
@@ -104,7 +104,7 @@ msgstr "عمليات تشغيل ذاكرة التخزين المؤقت"
 #: lib/tuist_web/live/layout_live.ex:228
 #, elixir-autogen, elixir-format
 msgid "Create organization"
-msgstr "إنشاء منظمة"
+msgstr "إنشاء مؤسسة"
 
 #: lib/tuist_web/components/account_dropdown.ex:91
 #, elixir-autogen, elixir-format
@@ -132,7 +132,7 @@ msgstr "أخطاء"
 #: lib/tuist_web/components/app_layout_components.ex:675
 #, elixir-autogen, elixir-format
 msgid "Flags"
-msgstr "العلامات"
+msgstr "رايات"
 
 #: lib/tuist_web/components/empty_card_section.ex:29
 #: lib/tuist_web/components/public_project_cta_banner.ex:40
@@ -149,7 +149,7 @@ msgstr "الانتقال إلى لوحة التحكم"
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
-msgstr "Grafana"
+msgstr "جرافانا"
 
 #: lib/tuist_web/components/app_layout_components.ex:596
 #: lib/tuist_web/components/dashboard_navigation.ex:244
@@ -203,7 +203,7 @@ msgstr "ذاكرة التخزين المؤقت للوحدة"
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:119
 #: lib/tuist_web/live/bazel_cache_live.ex:821
-#: lib/tuist_web/live/once_cache_live.ex:892
+#: lib/tuist_web/live/once_cache_live.ex:893
 #: lib/tuist_web/live/xcode_cache_live.html.heex:248
 #: lib/tuist_web/live/xcode_cache_live.html.heex:265
 #: lib/tuist_web/live/xcode_cache_live.html.heex:282
@@ -215,7 +215,7 @@ msgstr "ذاكرة التخزين المؤقت للوحدة"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:472
 #, elixir-autogen, elixir-format
 msgid "N/A"
-msgstr "غير متوفر"
+msgstr "غير متاح"
 
 #: lib/tuist_web/components/app_components.ex:62
 #: lib/tuist_web/live/mix_build_live.html.heex:348
@@ -233,7 +233,7 @@ msgstr "لا توجد بيانات بعد"
 #: lib/tuist_web/controllers/error_html.ex:142
 #, elixir-autogen, elixir-format
 msgid "Not found"
-msgstr "لم يُعثر عليه"
+msgstr "غير موجود"
 
 #: lib/tuist_web/authorization.ex:27
 #: lib/tuist_web/authorization.ex:46
@@ -249,7 +249,7 @@ msgstr "عذرًا! حدث خطأ ما"
 #: lib/tuist_web/controllers/error_html.ex:143
 #, elixir-autogen, elixir-format
 msgid "Oops, we couldn't find that page"
-msgstr "عذرًا، لم نتمكن من العثور على تلك الصفحة"
+msgstr "عذرًا، لم نتمكن من العثور على هذه الصفحة"
 
 #: lib/tuist_web/components/account_dropdown.ex:81
 #, elixir-autogen, elixir-format
@@ -268,7 +268,7 @@ msgstr "نظرة عامة"
 #: lib/tuist_web/controllers/error_html.ex:47
 #, elixir-autogen, elixir-format
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
-msgstr "يرجى التأكد من أنك تصل إلى المورد الصحيح وأن لديك الأذونات اللازمة للوصول إليه."
+msgstr "يرجى التأكد من أنك تصل إلى المورد الصحيح وأن لديك الصلاحيات اللازمة للوصول إليه."
 
 #: lib/tuist_web/components/app_components.ex:53
 #: lib/tuist_web/live/pulse_error_live.ex:290
@@ -327,7 +327,7 @@ msgstr "عذرًا، الصفحة التي تبحث عنها غير موجودة
 #: lib/tuist_web/controllers/error_html.ex:72
 #, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
-msgstr "عذرًا، لقد قمت بإرسال طلبات كثيرة جدًا. يرجى المحاولة مرة أخرى لاحقًا."
+msgstr "عذرًا، لقد أرسلت طلبات كثيرة جدًا. يرجى المحاولة مرة أخرى لاحقًا."
 
 #: lib/tuist_web/components/app_layout_components.ex:689
 #, elixir-autogen, elixir-format
@@ -353,7 +353,7 @@ msgstr "حالات الاختبار"
 #: lib/tuist_web/components/dashboard_search.ex:75
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
-msgstr "عمليات تشغيل الاختبارات"
+msgstr "تشغيلات الاختبارات"
 
 #: lib/tuist_web/components/app_layout_components.ex:103
 #: lib/tuist_web/components/app_layout_components.ex:359
@@ -401,27 +401,27 @@ msgstr "لم يتم العثور على المشروع %{project_slug}."
 #: lib/tuist_web/plugs/loader_plug.ex:142
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
-msgstr "المعرّف الكامل للمشروع %{project_slug} غير صالح. يجب أن يتبع الصيغة 'معرّف_الحساب/معرّف_المشروع'."
+msgstr "مُعرِّف المشروع الكامل %{project_slug} غير صالح. يجب أن يتبع الاصطلاح 'account_handle/project_handle'."
 
 #: lib/tuist_web/plugs/loader_plug.ex:100
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
-msgstr "لم يتم العثور على التشغيل بالمعرّف %{run_id}."
+msgstr "لم يتم العثور على التنفيذ بالمعرّف %{run_id}."
 
 #: lib/tuist_web/live/layout_live.ex:315
 #, elixir-autogen, elixir-format
 msgid "The run you are looking for doesn't exist or has been moved."
-msgstr "التشغيل الذي تبحث عنه غير موجود أو تم نقله."
+msgstr "التنفيذ الذي تبحث عنه غير موجود أو تم نقله."
 
 #: lib/tuist_web/controllers/error_html.ex:78
 #, elixir-autogen, elixir-format
 msgid "Too many requests"
-msgstr "طلبات كثيرة جداً"
+msgstr "طلبات كثيرة جدًا"
 
 #: lib/tuist_web/controllers/error_html.ex:79
 #, elixir-autogen, elixir-format
 msgid "Too many requests."
-msgstr "طلبات كثيرة جداً."
+msgstr "طلبات كثيرة جدًا."
 
 #: lib/tuist_web/components/app_layout_components.ex:744
 #: lib/tuist_web/components/app_layout_components.ex:782
@@ -471,7 +471,7 @@ msgstr "يجب أن تكون مسجلاً للدخول للوصول إلى هذ�
 #: lib/tuist_web/controllers/user_session_controller.ex:47
 #, elixir-autogen, elixir-format
 msgid "You've exceeded the rate limit. Try again later."
-msgstr "لقد تجاوزت حد المعدل. حاول مرة أخرى لاحقًا."
+msgstr "لقد تجاوزت حد المعدل. حاول مرة أخرى لاحقاً."
 
 #: lib/tuist_web/components/terminal.ex:10
 #, elixir-autogen, elixir-format
@@ -503,7 +503,7 @@ msgstr "اختبارات غير مستقرة"
 #: lib/tuist_web/components/public_project_cta_banner.ex:33
 #, elixir-autogen, elixir-format
 msgid "Ready to speed up your builds and unlock insights for your app?"
-msgstr "هل أنت مستعد لتسريع عمليات البناء وفتح آفاق جديدة لتحليلات تطبيقك؟"
+msgstr "هل أنت مستعد لتسريع عمليات البناء وفتح رؤى جديدة لتطبيقك؟"
 
 #: lib/tuist_web/components/public_project_cta_banner.ex:47
 #, elixir-autogen, elixir-format
@@ -561,13 +561,13 @@ msgstr "المقاييس"
 #: lib/tuist_web/controllers/error_html.ex:31
 #, elixir-autogen, elixir-format
 msgid "Authentication failed"
-msgstr "فشلت المصادقة"
+msgstr "فشل المصادقة"
 
 #: lib/tuist_web/controllers/auth_controller.ex:793
 #: lib/tuist_web/controllers/auth_controller.ex:965
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
-msgstr "رفض موفر الهوية الوصول. يرجى من مسؤول المؤسسة تعيينك لتطبيق Tuist."
+msgstr "رفض موفر الهوية الخاص بك الوصول. يرجى من مسؤول مؤسستك تعيينك لتطبيق Tuist."
 
 #: lib/tuist_web/components/app_layout_components.ex:188
 #: lib/tuist_web/components/app_layout_components.ex:436
@@ -584,52 +584,52 @@ msgstr "فشلت المصادقة مع موفر الهوية. يرجى المح�
 #: lib/tuist_web/controllers/auth_controller.ex:1063
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with the SSO provider. Please try again."
-msgstr "فشلت المصادقة مع موفر SSO. يرجى المحاولة مرة أخرى."
+msgstr "فشل في المصادقة مع موفر SSO. يرجى المحاولة مرة أخرى."
 
 #: lib/tuist_web/controllers/auth_controller.ex:944
 #, elixir-autogen, elixir-format
 msgid "SSO is not fully configured for this organization. Ask an organization admin to review the SSO settings."
-msgstr "لم يتم تكوين SSO بالكامل لهذه المؤسسة. اطلب من مسؤول المؤسسة مراجعة إعدادات SSO."
+msgstr "لم يتم تكوين SSO بالكامل لهذه المنظمة. اطلب من مسؤول المنظمة مراجعة إعدادات SSO."
 
 #: lib/tuist_web/controllers/auth_controller.ex:1007
 #, elixir-autogen, elixir-format
 msgid "The SSO authorization code is invalid or expired. Please restart the sign-in flow."
-msgstr "رمز تفويض SSO غير صالح أو منتهي الصلاحية. يُرجى إعادة بدء عملية تسجيل الدخول."
+msgstr "رمز تفويض SSO غير صالح أو منتهي الصلاحية. يرجى إعادة بدء عملية تسجيل الدخول."
 
 #: lib/tuist_web/controllers/auth_controller.ex:979
 #, elixir-autogen, elixir-format
 msgid "The SSO provider callback is missing an authorization code. Please restart the sign-in flow."
-msgstr "يفتقد ردّ اتصال موفّر SSO رمز التفويض. يُرجى إعادة بدء عملية تسجيل الدخول."
+msgstr "يفتقد رد اتصال موفر SSO رمز التفويض. يرجى إعادة بدء عملية تسجيل الدخول."
 
 #: lib/tuist_web/controllers/auth_controller.ex:930
 #, elixir-autogen, elixir-format
 msgid "The SSO request is missing an organization identifier. Please start the sign-in flow again from the login page."
-msgstr "يفتقد طلب SSO معرّف المؤسسة. يُرجى بدء عملية تسجيل الدخول مرة أخرى من صفحة الدخول."
+msgstr "يفتقد طلب SSO معرّف المنظمة. يرجى بدء عملية تسجيل الدخول مرة أخرى من صفحة تسجيل الدخول."
 
 #: lib/tuist_web/controllers/auth_controller.ex:958
 #, elixir-autogen, elixir-format
 msgid "The SSO response could not be validated because the request state did not match. Please try again."
-msgstr "تعذّر التحقق من استجابة SSO لأن حالة الطلب غير متطابقة. يُرجى المحاولة مرة أخرى."
+msgstr "تعذر التحقق من استجابة SSO لأن حالة الطلب لم تتطابق. يرجى المحاولة مرة أخرى."
 
 #: lib/tuist_web/controllers/auth_controller.ex:986
 #, elixir-autogen, elixir-format
 msgid "The configured SSO endpoints are invalid. Ask your organization admin to review the SSO settings."
-msgstr "نقاط نهاية SSO المُكوَّنة غير صالحة. اطلب من مسؤول المؤسسة مراجعة إعدادات SSO."
+msgstr "نقاط نهاية SSO المُهيأة غير صالحة. اطلب من مسؤول المنظمة مراجعة إعدادات SSO."
 
 #: lib/tuist_web/components/layouts/ops.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Tuist Ops"
-msgstr "عمليات Tuist"
+msgstr "Tuist Ops"
 
 #: lib/tuist_web/controllers/auth_controller.ex:993
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't exchange the authorization code with your identity provider. Ask your organization admin to verify the SSO credentials and callback URL."
-msgstr "تعذّر على Tuist تبادل رمز التفويض مع موفّر الهوية الخاص بك. اطلب من مسؤول المؤسسة التحقق من بيانات اعتماد SSO وعنوان URL لردّ الاتصال."
+msgstr "لم يتمكن Tuist من تبادل رمز التفويض مع موفر الهوية الخاص بك. اطلب من مسؤول المنظمة التحقق من بيانات اعتماد SSO وعنوان URL لرد الاتصال."
 
 #: lib/tuist_web/controllers/auth_controller.ex:1000
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't fetch your profile from your identity provider. Ask your organization admin to verify the user info endpoint and configured scopes."
-msgstr "لم يتمكن Tuist من جلب ملفك الشخصي من موفر الهوية الخاص بك. اطلب من مسؤول المؤسسة التحقق من نقطة نهاية معلومات المستخدم ونطاقات الوصول المُهيأة."
+msgstr "لم يتمكن Tuist من جلب ملفك الشخصي من مزود الهوية الخاص بك. اطلب من مسؤول المنظمة التحقق من نقطة نهاية معلومات المستخدم ونطاقات الوصول المُهيأة."
 
 #: lib/tuist_web/controllers/auth_controller.ex:1056
 #, elixir-autogen, elixir-format
@@ -639,37 +639,37 @@ msgstr "لم نتمكن من إكمال استدعاء SSO لهذا الطلب. 
 #: lib/tuist_web/controllers/auth_controller.ex:937
 #, elixir-autogen, elixir-format
 msgid "We couldn't find the organization for this SSO request. Please verify that you are using the correct SSO link."
-msgstr "لم نتمكن من العثور على المؤسسة الخاصة بطلب SSO هذا. يرجى التحقق من أنك تستخدم رابط SSO الصحيح."
+msgstr "لم نتمكن من العثور على المنظمة الخاصة بطلب SSO هذا. يرجى التحقق من أنك تستخدم رابط SSO الصحيح."
 
 #: lib/tuist_web/controllers/auth_controller.ex:1049
 #, elixir-autogen, elixir-format
 msgid "We couldn't start the SSO flow for this organization. Please verify the SSO configuration and try again."
-msgstr "لم نتمكن من بدء تدفق SSO لهذه المؤسسة. يرجى التحقق من تكوين SSO والمحاولة مرة أخرى."
+msgstr "لم نتمكن من بدء تدفق SSO لهذه المنظمة. يرجى التحقق من إعدادات SSO والمحاولة مرة أخرى."
 
 #: lib/tuist_web/controllers/auth_controller.ex:951
 #, elixir-autogen, elixir-format
 msgid "Your SSO session has expired. Please restart the sign-in flow from the login page."
-msgstr "انتهت صلاحية جلسة SSO الخاصة بك. يرجى إعادة بدء تدفق تسجيل الدخول من صفحة تسجيل الدخول."
+msgstr "انتهت صلاحية جلسة SSO الخاصة بك. يرجى إعادة بدء عملية تسجيل الدخول من صفحة الدخول."
 
 #: lib/tuist_web/controllers/auth_controller.ex:1028
 #, elixir-autogen, elixir-format
 msgid "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
-msgstr "حساب Tuist الخاص بك موجود بالفعل، لكنه ليس عضواً في هذه المؤسسة. اطلب من مسؤول المؤسسة إضافتك، ثم سجل الدخول باستخدام SSO مرة أخرى."
+msgstr "حساب Tuist الخاص بك موجود بالفعل، لكنه ليس عضواً في هذه المنظمة. اطلب من مسؤول المنظمة إضافتك، ثم سجّل الدخول عبر SSO مرة أخرى."
 
 #: lib/tuist_web/controllers/auth_controller.ex:1014
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing a stable user identifier. Ask your organization admin to review the user info claims."
-msgstr "استجابة موفر الهوية الخاص بك تفتقد إلى معرّف مستخدم ثابت. اطلب من مسؤول المؤسسة مراجعة مطالبات معلومات المستخدم."
+msgstr "استجابة مزود الهوية الخاص بك تفتقر إلى معرف مستخدم ثابت. اطلب من مسؤول المنظمة مراجعة مطالبات معلومات المستخدم."
 
 #: lib/tuist_web/controllers/auth_controller.ex:1021
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing an email address. Ask your organization admin to include the email claim."
-msgstr "استجابة موفر الهوية الخاص بك تفتقد إلى عنوان بريد إلكتروني. اطلب من مسؤول المؤسسة تضمين مطالبة البريد الإلكتروني."
+msgstr "استجابة مزود الهوية الخاص بك تفتقر إلى عنوان بريد إلكتروني. اطلب من مسؤول المنظمة تضمين مطالبة البريد الإلكتروني."
 
 #: lib/tuist_web/controllers/auth_controller.ex:972
 #, elixir-autogen, elixir-format
 msgid "Your identity provider returned an authentication error. Please try again or contact your organization admin."
-msgstr "أعاد موفر الهوية خطأ في المصادقة. يرجى المحاولة مرة أخرى أو التواصل مع مسؤول مؤسستك."
+msgstr "أعاد موفر الهوية خطأ في المصادقة. يرجى المحاولة مرة أخرى أو الاتصال بمسؤول مؤسستك."
 
 #: lib/tuist_web/components/account_dropdown.ex:73
 #, elixir-autogen, elixir-format
@@ -692,7 +692,7 @@ msgstr "المصادقة"
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:94
 #, elixir-autogen, elixir-format
 msgid "This GitHub app installation is already connected."
-msgstr "تطبيق GitHub هذا مثبت ومتصل بالفعل."
+msgstr "تثبيت تطبيق GitHub هذا متصل بالفعل."
 
 #: lib/tuist_web/live/ops_account_live.ex:460
 #, elixir-autogen, elixir-format
@@ -703,7 +703,7 @@ msgstr "تم تعيين خطة %{account} للإلغاء في نهاية الف�
 #: lib/tuist_web/live/ops_account_live.ex:437
 #, elixir-autogen, elixir-format
 msgid "%{account} upgraded to Enterprise. Stripe will send an invoice for the first period."
-msgstr "تمت ترقية %{account} إلى Enterprise. سترسل Stripe فاتورة للفترة الأولى."
+msgstr "تم ترقية %{account} إلى Enterprise. سترسل Stripe فاتورة للفترة الأولى."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:21
 #, elixir-autogen, elixir-format
@@ -806,7 +806,7 @@ msgstr "إلغاء الخطة"
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Cancelled"
-msgstr "ملغاة"
+msgstr "ملغى"
 
 #: lib/tuist_web/live/ops_account_live.ex:1283
 #, elixir-autogen, elixir-format
@@ -836,7 +836,7 @@ msgstr "البلد"
 #: lib/tuist_web/live/ops_account_live.html.heex:907
 #, elixir-autogen, elixir-format
 msgid "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
-msgstr "يُنشئ عميلًا في Stripe (إذا لم يكن موجودًا)، ويحدد عنوان الفوترة، ويبدأ اشتراك Enterprise المفوتر عبر الفواتير. يتلقى العميل فاتورة عبر البريد الإلكتروني؛ ولا يتم جمع بيانات البطاقة هنا."
+msgstr "ينشئ عميلاً في Stripe (إذا لم يكن موجوداً)، ويحدد عنوان الفوترة، ويبدأ اشتراك Enterprise المفوتر عبر الفاتورة. يتلقى العميل فاتورة عبر البريد الإلكتروني؛ ولا يتم جمع بيانات البطاقة هنا."
 
 #: lib/tuist_web/live/ops_account_live.ex:1286
 #, elixir-autogen, elixir-format
@@ -1041,12 +1041,12 @@ msgstr "لا توجد حسابات"
 #: lib/tuist_web/live/ops_accounts_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "No accounts match the current filter."
-msgstr "لا تتطابق أي حسابات مع الفلتر الحالي."
+msgstr "لا تتطابق أي حسابات مع عامل التصفية الحالي."
 
 #: lib/tuist_web/live/ops_account_live.ex:450
 #, elixir-autogen, elixir-format
 msgid "No active subscription to cancel."
-msgstr "لا يوجد اشتراك نشط لإلغائه."
+msgstr "لا يوجد اشتراك نشط للإلغاء."
 
 #: lib/tuist/utilities/date_formatter.ex:5
 #: lib/tuist/utilities/date_formatter.ex:76
@@ -1071,7 +1071,7 @@ msgstr "النرويج"
 #: lib/tuist_web/live/ops_accounts_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Not created"
-msgstr "لم يتم إنشاؤه"
+msgstr "غير مُنشأ"
 
 #: lib/tuist_web/live/ops_account_helpers.ex:23
 #, elixir-autogen, elixir-format
@@ -1103,7 +1103,7 @@ msgstr "الخطة"
 #: lib/tuist_web/live/ops_account_live.html.heex:824
 #, elixir-autogen, elixir-format
 msgid "Plan & billing"
-msgstr "الخطة والفواتير"
+msgstr "الخطة والفوترة"
 
 #: lib/tuist_web/live/ops_account_live.ex:1314
 #, elixir-autogen, elixir-format
@@ -1143,7 +1143,7 @@ msgstr "رومانيا"
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Running"
-msgstr "جارٍ التشغيل"
+msgstr "قيد التشغيل"
 
 #: lib/tuist_web/live/ops_accounts_live.html.heex:13
 #, elixir-autogen, elixir-format
@@ -1255,7 +1255,7 @@ msgstr "النوع"
 #: lib/tuist_web/live/ops_account_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "URL"
-msgstr "عنوان URL"
+msgstr "الرابط الموحد للموارد (URL)"
 
 #: lib/tuist_web/live/ops_account_live.ex:1328
 #, elixir-autogen, elixir-format
@@ -1306,12 +1306,12 @@ msgstr "فيتنام"
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:325
 #, elixir-autogen, elixir-format
 msgid "Could not complete the GitHub App registration."
-msgstr "لم نتمكن من إكمال تسجيل تطبيق GitHub."
+msgstr "لم يكتمل تسجيل تطبيق GitHub."
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:102
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server installations must go through the App registration flow first."
-msgstr "يجب أن تمر تثبيتات GitHub Enterprise Server أولاً عبر تدفق تسجيل التطبيق."
+msgstr "يجب أن تمر عمليات تثبيت GitHub Enterprise Server أولاً عبر تدفق تسجيل التطبيق."
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:101
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:122
@@ -1340,27 +1340,27 @@ msgstr "حالة تسجيل البيان مفقودة."
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:94
 #, elixir-autogen, elixir-format
 msgid "This account already has a GitHub app installation. Uninstall it before registering a new one."
-msgstr "يحتوي هذا الحساب بالفعل على تثبيت لتطبيق GitHub. قم بإلغاء تثبيته قبل تسجيل واحد جديد."
+msgstr "يحتوي هذا الحساب بالفعل على تثبيت لتطبيق GitHub. قم بإلغاء تثبيته قبل تسجيل تطبيق جديد."
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:311
 #, elixir-autogen, elixir-format
 msgid "%{url} resolves to a non-public IP address, so Tuist refuses to connect to it. Either expose the GitHub Enterprise Server API on a public address (allowlisting Tuist's egress IPs is enough), or self-host Tuist inside your network."
-msgstr "يحل %{url} إلى عنوان IP غير عام، لذا ترفض Tuist الاتصال به. إما أن تعرض واجهة برمجة تطبيقات GitHub Enterprise Server على عنوان عام (إضافة عناوين IP الصادرة لـ Tuist إلى القائمة البيضاء يكفي)، أو استضف Tuist داخلياً داخل شبكتك."
+msgstr "%{url} يحل إلى عنوان IP غير عام، لذا يرفض Tuist الاتصال به. إما أن تعرض واجهة برمجة تطبيقات GitHub Enterprise Server على عنوان عام (إدراج عناوين IP الصادرة لـ Tuist في القائمة البيضاء يكفي)، أو استضف Tuist ذاتيًا داخل شبكتك."
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:378
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server rejected the manifest with HTTP %{status}. The registration code is no longer usable — start the flow again from the integrations page."
-msgstr "رفض GitHub Enterprise Server البيان مع حالة HTTP %{status}. لم يعد رمز التسجيل قابلاً للاستخدام — ابدأ التدفق مرة أخرى من صفحة التكاملات."
+msgstr "رفض GitHub Enterprise Server البيان برمز HTTP %{status}. لم يعد رمز التسجيل قابلاً للاستخدام - ابدأ التدفق مرة أخرى من صفحة التكاملات."
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:372
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server returned 404 when converting the manifest. The temporary registration code may have expired (it's valid for one hour) — start the flow again from the integrations page."
-msgstr "أعاد GitHub Enterprise Server رمز الحالة 404 أثناء تحويل ملف التعريف. قد تكون شفرة التسجيل المؤقتة قد انتهت صلاحيتها (صالحة لمدة ساعة واحدة) - ابدأ العملية مرة أخرى من صفحة التكاملات."
+msgstr "أعاد خادم GitHub Enterprise رمز 404 عند تحويل البيان. قد تكون شفرة التسجيل المؤقتة منتهية الصلاحية (صالحة لمدة ساعة واحدة) - ابدأ العملية مرة أخرى من صفحة التكاملات."
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:385
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
-msgstr "أعاد GitHub Enterprise Server رمز حالة HTTP %{status} أثناء تحويل ملف التعريف. تحقق من سجلات الخادم للحصول على نص الطلب وأعد المحاولة."
+msgstr "أعاد خادم GitHub Enterprise رمز HTTP %{status} عند تحويل البيان. تحقق من سجلات الخادم للحصول على نص الطلب وحاول مرة أخرى."
 
 #: lib/tuist_web/components/app_layout_components.ex:584
 #, elixir-autogen, elixir-format
@@ -1375,7 +1375,7 @@ msgstr "مشغّلات CI"
 #: lib/tuist_web/components/dashboard_navigation.ex:60
 #, elixir-autogen, elixir-format
 msgid "Webhooks"
-msgstr "الويب هوكس"
+msgstr "الويب هوك"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:29
 #, elixir-autogen, elixir-format
@@ -1390,7 +1390,7 @@ msgstr "%{n} صف(وف) · %{duration}%{trunc}"
 #: lib/tuist_web/live/ops_database_table_live.html.heex:15
 #, elixir-autogen, elixir-format
 msgid "%{rows} estimated row(s) · %{size}"
-msgstr "%{rows} صف(وف) مقدَّر(ة) · %{size}"
+msgstr "%{rows} صف(وف) مقدّر(ة) · %{size}"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:23
 #, elixir-autogen, elixir-format
@@ -1400,24 +1400,24 @@ msgstr "النشاط"
 #: lib/tuist_web/live/ops_database_live.html.heex:374
 #, elixir-autogen, elixir-format
 msgid "Archive settings"
-msgstr "إعدادات النسخ الاحتياطي"
+msgstr "إعدادات الأرشيف"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:119
 #: lib/tuist_web/live/ops_database_live.html.heex:352
 #, elixir-autogen, elixir-format
 msgid "Archives total"
-msgstr "إجمالي النسخ الاحتياطية"
+msgstr "إجمالي الأرشيفات"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "Backup"
-msgstr "نسخ احتياطي"
+msgstr "نسخة احتياطية"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:33
 #: lib/tuist_web/live/ops_database_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Backups"
-msgstr "نسخ احتياطية"
+msgstr "النسخ الاحتياطية"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:308
 #, elixir-autogen, elixir-format
@@ -1443,12 +1443,12 @@ msgstr "مكتمل"
 #: lib/tuist_web/live/ops_database_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Connected as"
-msgstr "متصل كـ"
+msgstr "متصل باسم"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Connections"
-msgstr "اتصالات"
+msgstr "الاتصالات"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:468
 #, elixir-autogen, elixir-format
@@ -1468,7 +1468,7 @@ msgstr "نسخ كـ Markdown"
 #: lib/tuist_web/live/ops_database_live.ex:181
 #, elixir-autogen, elixir-format
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
-msgstr "تعذر قراءة موارد النسخ الاحتياطي للعنقود من واجهة برمجة تطبيقات Kubernetes - تحقق من صلاحيات RBAC لحساب خدمة الخادم على postgresql.cnpg.io."
+msgstr "لم نتمكن من قراءة موارد النسخ الاحتياطي للعنقود من واجهة برمجة تطبيقات Kubernetes — تحقق من صلاحيات RBAC لحساب خدمة الخادم على postgresql.cnpg.io."
 
 #: lib/tuist_web/components/app_layout_components.ex:657
 #: lib/tuist_web/live/ops_database_live.html.heex:3
@@ -1480,7 +1480,7 @@ msgstr "قاعدة البيانات"
 #: lib/tuist_web/live/ops_database_table_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Default"
-msgstr "افتراضي"
+msgstr "الافتراضي"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:390
 #, elixir-autogen, elixir-format
@@ -1495,7 +1495,7 @@ msgstr "تنزيل CSV"
 #: lib/tuist_web/live/ops_database_live.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "Duplicate indexes"
-msgstr "فهارس مكررة"
+msgstr "مؤشرات مكررة"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:214
 #, elixir-autogen, elixir-format
@@ -1510,7 +1510,7 @@ msgstr "نتيجة فارغة"
 #: lib/tuist_web/live/ops_database_live.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "Every index has been used at least once."
-msgstr "تم استخدام كل فهرس مرة واحدة على الأقل."
+msgstr "تم استخدام كل مؤشر مرة واحدة على الأقل."
 
 #: lib/tuist_web/live/ops_database_live.html.heex:448
 #, elixir-autogen, elixir-format
@@ -1562,12 +1562,12 @@ msgstr "آخر مؤرشف"
 #: lib/tuist_web/live/ops_database_live.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "Last archived WAL"
-msgstr "آخر WAL مؤرشف"
+msgstr "آخر سجل WAL مؤرشف"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:358
 #, elixir-autogen, elixir-format
 msgid "Last failed WAL"
-msgstr "آخر WAL فاشل"
+msgstr "آخر سجل WAL فاشل"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:233
 #, elixir-autogen, elixir-format
@@ -1592,7 +1592,7 @@ msgstr "الوضع"
 #: lib/tuist_web/live/ops_database_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "No CNPG cluster wired to this server (dev, or Postgres still on the external provider). Base backups appear once the server runs against the in-cluster cluster."
-msgstr "لا توجد مجموعة CNPG متصلة بهذا الخادم (تطوير، أو لا يزال Postgres على المزود الخارجي). تظهر النسخ الاحتياطية الأساسية بمجرد تشغيل الخادم مقابل المجموعة داخل العنقود."
+msgstr "لا توجد مجموعة CNPG متصلة بهذا الخادم (تطوير، أو لا يزال PostgreSQL على الموفر الخارجي). تظهر النسخ الاحتياطية الأساسية بمجرد تشغيل الخادم مقابل المجموعة داخل العنقود."
 
 #: lib/tuist_web/live/ops_database_live.html.heex:329
 #, elixir-autogen, elixir-format
@@ -1602,27 +1602,27 @@ msgstr "لا توجد نسخ احتياطية أساسية"
 #: lib/tuist_web/live/ops_database_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "No duplicates"
-msgstr "لا تكرار"
+msgstr "لا توجد تكرارات"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:254
 #, elixir-autogen, elixir-format
 msgid "No locks"
-msgstr "لا أقفال"
+msgstr "لا توجد أقفال"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "No long queries"
-msgstr "لا استعلامات طويلة"
+msgstr "لا توجد استعلامات طويلة"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "No replicas attached"
-msgstr "لا توجد نسخ متماثلة مرفقة"
+msgstr "لا توجد نسخ مرفقة"
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "No rows"
-msgstr "لا صفوف"
+msgstr "لا توجد صفوف"
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:81
 #, elixir-autogen, elixir-format
@@ -1632,12 +1632,12 @@ msgstr "لا تتطابق أي صفوف مع الفلتر الحالي في هذ
 #: lib/tuist_web/live/ops_database_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "No tables"
-msgstr "لا جداول"
+msgstr "لا توجد جداول"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "No two indexes cover the same column set."
-msgstr "لا يغطي فهرسان مجموعة الأعمدة نفسها."
+msgstr "لا يغطي فهرسان المجموعة نفسها من الأعمدة."
 
 #: lib/tuist_web/live/ops_database_live.html.heex:180
 #, elixir-autogen, elixir-format
@@ -1652,12 +1652,12 @@ msgstr "غير مُهيّأ"
 #: lib/tuist_web/live/ops_database_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Nothing is currently running for longer than 200ms."
-msgstr "لا يوجد حالياً أي عملية تعمل لأكثر من 200 مللي ثانية."
+msgstr "لا يوجد حالياً أي عملية تستغرق أكثر من 200 مللي ثانية."
 
 #: lib/tuist_web/live/ops_database_live.html.heex:255
 #, elixir-autogen, elixir-format
 msgid "Nothing is holding a lock right now."
-msgstr "لا يوجد حالياً أي قفل نشط."
+msgstr "لا يوجد حالياً أي قفل محجوز."
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:106
 #, elixir-autogen, elixir-format
@@ -1715,7 +1715,7 @@ msgstr "الصفوف"
 #: lib/tuist_web/live/ops_database_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "Rows (est.)"
-msgstr "الصفوف (تقديريًا)"
+msgstr "الصفوف (تقديري)"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:425
 #, elixir-autogen, elixir-format
@@ -1725,7 +1725,7 @@ msgstr "تشغيل"
 #: lib/tuist_web/live/ops_database_live.html.heex:416
 #, elixir-autogen, elixir-format
 msgid "SELECT / WITH / EXPLAIN / SHOW only. Runs inside a 5s read-only transaction."
-msgstr "SELECT / WITH / EXPLAIN / SHOW فقط. يتم التنفيذ داخل معاملة للقراءة فقط مدتها 5 ثوانٍ."
+msgstr "SELECT / WITH / EXPLAIN / SHOW فقط. يتم التشغيل داخل معاملة للقراءة فقط مدتها 5 ثوانٍ."
 
 #: lib/tuist_web/live/ops_database_live.html.heex:38
 #, elixir-autogen, elixir-format
@@ -1806,7 +1806,7 @@ msgstr "لم يتم العثور على الجدول."
 #: lib/tuist_web/live/ops_database_table_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Tables"
-msgstr "الجداول"
+msgstr "جداول"
 
 #: lib/tuist_web/live/ops_database_live.ex:186
 #, elixir-autogen, elixir-format
@@ -1846,12 +1846,12 @@ msgstr "الإصدار"
 #: lib/tuist_web/live/ops_database_live.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "WAL archive"
-msgstr "أرشيف سجل المعاملات المسبق (WAL)"
+msgstr "أرشيف WAL"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Write lag (bytes)"
-msgstr "وقت تأخير الكتابة (بايت)"
+msgstr "وقت التأخير للكتابة (بايت)"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:63
 #, elixir-autogen, elixir-format
@@ -1872,7 +1872,7 @@ msgstr "الرموز المميزة"
 #: lib/tuist_web/live/ops_account_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "Limits apply independently to Linux and macOS. A new runner starts only when both its vCPU and memory fit within that platform's remaining capacity."
-msgstr "تُطبَّق الحدود بشكل مستقل على Linux وmacOS. لا يبدأ مشغّل جديد إلا إذا كانت سعة المعالج الافتراضي والذاكرة تتناسب مع السعة المتبقية لذلك النظام."
+msgstr "تُطبَّق الحدود بشكل مستقل على Linux وmacOS. لا يبدأ مشغّل جديد إلا إذا كانت سعة المعالج الافتراضي والذاكرة ضمن السعة المتبقية لتلك المنصة."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:419
 #: lib/tuist_web/live/ops_account_live.html.heex:718
@@ -1891,12 +1891,12 @@ msgstr "حد الذاكرة (جيجابايت)"
 #: lib/tuist_web/live/ops_account_live.html.heex:404
 #, elixir-autogen, elixir-format
 msgid "Runner concurrency"
-msgstr "تزامن المشغّلات"
+msgstr "التشغيل المتزامن للمشغّلات"
 
 #: lib/tuist_web/live/ops_account_live.ex:138
 #, elixir-autogen, elixir-format
 msgid "Runner concurrency limits could not be updated."
-msgstr "لم يتمكّن من تحديث حدود التزامن للمشغّل."
+msgstr "لم يتم تحديث حدود التزامن للمشغّل."
 
 #: lib/tuist_web/live/ops_account_live.ex:132
 #, elixir-autogen, elixir-format
@@ -1920,7 +1920,7 @@ msgstr "macOS"
 #: lib/tuist_web/live/ops_account_live.html.heex:525
 #, elixir-autogen, elixir-format
 msgid "vCPU limit"
-msgstr "حدّ vCPU"
+msgstr "حد vCPU"
 
 #: lib/tuist_web/controllers/auth_controller.ex:1035
 #, elixir-autogen, elixir-format
@@ -1930,22 +1930,22 @@ msgstr "لا تسمح مؤسستك بالتسجيل التلقائي لنطاق 
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "Superseded"
-msgstr "مُستبدَل"
+msgstr "مستبدَل"
 
 #: lib/tuist_web/live/ops_account_live.ex:357
 #, elixir-autogen, elixir-format
 msgid "%{account} is now %{visibility}."
-msgstr "%{account} أصبح الآن %{visibility}."
+msgstr "%{account} الآن %{visibility}."
 
 #: lib/tuist_web/live/ops_account_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Account visibility could not be updated."
-msgstr "لم يتمكّن من تحديث رؤية الحساب."
+msgstr "لم يتم تحديث إعدادات خصوصية الحساب."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:807
 #, elixir-autogen, elixir-format
 msgid "Actions"
-msgstr "الإجراءات"
+msgstr "إجراءات"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:789
 #, elixir-autogen, elixir-format
@@ -1965,84 +1965,84 @@ msgstr "اجعلها عامة"
 #: lib/tuist_web/live/ops_account_live.html.heex:804
 #, elixir-autogen, elixir-format
 msgid "Nothing."
-msgstr "لا يوجد شيء."
+msgstr "لا يوجد."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:793
 #, elixir-autogen, elixir-format
 msgid "Private"
-msgstr "خاص"
+msgstr "خاصة"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:792
 #, elixir-autogen, elixir-format
 msgid "Public"
-msgstr "عام"
+msgstr "عامة"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:800
 #, elixir-autogen, elixir-format
 msgid "Public projects, runners, and usage. Members, webhooks, cache, billing, and settings stay private."
-msgstr "المشاريع والمشغّلات والاستخدام العامة. الأعضاء والويب هوكات وذاكرة التخزين المؤقت والفواتير والإعدادات تظل خاصة."
+msgstr "المشاريع والمشغّلات والاستخدام العام. يبقى الأعضاء والويب هوكس وذاكرة التخزين المؤقت والفوترة والإعدادات خاصة."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:796
 #, elixir-autogen, elixir-format
 msgid "Signed-out visitors see"
-msgstr "الزوار غير المسجّلين يرون"
+msgstr "يرى الزوار غير المسجّلين"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:786
 #, elixir-autogen, elixir-format
 msgid "Visibility"
-msgstr "إمكانية الوصول"
+msgstr "الظهور"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Claim"
-msgstr "تحديد المطالبة"
+msgstr "المطالبة"
 
 #: lib/tuist_web/live/ops_account_live.ex:1217
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built."
-msgstr "تم تعيين مطالبة قرص Kura إلى %{claim}. لم تتغيّر أي نسخة قيد التشغيل؛ وسيُطبَّق التغيير عند بناء أحجام التخزين في المرة التالية."
+msgstr "تم تعيين مطالبة قرص Kura إلى %{claim}. لم تتغيّر أي مشغّلة قيد التشغيل؛ سيتم تطبيقها في المرة التالية التي تُبنى فيها الأحجام."
 
 #: lib/tuist_web/live/ops_account_live.ex:1246
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim lowered to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget."
 msgid_plural "Kura disk claim lowered to %{claim}. %{count} running instances keep their caches and evict down to the new budget."
-msgstr[0] "خفِّضت مطالبة قرص Kura إلى %{claim}. تحتفظ %{count} نسخة قيد التشغيل بذاكرتها المؤقتة وتُفرِغ البيانات لتتوافق مع الميزانية الجديدة."
-msgstr[1] "خفِّضت مطالبة قرص Kura إلى %{claim}. تحتفظ %{count} نسخ قيد التشغيل بذواكرها المؤقتة وتُفرِغ البيانات لتتوافق مع الميزانية الجديدة."
-msgstr[2] "خفِّضت مطالبة قرص Kura إلى %{claim}. تحتفظ %{count} نسخ قيد التشغيل بذواكرها المؤقتة وتُفرِغ البيانات لتتوافق مع الميزانية الجديدة."
-msgstr[3] "خفِّضت مطالبة قرص Kura إلى %{claim}. تحتفظ %{count} نسخ قيد التشغيل بذواكرها المؤقتة وتُفرِغ البيانات لتتوافق مع الميزانية الجديدة."
-msgstr[4] "خفِّضت مطالبة قرص Kura إلى %{claim}. تحتفظ %{count} نسخ قيد التشغيل بذواكرها المؤقتة وتُفرِغ البيانات لتتوافق مع الميزانية الجديدة."
-msgstr[5] "خفِّضت مطالبة قرص Kura إلى %{claim}. تحتفظ %{count} نسخ قيد التشغيل بذواكرها المؤقتة وتُفرِغ البيانات لتتوافق مع الميزانية الجديدة."
+msgstr[0] "خفّضت مطالبة قرص Kura إلى %{claim}. تحتفظ %{count} مشغّلة قيد التشغيل بذاكرتها المؤقتة وتُخلي البيانات لتتوافق مع الميزانية الجديدة."
+msgstr[1] "خفّضت مطالبة قرص Kura إلى %{claim}. تحتفظ %{count} مشغّلات قيد التشغيل بذواكرها المؤقتة وتُخلي البيانات لتتوافق مع الميزانية الجديدة."
+msgstr[2] "خفّضت مطالبة قرص Kura إلى %{claim}. تحتفظ %{count} مشغّلات قيد التشغيل بذواكرها المؤقتة وتُخلي البيانات لتتوافق مع الميزانية الجديدة."
+msgstr[3] "خفّضت مطالبة قرص Kura إلى %{claim}. تحتفظ %{count} مشغّلات قيد التشغيل بذواكرها المؤقتة وتُخلي البيانات لتتوافق مع الميزانية الجديدة."
+msgstr[4] "خفّضت مطالبة قرص Kura إلى %{claim}. تحتفظ %{count} مشغّلات قيد التشغيل بذواكرها المؤقتة وتُخلي البيانات لتتوافق مع الميزانية الجديدة."
+msgstr[5] "خفّضت مطالبة قرص Kura إلى %{claim}. تحتفظ %{count} مشغّلات قيد التشغيل بذواكرها المؤقتة وتُخلي البيانات لتتوافق مع الميزانية الجديدة."
 
 #: lib/tuist_web/live/ops_account_live.ex:1261
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim raised to %{claim}. Up to %{count} running instance rebuilds its volumes, one replica at a time behind the standby that keeps serving."
 msgid_plural "Kura disk claim raised to %{claim}. Up to %{count} running instances rebuild their volumes, one replica at a time behind the standby that keeps serving."
-msgstr[0] "رُفعت مطالبة قرص Kura إلى %{claim}. ستعيد ما يصل إلى %{count} نسخة قيد التشغيل بناء أحجام التخزين الخاصة بها، نسخةً احتياطية واحدة في كل مرة خلف النسخة الاحتياطية التي تستمر في الخدمة."
-msgstr[1] "تم رفع حد استخدام قرص Kura إلى %{claim}. ستعيد ما يصل إلى %{count} من النسخ قيد التشغيل بناء وحدات التخزين الخاصة بها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل الخدمة."
-msgstr[2] "تم رفع حد استخدام قرص Kura إلى %{claim}. ستعيد ما يصل إلى %{count} من النسخ قيد التشغيل بناء وحدات التخزين الخاصة بها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل الخدمة."
-msgstr[3] "تم رفع حد استخدام قرص Kura إلى %{claim}. ستعيد ما يصل إلى %{count} من النسخ قيد التشغيل بناء وحدات التخزين الخاصة بها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل الخدمة."
-msgstr[4] "تم رفع حد استخدام قرص Kura إلى %{claim}. ستعيد ما يصل إلى %{count} من النسخ قيد التشغيل بناء وحدات التخزين الخاصة بها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل الخدمة."
-msgstr[5] "تم رفع حد استخدام قرص Kura إلى %{claim}. ستعيد ما يصل إلى %{count} من النسخ قيد التشغيل بناء وحدات التخزين الخاصة بها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل الخدمة."
+msgstr[0] "رُفعت مطالبة قرص Kura إلى %{claim}. تعيد ما يصل إلى %{count} مشغّلة قيد التشغيل بناء أحجامها، واحدة تلو الأخرى خلف النسخة الاحتياطية التي تواصل الخدمة."
+msgstr[1] "تم رفع مطالبة استخدام قرص Kura إلى %{claim}. تعيد ما يصل إلى %{count} من المثيلات قيد التشغيل بناء أحجامها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل تقديم الخدمة."
+msgstr[2] "تم رفع مطالبة استخدام قرص Kura إلى %{claim}. تعيد ما يصل إلى %{count} من المثيلات قيد التشغيل بناء أحجامها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل تقديم الخدمة."
+msgstr[3] "تم رفع مطالبة استخدام قرص Kura إلى %{claim}. تعيد ما يصل إلى %{count} من المثيلات قيد التشغيل بناء أحجامها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل تقديم الخدمة."
+msgstr[4] "تم رفع مطالبة استخدام قرص Kura إلى %{claim}. تعيد ما يصل إلى %{count} من المثيلات قيد التشغيل بناء أحجامها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل تقديم الخدمة."
+msgstr[5] "تم رفع مطالبة استخدام قرص Kura إلى %{claim}. تعيد ما يصل إلى %{count} من المثيلات قيد التشغيل بناء أحجامها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل تقديم الخدمة."
 
 #: lib/tuist_web/live/ops_account_live.ex:152
 #, elixir-autogen, elixir-format
 msgid "%{account} is on a runner trial and will not be billed for runner usage until it is cancelled."
-msgstr "%{account} في فترة تجريبية للمشغّلات ولن يتم تحصيل رسوم مقابل استخدام المشغّلات حتى يتم إلغاؤها."
+msgstr "%{account} في فترة تجريبية لمشغّلات CI ولن تُفوتَر على استخدامها حتى يتم إلغاؤها."
 
 #: lib/tuist_web/live/ops_account_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "%{account}'s runner trial is over. Runner usage is billable from now on."
-msgstr "انتهت الفترة التجريبية للمشغّلات الخاصة بـ %{account}. سيتم تحصيل رسوم مقابل استخدام المشغّلات من الآن فصاعدًا."
+msgstr "انتهت الفترة التجريبية لمشغّلات CI الخاصة بـ %{account}. سيبدأ فوترة استخدام مشغّلات CI من الآن فصاعدًا."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "An account on a runner trial is not billed for runner usage. Usage is still metered and still reported, but the subscription carries no runner item for Stripe to invoice it against. The trial runs until it is cancelled here."
-msgstr "لا يتم تحصيل رسوم مقابل استخدام المشغّلات للحسابات في فترة تجريبية. لا يزال الاستخدام مقاسًا ومُبلَّغًا عنه، لكن الاشتراك لا يحتوي على بند للمشغّلات لتفوتّر Stripe ضده. تستمر الفترة التجريبية حتى يتم إلغاؤها من هنا."
+msgstr "لا تُفوتَر الحسابات في الفترة التجريبية لمشغّلات CI على استخدامها. لا يزال الاستخدام مُقاسًا ومُبلغًا عنه، لكن الاشتراك لا يحتوي على عنصر خاص بمشغّلات CI لتقوم Stripe بإصدار فاتورة بحسبه. تستمر الفترة التجريبية حتى يتم إلغاؤها من هنا."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:650
 #, elixir-autogen, elixir-format
 msgid "Cancel runner trial"
-msgstr "إلغاء الفترة التجريبية للمشغّلات"
+msgstr "إلغاء الفترة التجريبية لمشغّلات CI"
 
 #: lib/tuist_web/live/ops_account_live.ex:214
 #, elixir-autogen, elixir-format
@@ -2062,12 +2062,12 @@ msgstr "تنتهي الصلاحية"
 #: lib/tuist_web/live/ops_account_live.ex:673
 #, elixir-autogen, elixir-format
 msgid "No expiry"
-msgstr "لا تنتهي صلاحيتها"
+msgstr "لا تاريخ انتهاء"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "On a runner trial"
-msgstr "خلال فترة تجريبية للمشغّل"
+msgstr "في فترة تجريبية للمشغّل"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:611
 #, elixir-autogen, elixir-format
@@ -2087,7 +2087,7 @@ msgstr "الدقائق المتبقية"
 #: lib/tuist_web/live/ops_account_live.ex:671
 #, elixir-autogen, elixir-format
 msgid "Prepaid"
-msgstr "مدفوعة مسبقاً"
+msgstr "مدفوع مسبقاً"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:656
 #, elixir-autogen, elixir-format
@@ -2102,17 +2102,17 @@ msgstr "المصدر"
 #: lib/tuist_web/live/ops_account_live.html.heex:674
 #, elixir-autogen, elixir-format
 msgid "This account has no prepaid runner minutes."
-msgstr "لا يحتوي هذا الحساب على دقائق مشغّل مدفوعة مسبقًا."
+msgstr "لا يحتوي هذا الحساب على دقائق مشغّل مدفوعة مسبقاً."
 
 #: lib/tuist_web/live/ops_account_live.ex:669
 #, elixir-autogen, elixir-format
 msgid "Trial"
-msgstr "تجريبي"
+msgstr "نسخة تجريبية"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:626
 #, elixir-autogen, elixir-format
 msgid "Cancelling adds the runner items to this account's subscription, which makes its runner usage billable from that moment. Minutes it ran during the trial stay free, including those already recorded in the current billing period."
-msgstr "يؤدي الإلغاء إلى إضافة عناصر المشغّل إلى اشتراك هذا الحساب، ما يجعل استخدام المشغّل خاضعًا للفوترة من تلك اللحظة. تظل الدقائق التي استُخدمت خلال الفترة التجريبية مجانية، بما في ذلك تلك المسجّلة بالفعل في فترة الفوترة الحالية."
+msgstr "يؤدي الإلغاء إلى إضافة عناصر المشغّل إلى اشتراك هذا الحساب، ما يجعل استخدام المشغّل خاضعاً للفوترة من تلك اللحظة. تظل الدقائق التي تم تشغيلها أثناء الفترة التجريبية مجانية، بما في ذلك تلك المسجّلة بالفعل في فترة الفوترة الحالية."
 
 #: lib/tuist_web/live/ops_account_live.ex:925
 #, elixir-autogen, elixir-format
@@ -2132,7 +2132,7 @@ msgstr "تجاوز الحد الأقصى (ميغابت/ثانية)"
 #: lib/tuist_web/live/ops_account_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Egress floor / ceiling"
-msgstr "الحد الأدنى / الحد الأقصى لحركة الخروج"
+msgstr "الحد الأدنى/الأقصى لحركة الخروج"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:354
 #, elixir-autogen, elixir-format
@@ -2152,17 +2152,17 @@ msgstr "الآن"
 #: lib/tuist_web/live/ops_account_live.html.heex:345
 #, elixir-autogen, elixir-format
 msgid "Region default"
-msgstr "الإعداد الافتراضي للمنطقة"
+msgstr "الافتراضي للمنطقة"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Save egress limits"
-msgstr "حفظ حدود حركة الخروج"
+msgstr "حفظ حدود حركة البيانات الصادرة"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Unshaped"
-msgstr "غير مُشكَّل"
+msgstr "غير مقيد"
 
 #: lib/tuist_web/live/ops_account_live.ex:939
 #: lib/tuist_web/live/ops_account_live.ex:1068
@@ -2173,7 +2173,7 @@ msgstr "غير معروف"
 #: lib/tuist_web/live/ops_account_live.html.heex:328
 #, elixir-autogen, elixir-format
 msgid "The floor this account's pods reserve and the ceiling they may burst to, set per region because the boxes differ. Empty a field to hand that number back to the region, which is a default rather than a limit: where the two disagree the region's half gives way to the one you set. The only limit is each region's node budget, since the floor is what the scheduler bin-packs against it. Saving recreates the account's instances in that region so the new pair takes effect. They keep their volumes and restart one at a time behind the standby, so no cache is lost."
-msgstr "الحد الأدنى الذي تحجزه حاويات هذا الحساب والحد الأقصى الذي يمكن أن تصل إليه، ويُضبط لكل منطقة لأن البنية التحتية تختلف. اترك الحقل فارغًا لإعادة القيمة إلى الإعداد الافتراضي للمنطقة، وهو إعداد افتراضي وليس حدًا: عند التعارض، يُطبَّق ما قمت بتعيينه. الحد الوحيد هو ميزانية العقد لكل منطقة، إذ يعتمد المجدول على الحد الأدنى في توزيع المهام. يؤدي الحفظ إلى إعادة إنشاء مثيلات الحساب في تلك المنطقة لتفعيل الإعدادين الجديدين. تحتفظ المثيلات بأحجام التخزين الخاصة بها وتُعاد تشغيلها واحدة تلو الأخرى خلف المثيل الاحتياطي، لذا لا تُفقد ذاكرة التخزين المؤقت."
+msgstr "الحد الأدنى الذي تحجزه حاويات هذا الحساب والحد الأقصى الذي يمكنها الارتفاع إليه، يُحدد لكل منطقة لأن البنية التحتية تختلف. اترك الحقل فارغًا لإعادة الرقم إلى الإعداد الافتراضي للمنطقة، وهو إعداد افتراضي وليس حدًا: عند الاختلاف، يُطبَّق نصف قيمة المنطقة ما لم تُعيّن قيمة أخرى. الحد الوحيد هو ميزانية العقد لكل منطقة، إذ يعتمد المجدول على الحد الأدنى في توزيع المهام. يؤدي الحفظ إلى إعادة إنشاء مثيلات الحساب في تلك المنطقة لتفعيل القيم الجديدة. تحتفظ المثيلات بأحجام التخزين الخاصة بها وتُعاد تشغيلها واحدة تلو الأخرى خلف النسخة الاحتياطية، لذا لا تُفقد ذاكرة التخزين المؤقت."
 
 #: lib/tuist_web/live/ops_account_live.ex:971
 #, elixir-autogen, elixir-format
@@ -2184,17 +2184,17 @@ msgstr "حتى %{mbps}"
 #, elixir-autogen, elixir-format
 msgid "Egress limits updated in %{regions}. %{count} instance is recreated to pick them up."
 msgid_plural "Egress limits updated in %{regions}. %{count} instances are recreated to pick them up."
-msgstr[0] "تم تحديث حدود البيانات الصادرة في %{regions}. تمت إعادة إنشاء %{count} مثيل لتطبيق التغييرات."
-msgstr[1] "تم تحديث حدود البيانات الصادرة في %{regions}. تمت إعادة إنشاء %{count} من المثيلات لتطبيق التغييرات."
-msgstr[2] "تم تحديث حدود البيانات الصادرة في %{regions}. تمت إعادة إنشاء %{count} من المثيلات لتطبيق التغييرات."
-msgstr[3] "تم تحديث حدود البيانات الصادرة في %{regions}. تمت إعادة إنشاء %{count} من المثيلات لتطبيق التغييرات."
-msgstr[4] "تم تحديث حدود البيانات الصادرة في %{regions}. تمت إعادة إنشاء %{count} من المثيلات لتطبيق التغييرات."
-msgstr[5] "تم تحديث حدود البيانات الصادرة في %{regions}. تمت إعادة إنشاء %{count} من المثيلات لتطبيق التغييرات."
+msgstr[0] "تم تحديث حدود الخروج في %{regions}. تتم إعادة إنشاء مثيل واحد (%{count}) لتطبيقها."
+msgstr[1] "تم تحديث حدود الخروج في %{regions}. تتم إعادة إنشاء %{count} من المثيلات لتطبيقها."
+msgstr[2] "تم تحديث حدود الخروج في %{regions}. تتم إعادة إنشاء %{count} من المثيلات لتطبيقها."
+msgstr[3] "تم تحديث حدود الخروج في %{regions}. تتم إعادة إنشاء %{count} من المثيلات لتطبيقها."
+msgstr[4] "تم تحديث حدود الخروج في %{regions}. تتم إعادة إنشاء %{count} من المثيلات لتطبيقها."
+msgstr[5] "تم تحديث حدود الخروج في %{regions}. تتم إعادة إنشاء %{count} من المثيلات لتطبيقها."
 
 #: lib/tuist_web/live/ops_account_live.ex:856
 #, elixir-autogen, elixir-format
 msgid "No egress limits changed."
-msgstr "لم تتغير حدود البيانات الصادرة."
+msgstr "لم تتغير حدود الخروج."
 
 #: lib/tuist_web/live/ops_account_live.ex:895
 #, elixir-autogen, elixir-format
@@ -2210,7 +2210,7 @@ msgstr[5] "لم يتم حفظ أي شيء: تم رفض %{regions}."
 #: lib/tuist_web/live/ops_account_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Saving recreates this account's Kura instances in the regions you changed. They keep their volumes and restart one at a time behind the standby, so no cache is lost. Continue?"
-msgstr "يؤدي الحفظ إلى إعادة إنشاء مثيلات Kura لهذا الحساب في المناطق التي غيّرتها. تحتفظ هذه المثيلات بأحجام التخزين الخاصة بها وتعيد التشغيل واحدة تلو الأخرى خلف المثيل الاحتياطي، لذا لا تُفقد ذاكرة التخزين المؤقت. هل تريد المتابعة؟"
+msgstr "يؤدي الحفظ إلى إعادة إنشاء مثيلات Kura لهذا الحساب في المناطق التي غيّرتها. تحتفظ هذه المثيلات بأحجامها وتعيد التشغيل واحدة تلو الأخرى خلف المثيل الاحتياطي، لذا لا تُفقد ذاكرة التخزين المؤقت. هل تريد المتابعة؟"
 
 #: lib/tuist_web/live/ops_account_live.ex:905
 #, elixir-autogen, elixir-format
@@ -2247,7 +2247,7 @@ msgstr "عمليات نشر Kura"
 #: lib/tuist_web/live/ops_account_live.ex:1072
 #, elixir-autogen, elixir-format
 msgid "%{count} days"
-msgstr "%{count} أيام"
+msgstr "%{count} يوم"
 
 #: lib/tuist_web/live/ops_account_kura_placement_live.html.heex:6
 #: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:6
@@ -2264,7 +2264,7 @@ msgstr[5] "%{count} قرارات"
 #: lib/tuist_web/live/ops_account_live.ex:1073
 #, elixir-autogen, elixir-format
 msgid "%{count} hours"
-msgstr "%{count} ساعات"
+msgstr "%{count} ساعة"
 
 #: lib/tuist_web/live/ops_account_live.ex:1074
 #, elixir-autogen, elixir-format
@@ -2274,7 +2274,7 @@ msgstr "%{count} دقيقة"
 #: lib/tuist_web/live/ops_account_live.ex:1206
 #, elixir-autogen, elixir-format
 msgid "%{used} of %{budget}"
-msgstr "%{used} من %{budget}"
+msgstr "‏%{used} من %{budget}"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:166
 #: lib/tuist_web/live/ops_account_live.html.heex:249
@@ -2285,12 +2285,12 @@ msgstr "تطبيق الاقتراح"
 #: lib/tuist_web/live/ops_account_live.html.heex:244
 #, elixir-autogen, elixir-format
 msgid "Apply the proposed claim? Growing rebuilds volumes one replica at a time behind the standby; shrinking keeps the cache and evicts down."
-msgstr "هل تريد تطبيق المطالبة المقترحة؟ يؤدي ذلك إلى زيادة أحجام إعادة البناء بإضافة نسخة واحدة في كل مرة خلف النسخة الاحتياطية؛ أما عند التقليل، فتبقى ذاكرة التخزين المؤقت ويتم طرد البيانات الزائدة."
+msgstr "هل تريد تطبيق المطالبة المقترحة؟ تنمو أحجام إعادة البناء بنسخة واحدة في كل مرة خلف النسخة الاحتياطية؛ بينما يحافظ التصغير على ذاكرة التخزين المؤقت ويقوم بالإخلاء."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "Automatic sizing set this account's claim to %{claim}."
-msgstr "حدد التحجيم التلقائي مطالبة هذا الحساب على %{claim}."
+msgstr "حدد التحجيم التلقائي مطالبة هذا الحساب إلى %{claim}."
 
 #: lib/tuist_web/live/ops_account_kura_placement_live.html.heex:23
 #: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:23
@@ -2311,7 +2311,7 @@ msgstr "تغيير"
 #: lib/tuist_web/live/ops_account_live.html.heex:280
 #, elixir-autogen, elixir-format
 msgid "Disk used"
-msgstr "المساحة المستخدمة على القرص"
+msgstr "مساحة القرص المستخدمة"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:172
 #: lib/tuist_web/live/ops_account_live.html.heex:255
@@ -2328,18 +2328,18 @@ msgstr "السجل"
 #: lib/tuist_web/live/ops_account_live.html.heex:291
 #, elixir-autogen, elixir-format
 msgid "No pod has reported its disk in the last week."
-msgstr "لم يُبلّغ أي حاوية عن استخدام القرص خلال الأسبوع الماضي."
+msgstr "لم يُبلّغ أي Pod عن مساحة القرص خلال الأسبوع الماضي."
 
 #: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "No sizing decisions"
-msgstr "لا قرارات حجمية بعد"
+msgstr "لا قرارات لتحديد الحجم"
 
 #: lib/tuist_web/live/ops_account_live.ex:1096
 #: lib/tuist_web/live/ops_account_live.ex:1132
 #, elixir-autogen, elixir-format
 msgid "Not resolved yet"
-msgstr "لم تُحلّ بعد"
+msgstr "لم تُحل بعد"
 
 #: lib/tuist_web/live/ops_account_kura_placement_live.html.heex:19
 #: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:19
@@ -2352,34 +2352,34 @@ msgstr "النتيجة"
 #: lib/tuist_web/live/ops_account_live.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Pod"
-msgstr "حاوية"
+msgstr "Pod"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Reported"
-msgstr "مُبلَّغ عنه"
+msgstr "مُبلَّغ"
 
 #: lib/tuist_web/live/ops_account_live.ex:1037
 #, elixir-autogen, elixir-format
 msgid "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
 msgid_plural "Seen on %{count} days of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
-msgstr[0] "شوهد في %{count} يوم من القياسات (تم تجاهل %{bytes}، أي %{turnover}x سعة ذاكرة التخزين المؤقت كاملة)."
-msgstr[1] "شوهد في %{count} أيام من القياسات (تم تجاهل %{bytes}، أي %{turnover}x سعة ذاكرة التخزين المؤقت كاملة)."
-msgstr[2] "شوهد في %{count} أيام من القياسات (تم تجاهل %{bytes}، أي %{turnover}x سعة ذاكرة التخزين المؤقت كاملة)."
-msgstr[3] "شوهد في %{count} أيام من القياسات (تم تجاهل %{bytes}، أي %{turnover}x سعة ذاكرة التخزين المؤقت كاملة)."
-msgstr[4] "شوهد في %{count} أيام من القياسات (تم تجاهل %{bytes}، أي %{turnover}x سعة ذاكرة التخزين المؤقت كاملة)."
-msgstr[5] "شوهد في %{count} أيام من القياسات (تم تجاهل %{bytes}، أي %{turnover}x سعة ذاكرة التخزين المؤقت كاملة)."
+msgstr[0] "مُشاهَد في %{count} يوم من القياسات (تم تجاهل %{bytes}، أي %{turnover}x حجم ذاكرة التخزين المؤقت بالكامل)."
+msgstr[1] "مُشاهَد في %{count} أيام من القياسات (تم تجاهل %{bytes}، أي %{turnover}x حجم ذاكرة التخزين المؤقت بالكامل)."
+msgstr[2] "مُشاهَد في %{count} أيام من القياسات (تم تجاهل %{bytes}، أي %{turnover}x حجم ذاكرة التخزين المؤقت بالكامل)."
+msgstr[3] "مُشاهَد في %{count} أيام من القياسات (تم تجاهل %{bytes}، أي %{turnover}x حجم ذاكرة التخزين المؤقت بالكامل)."
+msgstr[4] "مُشاهَد في %{count} أيام من القياسات (تم تجاهل %{bytes}، أي %{turnover}x حجم ذاكرة التخزين المؤقت بالكامل)."
+msgstr[5] "مُشاهَد في %{count} أيام من القياسات (تم تجاهل %{bytes}، أي %{turnover}x حجم ذاكرة التخزين المؤقت بالكامل)."
 
 #: lib/tuist_web/live/ops_account_live.ex:1060
 #, elixir-autogen, elixir-format
 msgid "Seen on %{count} day of measurements."
 msgid_plural "Seen on %{count} consecutive days of measurements."
-msgstr[0] "شوهد في %{count} يوم من القياسات."
-msgstr[1] "شوهد في %{count} أيام متتالية من القياسات."
-msgstr[2] "شوهد في %{count} أيام متتالية من القياسات."
-msgstr[3] "شوهد في %{count} أيام متتالية من القياسات."
-msgstr[4] "شوهد في %{count} أيام متتالية من القياسات."
-msgstr[5] "شوهد في %{count} أيام متتالية من القياسات."
+msgstr[0] "مُشاهَد في %{count} يوم من القياسات."
+msgstr[1] "مُشاهَد في %{count} أيام متتالية من القياسات."
+msgstr[2] "مُشاهَد في %{count} أيام متتالية من القياسات."
+msgstr[3] "مُشاهَد في %{count} أيام متتالية من القياسات."
+msgstr[4] "مُشاهَد في %{count} أيام متتالية من القياسات."
+msgstr[5] "مُشاهَد في %{count} أيام متتالية من القياسات."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:283
 #, elixir-autogen, elixir-format
@@ -2406,32 +2406,32 @@ msgstr "لم يتخذ تحديد الحجم أي قرار لهذا الحساب 
 #: lib/tuist_web/live/ops_account_live.ex:290
 #, elixir-autogen, elixir-format
 msgid "Sizing proposal dismissed."
-msgstr "تم تجاهل اقتراح تحديد الحجم."
+msgstr "تم تجاهل اقتراح تغيير الحجم."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:216
 #, elixir-autogen, elixir-format
 msgid "Sizing proposes growing the disk claim from %{current} to %{recommended}."
-msgstr "يقترح تحديد الحجم زيادة طلب مساحة القرص من %{current} إلى %{recommended}."
+msgstr "يقترح تعديل الحجم زيادة مساحة القرص المحجوزة من %{current} إلى %{recommended}."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:224
 #, elixir-autogen, elixir-format
 msgid "Sizing proposes shrinking the disk claim from %{current} to %{recommended}."
-msgstr "يقترح تحديد الحجم تقليل طلب مساحة القرص من %{current} إلى %{recommended}."
+msgstr "يقترح تعديل الحجم تقليل مساحة القرص المحجوزة من %{current} إلى %{recommended}."
 
 #: lib/tuist_web/live/ops_account_live.ex:1024
 #, elixir-autogen, elixir-format
 msgid "The cache in %{region} has not filled past %{peak}% of the disk it reserves, and has discarded nothing."
-msgstr "لم تتجاوز ذاكرة التخزين المؤقت في %{region} نسبة %{peak}% من مساحة القرص المحجوزة، ولم يتم التخلص من أي شيء."
+msgstr "لم تتجاوز ذاكرة التخزين المؤقت في %{region} نسبة %{peak}% من سعة القرص المحجوزة، ولم يتم التخلص من أي بيانات."
 
 #: lib/tuist_web/live/ops_account_live.ex:1004
 #, elixir-autogen, elixir-format
 msgid "The cache in %{region} is discarding work a median of %{shed_age} after it was written, when it should keep everything for at least %{floor}."
-msgstr "تتخلص ذاكرة التخزين المؤقت في %{region} من العمل بعد مرور وسيط زمني قدره %{shed_age} على كتابته، بينما ينبغي عليها الاحتفاظ بكل شيء لمدة لا تقل عن %{floor}."
+msgstr "تتخلص ذاكرة التخزين المؤقت في %{region} من البيانات بعد فترة وسيطية تبلغ %{shed_age} من كتابتها، بينما ينبغي الاحتفاظ بكل البيانات لمدة لا تقل عن %{floor}."
 
 #: lib/tuist_web/live/ops_account_live.ex:272
 #, elixir-autogen, elixir-format
 msgid "The proposal no longer applies; the next sizing sweep re-evaluates the account."
-msgstr "لم يعد الاقتراح سارياً؛ ستعيد عملية فحص الأحجام التالية تقييم الحساب."
+msgstr "لم يعد الاقتراح ساري المفعول؛ ستعيد عملية فحص الأحجام التالية تقييم الحساب."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:181
 #: lib/tuist_web/live/ops_account_live.html.heex:299
@@ -2458,38 +2458,38 @@ msgstr "لماذا"
 #: lib/tuist_web/live/ops_account_live.ex:1091
 #, elixir-autogen, elixir-format
 msgid "applied"
-msgstr "مطبّق"
+msgstr "مطبَّق"
 
 #: lib/tuist_web/live/ops_account_live.ex:1107
 #, elixir-autogen, elixir-format
 msgid "discarding work after %{shed_age}, target %{floor}"
-msgstr "إهمال العمل بعد %{shed_age}، الهدف %{floor}"
+msgstr "التخلّي عن العمل بعد %{shed_age}، الهدف %{floor}"
 
 #: lib/tuist_web/live/ops_account_live.ex:1092
 #, elixir-autogen, elixir-format
 msgid "dismissed"
-msgstr "تم رفضه"
+msgstr "مرفوض"
 
 #: lib/tuist_web/live/ops_account_live.ex:1121
 #, elixir-autogen, elixir-format
 msgid "peaked at %{peak}% of its disk"
-msgstr "وصل إلى ذروة استخدام القرص بنسبة %{peak}%"
+msgstr "بلغ الذروة عند %{peak}% من مساحة القرص"
 
 #: lib/tuist_web/live/ops_account_live.ex:1093
 #, elixir-autogen, elixir-format
 msgid "superseded"
-msgstr "حلّ محله"
+msgstr "تم استبداله"
 
 #: lib/tuist_web/live/ops_account_live.ex:1094
 #, elixir-autogen, elixir-format
 msgid "waiting"
-msgstr "قيد الانتظار"
+msgstr "في الانتظار"
 
 #: lib/tuist_web/live/ops_account_live.ex:1150
 #: lib/tuist_web/live/ops_account_live.ex:1157
 #, elixir-autogen, elixir-format
 msgid "%{rate} runs a day over %{days} days"
-msgstr "%{rate} عملية تشغيل يوميًا على مدار %{days} أيام"
+msgstr "%{rate} عملية تشغيل يوميًا على مدار %{days} يوم"
 
 #: lib/tuist_web/live/ops_account_live.ex:1143
 #, elixir-autogen, elixir-format
@@ -2499,7 +2499,7 @@ msgstr "%{share}%% من عمليات التشغيل خلال %{days} أيام"
 #: lib/tuist_web/live/ops_account_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "Apply the proposed placement? A new region starts empty and warms from its peers; a region being left keeps serving until the account is up elsewhere, then drains."
-msgstr "تطبيق التوزيع المقترح؟ تبدأ المنطقة الجديدة فارغة وتسخن من نظيراتها؛ وتستمر المنطقة التي تُترك في الخدمة حتى يصبح الحساب نشطًا في مكان آخر، ثم تُفرَّغ."
+msgstr "هل تريد تطبيق التوزيع المقترح؟ تبدأ المنطقة الجديدة فارغة وتسخن من نظيراتها؛ وتستمر المنطقة التي يتم التخلي عنها في تقديم الخدمة حتى يصبح الحساب نشطاً في مكان آخر، ثم تُفرَّغ."
 
 #: lib/tuist_web/live/ops_account_kura_placement_live.html.heex:32
 #, elixir-autogen, elixir-format
@@ -2515,7 +2515,7 @@ msgstr "التوزيع"
 #: lib/tuist_web/live/ops_account_live.ex:1198
 #, elixir-autogen, elixir-format
 msgid "Placement added %{region}. It is provisioned on the account's next cache demand."
-msgstr "تمت إضافة التوزيع إلى %{region}. سيتم توفيره عند الطلب التالي لذاكرة التخزين المؤقت للحساب."
+msgstr "تمت إضافة التوزيع إلى %{region}. سيتم توفيره عند الطلب التالي على ذاكرة التخزين المؤقت للحساب."
 
 #: lib/tuist_web/live/ops_account_kura_placement_live.html.heex:3
 #: lib/tuist_web/live/ops_account_live.html.heex:178
@@ -2531,37 +2531,37 @@ msgstr "لم يتخذ التوزيع أي قرار لهذا الحساب بعد.
 #: lib/tuist_web/live/ops_account_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Placement has recorded nothing for this account; it is served from wherever its instances already are."
-msgstr "لم يسجل التوزيع أي شيء لهذا الحساب؛ يتم تقديمه من حيثما تتواجد مثيلاته بالفعل."
+msgstr "لم يسجل التوزيع أي شيء لهذا الحساب؛ ويتم تقديمه من حيثما تتواجد النُسخ بالفعل."
 
 #: lib/tuist_web/live/ops_account_live.ex:1202
 #, elixir-autogen, elixir-format
 msgid "Placement is leaving %{region}. It drains once nothing else is waiting on it."
-msgstr "يغادر التوزيع %{region}. يتم تصريفه بمجرد عدم انتظار أي شيء آخر عليه."
+msgstr "الموقع يغادر %{region}. سيتم إفراغه بمجرد عدم وجود أي طلبات معلقة عليه."
 
 #: lib/tuist_web/live/ops_account_live.ex:1189
 #, elixir-autogen, elixir-format
 msgid "Placement moved to %{to}. %{from} keeps serving until %{to} is up, then drains."
-msgstr "انتقل التوزيع إلى %{to}. يستمر %{from} في الخدمة حتى يصبح %{to} جاهزاً، ثم يُصرّف."
+msgstr "تم نقل الموقع إلى %{to}. يستمر %{from} في الخدمة حتى يصبح %{to} جاهزاً، ثم يتم إفراغه."
 
 #: lib/tuist_web/live/ops_account_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Placement proposal dismissed."
-msgstr "تم رفض مقترح التوزيع."
+msgstr "تم رفض اقتراح الموقع."
 
 #: lib/tuist_web/live/ops_account_live.ex:1178
 #, elixir-autogen, elixir-format
 msgid "Placement proposes also serving this account from %{to}."
-msgstr "يقترح التوزيع أيضاً خدمة هذا الحساب من %{to}."
+msgstr "يقترح الموقع خدمة هذا الحساب أيضاً من %{to}."
 
 #: lib/tuist_web/live/ops_account_live.ex:1182
 #, elixir-autogen, elixir-format
 msgid "Placement proposes giving up %{from} for this account."
-msgstr "يقترح التوزيع التخلي عن %{from} لهذا الحساب."
+msgstr "يقترح الموقع التخلي عن %{from} لهذا الحساب."
 
 #: lib/tuist_web/live/ops_account_live.ex:1164
 #, elixir-autogen, elixir-format
 msgid "Placement proposes moving this account from %{from} to %{to}."
-msgstr "يقترح التوزيع نقل هذا الحساب من %{from} إلى %{to}."
+msgstr "يقترح الموقع نقل هذا الحساب من %{from} إلى %{to}."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:87
 #, elixir-autogen, elixir-format
@@ -2576,7 +2576,7 @@ msgstr "منذ"
 #: lib/tuist_web/live/ops_account_live.ex:315
 #, elixir-autogen, elixir-format
 msgid "The proposal no longer applies; the next placement sweep re-evaluates the account."
-msgstr "لم يعد الاقتراح ساريًا؛ ستعيد عملية التوزيع التالية تقييم الحساب."
+msgstr "لم يعد العرض ساريًا؛ ستقوم عملية التوزيع التالية بإعادة تقييم الحساب."
 
 #: lib/tuist_web/live/ops_account_live.ex:1127
 #, elixir-autogen, elixir-format
@@ -2591,12 +2591,12 @@ msgstr "مغادرة %{region}"
 #: lib/tuist_web/live/ops_account_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "primary"
-msgstr "رئيسي"
+msgstr "أساسي"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "retiring"
-msgstr "قيد التقاعد"
+msgstr "تقاعد"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:92
 #, elixir-autogen, elixir-format
@@ -2621,7 +2621,7 @@ msgstr "أقرب منطقة"
 #: lib/tuist_web/live/ops_account_live.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "No cache traffic has been attributed to this account in the last two weeks."
-msgstr "لم تُنسب أي حركة مرور لذاكرة التخزين المؤقت إلى هذا الحساب خلال الأسبوعين الماضيين."
+msgstr "لم يُنسب أي حركة مرور لذاكرة التخزين المؤقت إلى هذا الحساب خلال الأسبوعين الماضيين."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:131
 #, elixir-autogen, elixir-format
@@ -2631,7 +2631,7 @@ msgstr "عمليات الحل"
 #: lib/tuist_web/live/ops_account_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Runs"
-msgstr "التشغيلات"
+msgstr "التنفيذات"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:122
 #, elixir-autogen, elixir-format
@@ -2641,7 +2641,7 @@ msgstr "حركة المرور من"
 #: lib/tuist_web/live/ops_account_live.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Where this account runs follows where its cache traffic comes from. A first placement is a guess, so it is corrected quickly on a clear majority; after that the primary moves only when another region has durably carried most of its runs. An account gains a region when that region's own traffic clears an absolute floor, and gives one up when it falls well below it. Pinning a service region takes the account out of placement's hands entirely."
-msgstr "تتبع مناطق تشغيل هذا الحساب مصدر حركة مرور ذاكرة التخزين المؤقت الخاصة به. يُعد التعيين الأولي تخميناً، لذلك يُصحَّح بسرعة عند وجود أغلبية واضحة؛ وبعد ذلك لا تتغير المنطقة الأساسية إلا عندما تتحمل منطقة أخرى معظم عمليات التشغيل بشكل مستدام. يكتسب الحساب منطقةً عندما تتجاوز حركة المرور الخاصة بهذه المنطقة حداً أدنى مطلقاً، ويفقدها عندما تنخفض كثيراً دون هذا الحد. يؤدي تثبيت منطقة خدمة إلى إزالة الحساب تماماً من آلية التعيين التلقائي."
+msgstr "يتبع موقع تشغيل هذا الحساب مصدر حركة مرور ذاكرة التخزين المؤقت الخاصة به. يتم تحديد الموقع الأولي كتخمين، لذلك يتم تصحيحه بسرعة عند وجود أغلبية واضحة؛ بعد ذلك، لا يتغير الموقع الأساسي إلا عندما تتحمل منطقة أخرى بشكل مستدام معظم عمليات التنفيذ. يكتسب الحساب منطقة عندما تتجاوز حركة المرور الخاصة بهذه المنطقة حدًا أدنى مطلقًا، ويفقدها عندما تنخفض بشكل كبير عنه. يؤدي تثبيت منطقة خدمة إلى إزالة الحساب بالكامل من عملية التحديد التلقائي للموقع."
 
 #: lib/tuist_web/controllers/error_html.ex:105
 #, elixir-autogen, elixir-format
@@ -2651,12 +2651,12 @@ msgstr "503"
 #: lib/tuist_web/plugs/loader_plug.ex:110
 #, elixir-autogen, elixir-format
 msgid "Run analytics are temporarily unavailable. Please try again in a moment."
-msgstr "تحليلات التشغيل غير متاحة مؤقتاً. يرجى المحاولة مرة أخرى بعد لحظات."
+msgstr "تحليلات التنفيذ غير متاحة مؤقتًا. يرجى المحاولة مرة أخرى بعد لحظات."
 
 #: lib/tuist_web/controllers/error_html.ex:93
 #, elixir-autogen, elixir-format
 msgid "Sorry, this page is temporarily unavailable. Please try again in a moment."
-msgstr "عذرًا، هذه الصفحة غير متاحة مؤقتًا. يرجى المحاولة مرة أخرى بعد قليل."
+msgstr "عذرًا، هذه الصفحة غير متاحة مؤقتًا. يرجى المحاولة مرة أخرى بعد لحظات."
 
 #: lib/tuist_web/controllers/error_html.ex:99
 #, elixir-autogen, elixir-format
@@ -2672,7 +2672,7 @@ msgstr "غير متاح مؤقتًا."
 #: lib/tuist_web/components/dashboard_navigation.ex:201
 #, elixir-autogen, elixir-format
 msgid "Modules"
-msgstr "الوحدات النمطية"
+msgstr "الوحدات"
 
 #: lib/tuist_web/components/app_layout_components.ex:341
 #: lib/tuist_web/components/dashboard_navigation.ex:165
@@ -2699,17 +2699,17 @@ msgstr "لا تغيير"
 #, elixir-autogen, elixir-format
 msgid "Seen on %{count} day of measurements (%{bytes} discarded)."
 msgid_plural "Seen on %{count} days of measurements (%{bytes} discarded)."
-msgstr[0] "ظُهرت في %{count} يوم من القياسات (تم تجاهل %{bytes})."
-msgstr[1] "ظُهرت في %{count} أيام من القياسات (تم تجاهل %{bytes})."
-msgstr[2] "ظُهرت في %{count} أيام من القياسات (تم تجاهل %{bytes})."
-msgstr[3] "ظُهرت في %{count} أيام من القياسات (تم تجاهل %{bytes})."
-msgstr[4] "ظُهرت في %{count} أيام من القياسات (تم تجاهل %{bytes})."
-msgstr[5] "ظُهرت في %{count} أيام من القياسات (تم تجاهل %{bytes})."
+msgstr[0] "ظهور في %{count} يوم من القياسات (تم تجاهل %{bytes})."
+msgstr[1] "ظهور في %{count} أيام من القياسات (تم تجاهل %{bytes})."
+msgstr[2] "ظهور في %{count} أيام من القياسات (تم تجاهل %{bytes})."
+msgstr[3] "ظهور في %{count} أيام من القياسات (تم تجاهل %{bytes})."
+msgstr[4] "ظهور في %{count} أيام من القياسات (تم تجاهل %{bytes})."
+msgstr[5] "ظهور في %{count} أيام من القياسات (تم تجاهل %{bytes})."
 
 #: lib/tuist_web/live/ops_account_live.ex:1171
 #, elixir-autogen, elixir-format
 msgid "Placement proposes moving this account off its first region, %{from}, to %{to}."
-msgstr "تقترح خدمة Placement نقل هذا الحساب من منطقته الأولى، %{from}، إلى %{to}."
+msgstr "تقترح ميزة Placement نقل هذا الحساب من منطقته الأولى، %{from}، إلى %{to}."
 
 #: lib/tuist_web/components/app_layout_components.ex:201
 #: lib/tuist_web/components/dashboard_navigation.ex:170
@@ -2720,7 +2720,7 @@ msgstr "ذاكرة التخزين المؤقت لـ Bazel"
 #: lib/tuist_web/live/ops_account_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "%{account}'s free tier starts over from now. It has the full allowance again until the end of the month."
-msgstr "تبدأ الخطة المجانية لحساب %{account} من جديد الآن. ستحصل على الحصة الكاملة مرة أخرى حتى نهاية الشهر."
+msgstr "تبدأ الباقة المجانية لحساب %{account} من جديد الآن. ستحصل على الحصة الكاملة مرة أخرى حتى نهاية الشهر."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:587
 #, elixir-autogen, elixir-format
@@ -2730,12 +2730,12 @@ msgstr "تم حظر الوصول إلى ذاكرة التخزين المؤقت"
 #: lib/tuist_web/live/ops_account_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "Could not reset the free tier: %{reason}"
-msgstr "لم نتمكن من إعادة تعيين الخطة المجانية: %{reason}"
+msgstr "تعذرت إعادة تعيين الباقة المجانية: %{reason}"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:548
 #, elixir-autogen, elixir-format
 msgid "Free tier"
-msgstr "الخطة المجانية"
+msgstr "الباقة المجانية"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:578
 #, elixir-autogen, elixir-format
@@ -2750,17 +2750,17 @@ msgstr "أبداً"
 #: lib/tuist_web/live/ops_account_live.html.heex:605
 #, elixir-autogen, elixir-format
 msgid "Reset free tier"
-msgstr "إعادة تعيين الفئة المجانية"
+msgstr "إعادة تعيين الطبقة المجانية"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:589
 #, elixir-autogen, elixir-format
 msgid "This account is over its free tier and cannot reach the cache until it upgrades or the free tier is reset. Enforcement runs once a day, so an account can read as over the limit for up to a day before it is actually cut off."
-msgstr "هذا الحساب تجاوز حدّ فئته المجانية ولا يمكنه الوصول إلى ذاكرة التخزين المؤقت حتى تتم ترقية الخطة أو إعادة تعيين الفئة المجانية. تُنفَّذ سياسة الإنفاذ مرة واحدة يومياً، لذا قد يظهر الحساب متجاوزاً للحدّ لمدة تصل إلى يوم قبل أن يُقطع الوصول فعلياً."
+msgstr "هذا الحساب تجاوز حد الطبقة المجانية ولا يمكنه الوصول إلى ذاكرة التخزين المؤقت حتى تتم ترقيته أو إعادة تعيين الطبقة المجانية. يتم تشغيل آلية التنفيذ مرة واحدة يومياً، لذا قد يظهر الحساب وكأنه تجاوز الحد لمدة تصل إلى يوم قبل أن يتم قطع الخدمة فعلياً."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:600
 #, elixir-autogen, elixir-format
 msgid "Reset this account's free tier? It gets the full allowance again for the rest of the month, and the runs it has already made stop counting."
-msgstr "هل تريد إعادة تعيين الفئة المجانية لهذا الحساب؟ سيحصل على الحصة الكاملة مجدداً لبقية الشهر، ولن تُحتسب عمليات التشغيل التي أجراها بالفعل."
+msgstr "هل تريد إعادة تعيين الطبقة المجانية لهذا الحساب؟ سيحصل على الحصة الكاملة مرة أخرى لبقية الشهر، ولن تُحتسب عمليات التشغيل التي نفذها بالفعل."
 
 #: lib/tuist_web/authentication.ex:908
 #, elixir-autogen, elixir-format
@@ -2771,23 +2771,23 @@ msgstr "المشروع الذي تبحث عنه غير موجود أو تم نق
 #, elixir-autogen, elixir-format
 msgid "%{count} instance was lowered and keeps its cache, evicting down to the new budget."
 msgid_plural "%{count} instances were lowered and keep their caches, evicting down to the new budget."
-msgstr[0] "تم تخفيض %{count} مثيل مع الاحتفاظ بذاكرته المؤقتة، وإخلاء البيانات لتتوافق مع الميزانية الجديدة."
-msgstr[1] "تم تخفيض %{count} من المثيلات مع الاحتفاظ بذواكرها المؤقتة، وإخلاء البيانات لتتوافق مع الميزانية الجديدة."
-msgstr[2] "تم تخفيض %{count} من المثيلات مع الاحتفاظ بذواكرها المؤقتة، وإخلاء البيانات لتتوافق مع الميزانية الجديدة."
-msgstr[3] "تم تخفيض %{count} من المثيلات مع الاحتفاظ بذواكرها المؤقتة، وإخلاء البيانات لتتوافق مع الميزانية الجديدة."
-msgstr[4] "تم تخفيض %{count} من المثيلات مع الاحتفاظ بذواكرها المؤقتة، وإخلاء البيانات لتتوافق مع الميزانية الجديدة."
-msgstr[5] "تم تخفيض %{count} من المثيلات مع الاحتفاظ بذواكرها المؤقتة، وإخلاء البيانات لتتوافق مع الميزانية الجديدة."
+msgstr[0] "تم تخفيض %{count} مثيل والاحتفاظ بذاكرة التخزين المؤقت الخاصة به، مع طرد البيانات لتتناسب مع الميزانية الجديدة."
+msgstr[1] "تم تخفيض %{count} من المثيلات والاحتفاظ بذواكر التخزين المؤقت الخاصة بها، مع طرد البيانات لتتناسب مع الميزانية الجديدة."
+msgstr[2] "تم تخفيض %{count} من المثيلات والاحتفاظ بذواكر التخزين المؤقت الخاصة بها، مع طرد البيانات لتتناسب مع الميزانية الجديدة."
+msgstr[3] "تم تخفيض %{count} من المثيلات والاحتفاظ بذواكر التخزين المؤقت الخاصة بها، مع طرد البيانات لتتناسب مع الميزانية الجديدة."
+msgstr[4] "تم تخفيض %{count} من المثيلات والاحتفاظ بذواكر التخزين المؤقت الخاصة بها، مع طرد البيانات لتتناسب مع الميزانية الجديدة."
+msgstr[5] "تم تخفيض %{count} من المثيلات والاحتفاظ بذواكر التخزين المؤقت الخاصة بها، مع طرد البيانات لتتناسب مع الميزانية الجديدة."
 
 #: lib/tuist_web/live/ops_account_live.ex:1228
 #, elixir-autogen, elixir-format
 msgid "%{count} instance was raised and rebuilds its volumes, one replica at a time behind the standby that keeps serving."
 msgid_plural "%{count} instances were raised and rebuild their volumes, one replica at a time behind the standby that keeps serving."
-msgstr[0] "تم رفع %{count} مثيل وإعادة بناء وحدات التخزين الخاصة به، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تستمر في الخدمة."
-msgstr[1] "تم رفع %{count} من المثيلات وإعادة بناء وحدات التخزين الخاصة بها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تستمر في الخدمة."
-msgstr[2] "تم رفع %{count} من المثيلات وإعادة بناء وحدات التخزين الخاصة بها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تستمر في الخدمة."
-msgstr[3] "تم رفع %{count} من المثيلات وإعادة بناء وحدات التخزين الخاصة بها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تستمر في الخدمة."
-msgstr[4] "تم رفع %{count} من المثيلات وإعادة بناء وحدات التخزين الخاصة بها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تستمر في الخدمة."
-msgstr[5] "تم رفع %{count} من المثيلات وإعادة بناء وحدات التخزين الخاصة بها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تستمر في الخدمة."
+msgstr[0] "تم رفع %{count} نسخة وإعادة بناء أحجامها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل الخدمة."
+msgstr[1] "تم رفع %{count} نسخ وإعادة بناء أحجامها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل الخدمة."
+msgstr[2] "تم رفع %{count} نسخ وإعادة بناء أحجامها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل الخدمة."
+msgstr[3] "تم رفع %{count} نسخ وإعادة بناء أحجامها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل الخدمة."
+msgstr[4] "تم رفع %{count} نسخ وإعادة بناء أحجامها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل الخدمة."
+msgstr[5] "تم رفع %{count} نسخ وإعادة بناء أحجامها، نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل الخدمة."
 
 #: lib/tuist_web/live/ops_account_live.ex:1227
 #, elixir-autogen, elixir-format
@@ -2797,46 +2797,39 @@ msgstr "تم نقل مطالبة قرص Kura إلى %{claim}."
 #: lib/tuist_web/live/ops_account_live.html.heex:209
 #, elixir-autogen, elixir-format
 msgid "Sizing proposes growing the instances pinned below %{recommended} to it, the claim the account's other instances hold."
-msgstr "يقترح تغيير الحجم زيادة حجم المثيلات المثبتة دون %{recommended} إليه، وهي المطالبة التي تحتفظ بها المثيلات الأخرى للحساب."
+msgstr "يقترح التحجيم زيادة حجم النسخ المثبتة دون %{recommended} لتصل إليه، وهي المطالبة التي تحتفظ بها النسخ الأخرى للحساب."
 
 #: lib/tuist_web/live/ops_account_live.ex:1014
 #, elixir-autogen, elixir-format
 msgid "The cache in %{region} has kept work for at least %{retention} before discarding it, when it needs to keep everything for %{floor}."
-msgstr "احتفظت ذاكرة التخزين المؤقت في %{region} بالعمل لمدة %{retention} على الأقل قبل التخلص منه، عندما تحتاج إلى الاحتفاظ بكل شيء لمدة %{floor}."
+msgstr "احتفظت ذاكرة التخزين المؤقت في %{region} بالعمل لمدة لا تقل عن %{retention} قبل التخلص منه، عندما تحتاج إلى الاحتفاظ بكل شيء لمدة %{floor}."
 
 #: lib/tuist_web/live/ops_account_live.ex:1114
 #, elixir-autogen, elixir-format
 msgid "keeps work %{retention}, needs %{floor}"
-msgstr "يحتفظ بالعمل %{retention}، يحتاج %{floor}"
+msgstr "تحتفظ بالعمل %{retention}، وتحتاج %{floor}"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Disk is sized automatically: the claim grows when the cache starts discarding work sooner than the plan promises to keep it, and shrinks when it goes a long time without filling up or keeps work for weeks longer than that. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
-msgstr "يتم ضبط حجم القرص تلقائياً: تزداد المطالبة عندما تبدأ ذاكرة التخزين المؤقت بالتخلص من العمل في وقت أبكر مما تعد الخطة بالاحتفاظ به، وتتقلص عندما يمر وقت طويل دون امتلائها أو تحتفظ بالعمل لأسابيع أطول من ذلك. تؤدي الزيادة إلى إعادة بناء وحدات التخزين نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تستمر في الخدمة؛ بينما يحافظ التقلص على ذاكرة التخزين المؤقت ويقوم بالإخلاء التدريجي."
+msgstr "يتم ضبط حجم القرص تلقائياً: تزداد المطالبة عندما تبدأ ذاكرة التخزين المؤقت بالتخلص من العمل sooner مما تعد به الخطة بالاحتفاظ به، وتتقلص عندما يمر وقت طويل دون امتلاء أو تحتفظ بالعمل لأسابيع أطول من ذلك. تؤدي الزيادة إلى إعادة بناء الأحجام نسخة واحدة في كل مرة خلف النسخة الاحتياطية التي تواصل الخدمة؛ أما التقلص فيحافظ على ذاكرة التخزين المؤقت ويطرد البيانات الزائدة."
 
 #: lib/tuist_web/components/runs/pull_request_button.ex:25
 #, elixir-autogen, elixir-format
 msgid "PR #%{number}"
-msgstr "طلب الدمج رقم #%{number}"
+msgstr "طلب سحب #%{number}"
 
 #: lib/tuist_web/controllers/auth_controller.ex:1042
 #, elixir-autogen, elixir-format
 msgid "Your organization hasn't verified a login email domain that matches your email, so single sign-on can't create a Tuist account for you. If you were invited, sign up with the invited email address, accept the invitation, and then sign in with single sign-on to link your account."
-msgstr "لم تتحقق مؤسستك من نطاق بريد إلكتروني لتسجيل الدخول يطابق بريدك الإلكتروني، لذا لا يمكن لتسجيل الدخول الموحد إنشاء حساب Tuist لك. إذا كنت قد تلقيت دعوة، فسجّل باستخدام عنوان البريد الإلكتروني المدعو، واقبل الدعوة، ثم سجّل الدخول عبر تسجيل الدخول الموحد لربط حسابك."
+msgstr "لم تتحقق مؤسستك من نطاق بريد إلكتروني لتسجيل الدخول يطابق بريدك الإلكتروني، لذا لا يمكن لتسجيل الدخول الموحد إنشاء حساب Tuist لك. إذا تمت دعوتك، سجّل باستخدام عنوان البريد الإلكتروني المدعو إليه، واقبل الدعوة، ثم سجّل الدخول عبر تسجيل الدخول الموحد لربط حسابك."
 
 #: lib/tuist_web/components/app_layout_components.ex:139
 #: lib/tuist_web/components/app_layout_components.ex:403
 #: lib/tuist_web/components/dashboard_navigation.ex:153
 #, elixir-autogen, elixir-format
 msgid "Code Coverage"
-msgstr "تغطية الشفرة"
-
-#: lib/tuist_web/components/app_layout_components.ex:213
-#: lib/tuist_web/components/dashboard_navigation.ex:171
-#: lib/tuist_web/live/once_cache_live.ex:27
-#, elixir-autogen, elixir-format
-msgid "Once Cache"
-msgstr "ذاكرة تخزين مؤقت لمرة واحدة"
+msgstr "تغطية الشيفرة البرمجية"
 
 #: lib/tuist_web/live/ops_account_helpers.ex:43
 #, elixir-autogen, elixir-format
@@ -2846,22 +2839,22 @@ msgstr "متأخر"
 #: lib/tuist_web/components/layout_components.ex:61
 #, elixir-autogen, elixir-format
 msgid "%{page} for %{project} on Tuist. Explore the project's build, test, and cache insights."
-msgstr "%{page} لـ %{project} على Tuist. استكشف رؤى البناء والاختبار وذاكرة التخزين المؤقت للمشروع."
+msgstr "%{page} لمشروع %{project} على Tuist. استكشف رؤى البناء والاختبار وذاكرة التخزين المؤقت للمشروع."
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:347
 #, elixir-autogen, elixir-format
 msgid "Tuist could not reach %{url}. Confirm the GitHub Enterprise API URL is reachable from Tuist, or self-host Tuist if it's internal-only."
-msgstr "لم يتمكن Tuist من الوصول إلى %{url}. تأكّد من إمكانية وصول Tuist إلى عنوان URL الخاص بواجهة برمجة تطبيقات GitHub Enterprise، أو استضف Tuist بنفسك إذا كان للاستخدام الداخلي فقط."
+msgstr "لم يتمكن Tuist من الوصول إلى %{url}. تأكد من إمكانية الوصول إلى عنوان URL الخاص بواجهة برمجة تطبيقات GitHub Enterprise من Tuist، أو قم باستضافة Tuist ذاتياً إذا كان مخصصاً للاستخدام الداخلي فقط."
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:318
 #, elixir-autogen, elixir-format
 msgid "Tuist could not resolve %{url}. Double-check the GitHub Enterprise API URL is correct and publicly resolvable."
-msgstr "لم يتمكن Tuist من حلّ %{url}. تحقّق مرة أخرى من صحة عنوان URL الخاص بواجهة برمجة تطبيقات GitHub Enterprise وإمكانية حله علناً."
+msgstr "لم يتمكن Tuist من حلّ %{url}. تحقق مرة أخرى من صحة عنوان URL الخاص بواجهة برمجة تطبيقات GitHub Enterprise وأنه قابل للحل علناً."
 
 #: lib/tuist_web/live/ops_account_live.ex:614
 #, elixir-autogen, elixir-format
 msgid "%{account} now holds a pool of %{credit} in runner credit, about %{minutes} baseline minutes, usable until %{date}."
-msgstr "يمتلك %{account} الآن رصيداً قدره %{credit} كرصيد لمشغّلات CI، أي ما يعادل حوالي %{minutes} دقيقة أساسية، صالحة للاستخدام حتى %{date}."
+msgstr "يمتلك الحساب %{account} الآن رصيداً قدره %{credit} كرصيد للمشغلات، وهو ما يعادل حوالي %{minutes} دقيقة أساسية، ويمكن استخدامه حتى %{date}."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:694
 #, elixir-autogen, elixir-format
@@ -2871,67 +2864,67 @@ msgstr "المبلغ المدفوع (دولار أمريكي)"
 #: lib/tuist_web/live/ops_account_live.html.heex:749
 #, elixir-autogen, elixir-format
 msgid "Baseline minutes"
-msgstr "الدقائق الأساسية"
+msgstr "دقائق الخط الأساسي"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:732
 #, elixir-autogen, elixir-format
 msgid "Contract's last day"
-msgstr "اليوم الأخير من العقد"
+msgstr "آخر يوم في العقد"
 
 #: lib/tuist_web/live/ops_account_live.ex:665
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: %{reason}"
-msgstr "لم نتمكن من منح الرصيد: %{reason}"
+msgstr "لم نتمكن من منح المجموعة: %{reason}"
 
 #: lib/tuist_web/live/ops_account_live.ex:659
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: a Stripe invoice id starts with in_."
-msgstr "لم نتمكن من منح الرصيد: يبدأ معرف فاتورة Stripe بـ in_."
+msgstr "لم نتمكن من منح المجموعة: يبدأ معرف فاتورة Stripe بـ in_."
 
 #: lib/tuist_web/live/ops_account_live.ex:642
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: choose the platforms the credit pays for."
-msgstr "لم نتمكن من منح الرصيد: اختر المنصات التي يغطيها الرصيد."
+msgstr "لم نتمكن من منح المجموعة: اختر المنصات التي يغطيها الرصيد."
 
 #: lib/tuist_web/live/ops_account_live.ex:626
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: enter the amount paid in dollars, a credit multiplier such as 1.25, the platforms, and the contract's last day."
-msgstr "لم نتمكن من منح الرصيد: أدخل المبلغ المدفوع بالدولارات، ومضاعف الرصيد مثل 1.25، والمنصات، واليوم الأخير من العقد."
+msgstr "لم نتمكن من منح المجموعة: أدخل المبلغ المدفوع بالدولار، ومضاعف الرصيد مثل 1.25، والمنصات، وآخر يوم في العقد."
 
 #: lib/tuist_web/live/ops_account_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: no runner price is configured for this environment yet."
-msgstr "لم نتمكن من منح الرصيد: لم يُضبط سعر المشغّل لهذه البيئة بعد."
+msgstr "لم نتمكن من منح المجموعة: لم يُحدد سعر المشغّل لهذه البيئة بعد."
 
 #: lib/tuist_web/live/ops_account_live.ex:632
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: the amount paid has to be more than zero."
-msgstr "لم نتمكن من منح الرصيد: يجب أن يكون المبلغ المدفوع أكبر من صفر."
+msgstr "لم نتمكن من منح المجموعة: يجب أن يكون المبلغ المدفوع أكبر من صفر."
 
 #: lib/tuist_web/live/ops_account_live.ex:653
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: the contract's last day has to be after today and within thirteen months."
-msgstr "لم نتمكن من منح الرصيد: يجب أن يكون آخر يوم في العقد بعد اليوم وفي غضون ثلاثة عشر شهراً."
+msgstr "لا يمكن منح الحزمة: يجب أن يكون آخر يوم في العقد بعد اليوم وضمن ثلاثة عشر شهراً."
 
 #: lib/tuist_web/live/ops_account_live.ex:636
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: the credit multiplier has to be between 1.0 and 2.0, with at most four decimal places."
-msgstr "لم نتمكن من منح الرصيد: يجب أن يكون مضاعف الائتمان بين 1.0 و2.0، وبحد أقصى أربع منازل عشرية."
+msgstr "لا يمكن منح الحزمة: يجب أن يكون مضاعف الرصيد بين 1.0 و2.0، بأربعة منازل عشرية على الأكثر."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:743
 #, elixir-autogen, elixir-format
 msgid "Credit granted"
-msgstr "تم منح الائتمان"
+msgstr "تم منح الرصيد"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:701
 #, elixir-autogen, elixir-format
 msgid "Credit multiplier"
-msgstr "مضاعف الائتمان"
+msgstr "مضاعف الرصيد"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:779
 #, elixir-autogen, elixir-format
 msgid "Grant pool"
-msgstr "منح الرصيد"
+msgstr "منح الحزمة"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:714
 #, elixir-autogen, elixir-format
@@ -2941,7 +2934,7 @@ msgstr "المنصات"
 #: lib/tuist_web/live/ops_account_live.ex:670
 #, elixir-autogen, elixir-format
 msgid "Pool"
-msgstr "الرصيد"
+msgstr "الحزمة"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:738
 #, elixir-autogen, elixir-format
@@ -2961,7 +2954,7 @@ msgstr "اليوم الأول للعقد"
 #: lib/tuist_web/live/ops_account_live.ex:646
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: the contract has to start on or before its last day and last at most a year."
-msgstr "لم نتمكن من منح المجمع: يجب أن يبدأ العقد في يوم يسبق أو يوافق آخر يوم له، وألا تتجاوز مدته سنة واحدة."
+msgstr "لا يمكن منح المجمع: يجب أن يبدأ العقد في يوم يسبق أو يطابق آخر يوم له، وأن يستمر لمدة عام واحد على الأكثر."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:757
 #, elixir-autogen, elixir-format
@@ -2981,7 +2974,7 @@ msgstr "آخر فاتورة مدفوعة من المجمع"
 #: lib/tuist_web/live/ops_account_live.html.heex:771
 #, elixir-autogen, elixir-format
 msgid "No subscription to invoice against"
-msgstr "لا يوجد اشتراك يمكن إصدار فاتورة بحقه"
+msgstr "لا يوجد اشتراك لإصدار الفاتورة ضده"
 
 #: lib/tuist_web/live/ops_account_live.ex:419
 #, elixir-autogen, elixir-format
@@ -2991,12 +2984,12 @@ msgstr "لدى %{account} بالفعل اشتراك نشط."
 #: lib/tuist_web/live/ops_account_live.ex:411
 #, elixir-autogen, elixir-format
 msgid "%{account} is now on the Open Source plan."
-msgstr "أصبح %{account} الآن على خطة المصادر المفتوحة."
+msgstr "%{account} الآن على خطة المصادر المفتوحة."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:871
 #, elixir-autogen, elixir-format
 msgid "Put %{account} on the Open Source plan? Its usage is never invoiced, and Kura does not serve open source accounts."
-msgstr "هل تريد نقل %{account} إلى خطة المصادر المفتوحة؟ لن يتم إصدار فواتير لاستخدامه، ولا تقدم Kura خدمات لحسابات المصادر المفتوحة."
+msgstr "وضع %{account} على خطة المصادر المفتوحة؟ لن يتم إصدار فواتير لاستخدامه، ولا تخدم Kura حسابات المصادر المفتوحة."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:868
 #, elixir-autogen, elixir-format
@@ -3062,7 +3055,7 @@ msgstr "محلي"
 #: lib/tuist_web/live/toolchain_cache_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "Mix Cache"
-msgstr "خلط ذاكرة التخزين المؤقت"
+msgstr "ذاكرة تخزين مختلطة"
 
 #: lib/tuist_web/live/mix_build_live.ex:279
 #: lib/tuist_web/live/mix_build_live.ex:320
@@ -3081,7 +3074,7 @@ msgstr "جميع النتائج"
 #: lib/tuist_web/live/mix_build_live.ex:296
 #, elixir-autogen, elixir-format
 msgid "Hits divided by hits plus misses. Work without a cache lookup is excluded."
-msgstr "النسبة بين عدد مرات العثور في ذاكرة التخزين المؤقت ومجموعها مع عدد مرات عدم العثور. تُستبعد الأعمال التي لا تتطلب بحثاً في ذاكرة التخزين المؤقت."
+msgstr "النسبة بين مرات العثور في ذاكرة التخزين المؤقت ومجموعها مع مرات عدم العثور. تُستبعد العمليات التي لا تتطلب بحثاً في ذاكرة التخزين المؤقت."
 
 #: lib/tuist_web/live/mix_build_live.html.heex:335
 #, elixir-autogen, elixir-format
@@ -3103,7 +3096,7 @@ msgstr "السابق"
 #: lib/tuist_web/live/toolchain_cache_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "Average and percentiles of individual build cache hit rates. Work without a cache lookup is excluded."
-msgstr "المتوسط والنسب المئوية لمعدلات العثور في ذاكرة التخزين المؤقت لكل بناء على حدة. تُستبعد الأعمال التي لا تتطلب بحثاً في ذاكرة التخزين المؤقت."
+msgstr "متوسط ومئات النسب المئوية لمعدلات العثور في ذاكرة التخزين المؤقت لكل بناء على حدة. تُستبعد العمليات التي لا تتطلب بحثاً في ذاكرة التخزين المؤقت."
 
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:152
 #, elixir-autogen, elixir-format
@@ -3118,33 +3111,33 @@ msgstr "العناصر المستعادة من لقطات محلية أو من �
 #: lib/tuist_web/live/mix_build_live.ex:293
 #, elixir-autogen, elixir-format
 msgid "Cache lookups without reusable local or remote artifacts."
-msgstr "عمليات بحث في ذاكرة التخزين المؤقت دون وجود مخرجات محلية أو بعيدة قابلة لإعادة الاستخدام."
+msgstr "عمليات بحث في ذاكرة التخزين المؤقت دون وجود عناصر محلية أو بعيدة قابلة لإعادة الاستخدام."
 
 #: lib/tuist_web/live/mix_build_live.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS transfer or local fallback copy time. Local operations include verification and installation; remote transfers exclude local installation. Task rows identify the source. Excludes cache-key latency and compilation."
-msgstr "زمن نقل CAS ناجح من العميل أو زمن النسخ الاحتياطي المحلي. تشمل العمليات المحلية التحقق والتثبيت؛ تستبعد عمليات النقل البعيدة التثبيت المحلي. تُحدِّد صفوف المهام المصدر. يستبعد زمن مفتاح ذاكرة التخزين المؤقت وعملية الترجمة."
+msgstr "وقت نقل CAS الناجح للعميل أو وقت النسخ الاحتياطي المحلي. تتضمن العمليات المحلية التحقق والتثبيت؛ تستبعد عمليات النقل البعيدة التثبيت المحلي. تحدد صفوف المهام المصدر. يستبعد زمن انتقال مفتاح ذاكرة التخزين المؤقت وعملية الترجمة."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS transfers and local fallback copies, with provenance on each build's task rows. Remote timings measure transfers; local timings include verification and installation. Throughput is bytes divided by operation time. Compilation and linked resources are excluded. CAS Outputs separately shows only Kura-reported remote transfers."
-msgstr "عمليات نقل CAS ناجحة من العميل ونسخ احتياطي محلي، مع إثبات المصدر في صفوف مهام كل بناء. تقيس التوقيتات البعيدة عمليات النقل؛ تتضمن التوقيتات المحلية التحقق والتثبيت. الإنتاجية هي عدد البايتات مقسومًا على زمن العملية. تُستبعد عملية الترجمة والموارد المرتبطة. يعرض قسم مخرجات CAS فقط عمليات النقل البعيدة المُبلَّغ عنها بواسطة Kura."
+msgstr "عمليات نقل CAS الناجحة للعميل ونسخ الاحتياطية المحلية، مع إظهار مصدر كل مهمة في صفوف البناء. تقيس التوقيتات البعيدة عمليات النقل؛ تشمل التوقيتات المحلية التحقق والتثبيت. الإنتاجية هي عدد البايتات مقسومًا على وقت العملية. تُستبعد عملية الترجمة والموارد المرتبطة. يعرض قسم مخرجات CAS فقط عمليات النقل البعيدة المبلغ عنها من Kura."
 
 #: lib/tuist_web/live/mix_build_live.ex:300
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS download bytes and local snapshot copy bytes. CAS Outputs shows only Kura-reported remote transfers."
-msgstr "بايتات التنزيل الناجحة لـ CAS من العميل وبايتات نسخ اللقطة المحلية. يعرض قسم مخرجات CAS فقط عمليات النقل البعيدة المُبلَّغ عنها بواسطة Kura."
+msgstr "بايتات التنزيل الناجحة لـ CAS للعميل وبايتات نسخ اللقطات المحلية. يعرض قسم مخرجات CAS فقط عمليات النقل البعيدة المبلغ عنها من Kura."
 
 #: lib/tuist_web/live/mix_build_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS upload bytes and local snapshot copy bytes. CAS Outputs shows only Kura-reported remote transfers."
-msgstr "بايتات الرفع الناجحة لـ CAS من العميل وبايتات نسخ اللقطة المحلية. يعرض قسم مخرجات CAS فقط عمليات النقل البعيدة المُبلَّغ عنها بواسطة Kura."
+msgstr "بايتات الرفع الناجحة لـ CAS للعميل وبايتات نسخ اللقطات المحلية. يعرض قسم مخرجات CAS فقط عمليات النقل البعيدة المبلغ عنها من Kura."
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:98
 #: lib/tuist_web/controllers/integration_installation_controller.ex:108
 #, elixir-autogen, elixir-format
 msgid "This account already has a GitHub App registered for a different GitHub host."
-msgstr "هذا الحساب لديه بالفعل تطبيق GitHub مسجَّل لمضيف GitHub مختلف."
+msgstr "هذا الحساب لديه بالفعل تطبيق GitHub مسجل لمضيف GitHub مختلف."
 
 #: lib/tuist_web/components/app_layout_components.ex:234
 #: lib/tuist_web/components/dashboard_navigation.ex:178
@@ -3167,42 +3160,42 @@ msgstr "%{usage} من %{limit}"
 #: lib/tuist_web/live/ops_account_live.html.heex:551
 #, elixir-autogen, elixir-format
 msgid "An Air account can reach the cache until it uses %{egress} of cache egress or %{requests} cache requests a month. Resetting starts the count over from now, so the account is unblocked and has the full allowance again for the rest of the month. It is not an exemption: the reset goes inert on the first of next month, when counting returns to the month boundary."
-msgstr "يمكن لحساب Air الوصول إلى ذاكرة التخزين المؤقت حتى يستهلك %{egress} من بيانات الذاكرة الخارجة أو %{requests} طلبًا للذاكرة في الشهر. إعادة التعيين تبدأ العد من الآن، مما يلغي الحظر عن الحساب ويمنحه الحد الكامل مرة أخرى لبقية الشهر. هذا ليس إعفاءً: تصبح إعادة التعيين غير فعالة في الأول من الشهر التالي، عندما يعود العدّ إلى بداية الشهر."
+msgstr "يمكن لحساب Air الوصول إلى ذاكرة التخزين المؤقت حتى يستهلك %{egress} من بيانات الذاكرة المُخرَجة أو %{requests} طلبات ذاكرة تخزين مؤقت شهرياً. تؤدي إعادة التعيين إلى بدء العد من جديد، ما يزيل الحظر عن الحساب ويمنحه الحصة الكاملة مرة أخرى لبقية الشهر. هذا ليس إعفاءً: تصبح إعادة التعيين غير فعالة في الأول من الشهر التالي، حين يعود العد ليعتمد على حدود الشهر."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:560
 #, elixir-autogen, elixir-format
 msgid "Cache egress this period"
-msgstr "بيانات الذاكرة الخارجة هذه الفترة"
+msgstr "بيانات الذاكرة المُخرَجة هذه الفترة"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:569
 #, elixir-autogen, elixir-format
 msgid "Cache requests this period"
-msgstr "طلبات الذاكرة هذه الفترة"
+msgstr "طلبات ذاكرة التخزين المؤقت هذه الفترة"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:468
 #, elixir-autogen, elixir-format
 msgid "Sandbox concurrency"
-msgstr "التشغيل المتزامن لـ Sandbox"
+msgstr "التزامن في البيئات المعزولة"
 
 #: lib/tuist_web/live/ops_account_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Sandbox concurrency limits updated."
-msgstr "تم تحديث حدود التشغيل المتزامن لـ Sandbox."
+msgstr "تم تحديث حدود التزامن للبيئات المعزولة."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:501
 #, elixir-autogen, elixir-format
 msgid "Save sandbox limits"
-msgstr "حفظ حدود Sandbox"
+msgstr "حفظ حدود البيئات المعزولة"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:679
 #, elixir-autogen, elixir-format
 msgid "A pool is runner credit paid up front for a contract term of up to a year, usually by bank transfer. It stays usable for the whole term instead of expiring each month, so quiet months do not forfeit minutes the customer already paid for, and usage past it is billed on demand. A term shorter than a year lines a new contract up with the end of an earlier one. The pool pays the invoices that carry the term's usage, shown below once both dates are in. Granting a pool bills nothing: charge for it on its own invoice, and enter that invoice's id here so the credit can be traced to it."
-msgstr "المجموعة هي رصيد للمشغّلين يُدفع مقدمًا لعقد مدته تصل إلى عام، عادةً عبر التحويل البنكي. تبقى قابلة للاستخدام طوال مدة العقد بدلاً من انتهاء صلاحيتها كل شهر، لذا لا تضيع الدقائق التي دفعها العميل بالفعل في الأشهر الهادئة، ويتم فواتير الاستخدام الزائد عند الطلب. تربط المدة الأقصر من عام عقدًا جديدًا بنهاية عقد سابق. تسدد المجموعة الفواتير التي تحمل استخدامات تلك المدة، وتظهر أدناه بمجرد إدخال كلا التاريخين. لا يؤدي منح مجموعة إلى أي رسوم: قم بفوترتها في فاتورة منفصلة، وأدخل معرف تلك الفاتورة هنا ليتم تتبع الرصيد إليها."
+msgstr "الحزمة الرصيد هي رصيد للمشغلات يُدفع مقدماً لعقد مدته تصل إلى عام، عادةً عبر التحويل البنكي. تبقى صالحة طوال مدة العقد بدلاً من انتهاء صلاحيتها كل شهر، لذا لا تفقد الدقائق التي دفعها العميل مسبقاً خلال الأشهر الهادئة، ويتم فوترة الاستخدام الزائد عنها عند الطلب. تسمح المدة الأقصر من عام بمحاذاة عقد جديد مع نهاية عقد سابق. تغطي الحزمة الفواتير التي تتضمن استخدام تلك المدة، وتظهر أدناه بمجرد توفر كلا التاريخين. لا يؤدي منح حزمة إلى أي رسوم: قم بفوترتها في فاتورة منفصلة، وأدخل معرف تلك الفاتورة هنا لتتبع الرصيد إليها."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:704
 #, elixir-autogen, elixir-format
 msgid "Credit granted per dollar paid: the on-demand price per minute divided by the deal's prepaid price per minute."
-msgstr "الرصيد الممنوح مقابل كل دولار مدفوع: السعر عند الطلب لكل دقيقة مقسومًا على السعر المدفوع مسبقًا للعقد لكل دقيقة."
+msgstr "الرصيد الممنوح مقابل كل دولار مدفوع: سعر الدقيقة عند الطلب مقسوماً على السعر المدفوع مقدماً للدقيقة ضمن الصفقة."
 
 #: lib/tuist_web/components/app_layout_components.ex:616
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:29
@@ -3224,7 +3217,7 @@ msgstr "تم تحديث حدود التزامن في التنفيذ عن بُع�
 #: lib/tuist_web/live/ops_account_live.html.heex:511
 #, elixir-autogen, elixir-format
 msgid "Remote execution limits are independent of CI and sandboxes. Every Bazel action runs in its own VM with 2 vCPUs and 4 GB of memory; idle, busy and starting VMs count toward both limits. The bazel_remote_execution flag decides whether the account executes at all."
-msgstr "حدود التنفيذ عن بُعد مستقلة عن CI وصناديق الاختبار (sandboxes). يعمل كل إجراء من Bazel في آلة افتراضية خاصة به مزودة بنواتين افتراضيتين و4 غيغابايت من الذاكرة؛ وتحسب الآلات الافتراضية الخاملة والمشغولة وفي طور البدء ضمن كلا الحدين. يحدد العلم bazel_remote_execution ما إذا كان الحساب سينفذ الإجراءات على الإطلاق."
+msgstr "حدود التنفيذ عن بُعد مستقلة عن CI وصناديق الاختبار. يتم تشغيل كل إجراء Bazel في آلة افتراضية خاصة به مزودة بنواتين افتراضيتين و4 غيغابايت من الذاكرة؛ تحسب الآلات الافتراضية الخاملة والمشغولة والتي قيد التشغيل ضمن كلا الحدين. يحدد العلم bazel_remote_execution ما إذا كان الحساب سينفذ الإجراءات على الإطلاق."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:541
 #, elixir-autogen, elixir-format
@@ -3257,20 +3250,15 @@ msgstr "السجلات"
 msgid "Traces"
 msgstr "التتبّعات"
 
-#: lib/tuist_web/components/layout_components.ex:50
-#, elixir-autogen, elixir-format
-msgid "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
-msgstr "Tuist هو منصة بناء لفرق الهندسة ووكلاء البرمجة الخاصين بها. يدعم سير عمل البناء والاختبار عبر Xcode وGradle وBazel وElixir وRust؛ دعم Rust متاح حالياً في نسخة Canary. تختلف الميزات باختلاف سلسلة الأدوات، وتخزين ترجمة Rust مؤقتاً لا يزال تجريبياً."
-
 #: lib/tuist_web/live/ops_account_live.html.heex:471
 #, elixir-autogen, elixir-format
 msgid "Sandbox limits are independent of CI. Creating, resuming and running sandboxes count toward the CPU and memory limits. Disk is budgeted per sandbox node, not per account."
-msgstr "حدود بيئة العزل مستقلة عن CI. إنشاء واستئناف وتشغيل بيئات العزل يُحتسب ضمن حدود وحدة المعالجة المركزية والذاكرة. تُخصص مساحة القرص لكل عقدة بيئة عزل، وليس لكل حساب."
+msgstr "حدود البيئات المعزولة مستقلة عن CI. إنشاء واستئناف وتشغيل البيئات المعزولة يُحتسب ضمن حدود وحدة المعالجة المركزية والذاكرة. مساحة القرص مخصّصة لكل عقدة بيئة معزولة، وليس لكل حساب."
 
 #: lib/tuist_web/components/dashboard_navigation.ex:105
 #, elixir-autogen, elixir-format
 msgid "Account AI"
-msgstr "ذكاء اصطناعي للحساب"
+msgstr "الذكاء الاصطناعي للحساب"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:98
 #, elixir-autogen, elixir-format
@@ -3301,7 +3289,7 @@ msgstr "الحساب: %{name}"
 #: lib/tuist_web/controllers/dashboard_search_controller.ex:138
 #, elixir-autogen, elixir-format
 msgid "App previews"
-msgstr "معاينات التطبيقات"
+msgstr "معاينات التطبيق"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:301
 #, elixir-autogen, elixir-format
@@ -3326,7 +3314,7 @@ msgstr "رؤى البناء والاختبار"
 #: lib/tuist_web/components/dashboard_search.ex:176
 #, elixir-autogen, elixir-format
 msgid "Builds and test runs appear when you search by ID or link, or with a filter like is:test-run."
-msgstr "تظهر عمليات البناء وتشغيلات الاختبارات عند البحث حسب المعرّف أو الرابط، أو باستخدام مرشّح مثل is:test-run."
+msgstr "تظهر عمليات البناء وتشغيلات الاختبار عند البحث بالمعرّف أو الرابط، أو باستخدام مرشّح مثل is:test-run."
 
 #: lib/tuist_web/components/dashboard_navigation.ex:326
 #, elixir-autogen, elixir-format
@@ -3346,7 +3334,7 @@ msgstr "SHA الالتزام أو بادئته"
 #: lib/tuist_web/components/dashboard_navigation.ex:302
 #, elixir-autogen, elixir-format
 msgid "Compilation cache"
-msgstr "ذاكرة التخزين المؤقت للترجمة"
+msgstr "ذاكرة التخزين المؤقت للتجميع"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:295
 #, elixir-autogen, elixir-format
@@ -3356,7 +3344,7 @@ msgstr "تهيئة تحليل حزمة التطبيق"
 #: lib/tuist_web/components/dashboard_navigation.ex:294
 #, elixir-autogen, elixir-format
 msgid "Configure automated project workflows"
-msgstr "تهيئة سير العمل الآلي للمشروع"
+msgstr "تهيئة سير العمل الآلي للمشاريع"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:293
 #, elixir-autogen, elixir-format
@@ -3366,7 +3354,7 @@ msgstr "تهيئة إشعارات المشروع"
 #: lib/tuist_web/components/dashboard_navigation.ex:93
 #, elixir-autogen, elixir-format
 msgid "Connect repositories and CI providers"
-msgstr "ربط المستودعات وموفري التكامل المستمر"
+msgstr "ربط المستودعات وموفري CI"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:292
 #, elixir-autogen, elixir-format
@@ -3376,7 +3364,7 @@ msgstr "ربط هذا المشروع بمستودع"
 #: lib/tuist_web/components/dashboard_search.ex:59
 #, elixir-autogen, elixir-format
 msgid "Date or range (UTC)"
-msgstr "التاريخ أو النطاق (بتوقيت UTC)"
+msgstr "التاريخ أو النطاق (UTC)"
 
 #: lib/tuist_web/components/dashboard_search.ex:80
 #, elixir-autogen, elixir-format
@@ -3391,12 +3379,12 @@ msgstr "فرع Git"
 #: lib/tuist_web/components/dashboard_search.ex:77
 #, elixir-autogen, elixir-format
 msgid "Help"
-msgstr "المساعدة"
+msgstr "مساعدة"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:107
 #, elixir-autogen, elixir-format
 msgid "Manage AI subscriptions and routing"
-msgstr "إدارة اشتراكات الذكاء الاصطناعي وتوجيهها"
+msgstr "إدارة اشتراكات الذكاء الاصطناعي والتوجيه"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:100
 #, elixir-autogen, elixir-format
@@ -3411,7 +3399,7 @@ msgstr "إدارة مفاتيح واجهة برمجة التطبيقات للح�
 #: lib/tuist_web/components/dashboard_search.ex:188
 #, elixir-autogen, elixir-format
 msgid "Navigate"
-msgstr "تنقّل"
+msgstr "تنقل"
 
 #: lib/tuist_web/components/dashboard_search.ex:174
 #, elixir-autogen, elixir-format
@@ -3436,7 +3424,7 @@ msgstr "الإشعارات"
 #: lib/tuist_web/components/dashboard_search.ex:79
 #, elixir-autogen, elixir-format
 msgid "Open %{page} in…"
-msgstr "افتح %{page} في…"
+msgstr "فتح %{page} في…"
 
 #: lib/tuist_web/components/dashboard_search.ex:70
 #, elixir-autogen, elixir-format
@@ -3446,12 +3434,12 @@ msgstr "الصفحات"
 #: lib/tuist_web/components/dashboard_navigation.ex:320
 #, elixir-autogen, elixir-format
 msgid "Project Automations"
-msgstr "أتمتة المشروع"
+msgstr "أتمتة المشاريع"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:312
 #, elixir-autogen, elixir-format
 msgid "Project Integrations"
-msgstr "تكاملات المشروع"
+msgstr "تكاملات المشاريع"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:314
 #, elixir-autogen, elixir-format
@@ -3471,7 +3459,7 @@ msgstr "إعدادات المشروع"
 #: lib/tuist_web/components/dashboard_search.ex:64
 #, elixir-autogen, elixir-format
 msgid "Pull request number, when recorded"
-msgstr "رقم طلب السحب، عند التسجيل"
+msgstr "رقم طلب الدمج، عند التسجيل"
 
 #: lib/tuist_web/components/dashboard_search.ex:71
 #, elixir-autogen, elixir-format
@@ -3486,7 +3474,7 @@ msgstr "إعادة المحاولة"
 #: lib/tuist_web/components/dashboard_search.ex:82
 #, elixir-autogen, elixir-format
 msgid "Run lookup covers the last 30 days. Dates use UTC."
-msgstr "يغطي البحث عن التنفيذات آخر 30 يومًا. التواريخ تستخدم توقيت UTC."
+msgstr "تغطي عملية البحث عن عمليات التنفيذ آخر 30 يوماً. تستخدم التواريخ توقيت UTC."
 
 #: lib/tuist_web/components/dashboard_search.ex:54
 #, elixir-autogen, elixir-format
@@ -3514,12 +3502,12 @@ msgstr "البحث في %{project}…"
 #: lib/tuist_web/components/dashboard_search.ex:87
 #, elixir-autogen, elixir-format
 msgid "Search is busy. Try again shortly. You can still navigate to pages."
-msgstr "البحث مشغول. حاول مرة أخرى قريبًا. يمكنك التنقل إلى الصفحات."
+msgstr "البحث مشغول. حاول مرة أخرى قريبًا. لا يزال بإمكانك التنقل إلى الصفحات."
 
 #: lib/tuist_web/components/dashboard_search.ex:154
 #, elixir-autogen, elixir-format
 msgid "Search projects, tests, runs, and pages…"
-msgstr "البحث في المشاريع، الاختبارات، التنفيذات، والصفحات…"
+msgstr "البحث في المشاريع والاختبارات والتشغيلات والصفحات…"
 
 #: lib/tuist_web/components/dashboard_search.ex:168
 #, elixir-autogen, elixir-format
@@ -3539,7 +3527,7 @@ msgstr "بعض النتائج غير متاحة. لا يزال بإمكانك ا
 #: lib/tuist_web/components/dashboard_search.ex:78
 #, elixir-autogen, elixir-format
 msgid "Suggested filters"
-msgstr "عوامل التصفية المقترحة"
+msgstr "الفلاتر المقترحة"
 
 #: lib/tuist_web/components/dashboard_search.ex:39
 #, elixir-autogen, elixir-format
@@ -3553,7 +3541,7 @@ msgstr "للإغلاق"
 
 #: lib/tuist_web/components/app_layout_components.ex:225
 #: lib/tuist_web/components/dashboard_navigation.ex:173
-#: lib/tuist_web/live/remote_execution_live.ex:37
+#: lib/tuist_web/live/remote_execution_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Remote execution"
 msgstr "التنفيذ عن بُعد"
@@ -3561,9 +3549,21 @@ msgstr "التنفيذ عن بُعد"
 #: lib/tuist_web/live/ops_account_live.html.heex:645
 #, elixir-autogen, elixir-format
 msgid "This account has no paid plan. Cancelling its trial puts it back on Air's free runner allowance and cache caps, and its runner usage stays unbilled until it subscribes. Cancel the trial anyway?"
-msgstr "لا يحتوي هذا الحساب على خطة مدفوعة. سيؤدي إلغاء الفترة التجريبية إلى إعادة الحساب إلى حصة المشغّل المجانية وحدود ذاكرة التخزين المؤقت الخاصة بخطة Air، ولن تُفوتَر استخدامات المشغّل حتى يشترك الحساب. هل تريد إلغاء الفترة التجريبية على أي حال؟"
+msgstr "لا يحتوي هذا الحساب على خطة مدفوعة. سيؤدي إلغاء الفترة التجريبية إلى إعادة الحساب إلى حصة المشغّلات المجانية وحدود ذاكرة التخزين المؤقت الخاصة بخطة Air، ولن يتم فرض رسوم على استخدام المشغّل حتى الاشتراك. هل تريد إلغاء الفترة التجريبية على أي حال؟"
 
 #: lib/tuist_web/components/app_layout_components.ex:458
 #, elixir-autogen, elixir-format
 msgid "Snapshots"
-msgstr "لقطات"
+msgstr "لقطات سريعة"
+
+#: lib/tuist_web/components/app_layout_components.ex:213
+#: lib/tuist_web/components/dashboard_navigation.ex:171
+#: lib/tuist_web/live/once_cache_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "Struo Cache"
+msgstr "Struo Cache"
+
+#: lib/tuist_web/components/layout_components.ex:50
+#, elixir-autogen, elixir-format
+msgid "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Struo support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
+msgstr "Tuist هو منصة بناء لفرق الهندسة ووكلاء البرمجة الخاصين بها. يدعم سير عمل البناء والاختبار عبر Xcode وGradle وBazel وElixir وRust؛ دعم Struo متاح في قناة canary. تختلف الميزات حسب سلسلة الأدوات، وتخزين نتائج تجميع Rust تجريبي."

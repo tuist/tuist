@@ -2,21 +2,21 @@
 {
   "title": "Claude",
   "titleTemplate": ":title · Sandboxes · Funcionalidades · Guías · Tuist",
-  "description": "Ejecuta sesiones de Claude Managed Agents y sesiones en la nube de Claude Code (claude.ai, las aplicaciones de escritorio y móviles, y claude --cloud) en los Sandboxes de Tuist, en Linux o macOS."
+  "description": "Ejecuta sesiones de Claude Managed Agents y sesiones en la nube de Claude Code (claude.ai, las aplicaciones de escritorio y móviles, y claude --cloud) en los entornos aislados (Sandboxes) de Tuist, en Linux o macOS."
 }
 ---
 # Claude {#claude}
 
 > [!IMPORTANT]
-> **Solo con invitación**
+> **Solo por invitación**
 >
-> Los Sandboxes de Tuist, tanto en Linux como en macOS, están actualmente disponibles solo con invitación. [Ponte en contacto](mailto:contact@tuist.dev) o escríbenos en el [Slack de la comunidad](https://slack.tuist.dev) para solicitar acceso para tu cuenta.
+> Los entornos aislados (sandboxes) de Tuist, tanto en Linux como en macOS, están disponibles actualmente solo por invitación. [Ponte en contacto](mailto:contact@tuist.dev) o escríbenos en el [Slack de la comunidad](https://slack.tuist.dev) para solicitar acceso para tu cuenta.
 
-Anthropic ejecuta el bucle del agente de Claude, y un *entorno autoalojado* decide dónde se ejecutan las herramientas de Claude. Conéctalo a Tuist y cada sesión en él obtendrá su propio <.localized_link href="/guides/features/sandboxes">sandbox</.localized_link> de Tuist, en Linux o macOS. Tuist ejecuta los workers y runners que esos entornos necesitan, por lo que no tienes que alojar nada.
+Anthropic ejecuta el bucle de agente de Claude, y un *entorno autoalojado* decide dónde se ejecutan las herramientas de Claude. Conéctalo a Tuist y cada sesión obtendrá su propio <.localized_link href="/guides/features/sandboxes">sandbox</.localized_link> de Tuist, en Linux o macOS. Tuist gestiona los workers y runners que necesitan esos entornos, por lo que no tienes que alojar nada.
 
 Hay dos tipos de entornos, uno por producto de Claude:
 
-- **[Agentes gestionados por Claude](#managed-agents)**: sesiones que inicias con la API de Claude o la API de agent-sessions de Tuist. Creas el entorno (`env_…`) en la [Consola de Claude](https://platform.claude.com/environments), y cada sesión puede elegir Linux o macOS.
+- **[Agentes gestionados por Claude](#managed-agents)**: sesiones que inicias con la API de Claude o la API de sesiones de agentes de Tuist. Creas el entorno (`env_…`) en la [Consola de Claude](https://platform.claude.com/environments), y cada sesión puede elegir Linux o macOS.
 - **[Claude Code](#claude-code)**: sesiones en la nube que los desarrolladores inician desde claude.ai, las aplicaciones de escritorio y móviles de Claude, y `claude --cloud`. Un propietario de Claude Team o Enterprise crea los entornos (`ccpool_…`) en la configuración de administración de claude.ai, uno para cada plataforma, y los desarrolladores eligen Linux o macOS seleccionando el entorno.
 
 Ambos se conectan a través de la API de Tuist mediante un administrador de cuenta. Autentícate con `tuist auth login`, luego:
@@ -29,24 +29,24 @@ export TUIST_TOKEN=$(tuist auth token)
 
 ### Conectar un entorno {#managed-agents-connect}
 
-Conéctate desde **Ajustes → Integraciones → Claude** de tu cuenta. El formulario solicita un entorno autoalojado y la credencial con la que Tuist inicia sus sesiones:
+Conéctate desde la sección **Configuración → Integraciones → Claude** de tu cuenta. El formulario solicita un entorno autoalojado y la credencial con la que Tuist inicia sus sesiones:
 
-1. **Crea el entorno.** En la Consola de Claude, crea un entorno autoalojado en la página [Entornos](https://platform.claude.com/environments), ábrelo y haz clic en **Generar clave de entorno**. Anthropic solo genera claves de entorno en la Consola.
+1. **Crea el entorno.** En la Consola de Claude, crea un entorno autoalojado en la página de [Entornos](https://platform.claude.com/environments), ábrelo y haz clic en **Generar clave de entorno**. Anthropic solo genera claves de entorno en la Consola.
 2. **Selecciona una credencial** con el selector en la parte superior del formulario (ver más abajo).
-3. **Pega el ID y la clave del entorno** y elige la plataforma y la forma de los sandboxes del entorno.
+3. **Pega el ID y la clave del entorno** y elige la plataforma y la configuración (shape) de los entornos aislados (sandboxes) del entorno.
 
-Tuist recupera el entorno con la credencial antes de guardar nada, por lo que una credencial, ID o espacio de trabajo incorrectos fallarán en el formulario. Almacena las claves cifradas y nunca las vuelve a mostrar. En menos de un minuto, Tuist comienza a atender las sesiones del entorno. Consulta <.localized_link href="/guides/features/sandboxes#platforms">Linux y macOS</.localized_link> para ver las formas.
+Tuist recupera el entorno con la credencial antes de guardar nada, por lo que una credencial, ID o espacio de trabajo incorrectos fallarán en el formulario. Almacena las claves cifradas y nunca las vuelve a mostrar. En menos de un minuto, Tuist comienza a atender las sesiones del entorno. Consulta <.localized_link href="/guides/features/sandboxes#platforms">Linux y macOS</.localized_link> para ver las configuraciones disponibles.
 
 #### Con una clave de API {#managed-agents-connect-api-key}
 
-La opción predeterminada y la forma más rápida de probar los sandboxes. Pega una clave de API con el rol de desarrollador en el espacio de trabajo del entorno. La integración marca los entornos que usan una clave de API; antes de depender de una, conéctala con una identidad federada en su lugar, para que Tuist no mantenga ninguna clave de larga duración.
+La opción predeterminada y la forma más rápida de probar los entornos aislados (sandboxes). Pega una clave de API con el rol de desarrollador en el espacio de trabajo del entorno. La integración marca los entornos que usan una clave de API; antes de depender de uno, conéctalo mejor con una identidad federada, para que Tuist no mantenga ninguna clave de larga duración.
 
 #### Con una identidad federada {#managed-agents-connect-federated}
 
-Tuist se autentica con la [Federación de identidades de carga de trabajo](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation) de Anthropic, por lo que nunca le das una clave de API de Anthropic. Necesitas el rol de administrador en tu organización de Anthropic.
+Tuist se autentica con la [Federación de Identidad de Carga de Trabajo](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation) de Anthropic, por lo que nunca le proporcionas una clave de API de Anthropic. Necesitas el rol de administrador en tu organización de Anthropic.
 
-1. **Confía en Tuist.** El formulario muestra la URL del emisor y el prefijo del asunto de tu cuenta. En la Consola de Claude, abre [Identidad de carga de trabajo](https://platform.claude.com/settings/workload-identity-federation), haz clic en **Conectar carga de trabajo**, elige **OIDC personalizado** e introdúcelos con el ámbito `workspace:developer`. Añade la cuenta de servicio que crea el asistente al espacio de trabajo del entorno.
-2. **Introduce los IDs.** El ID de la organización está en **Configuración → Organización** y el ID del espacio de trabajo en **Configuración → Espacios de trabajo**. Conectar carga de trabajo muestra los IDs de la cuenta de servicio y de la regla de federación cuando finaliza, y la página de la regla en Identidad de carga de trabajo los muestra de nuevo. Ninguno de ellos es secreto. Si Anthropic rechaza el token de Tuist, el [historial de autenticación](https://platform.claude.com/settings/workload-identity-federation?tab=history) de la Consola muestra el motivo.
+1. **Confía en Tuist.** El formulario muestra la URL del emisor y el prefijo del asunto (subject) de tu cuenta. En la Consola de Claude, abre [Identidad de carga de trabajo](https://platform.claude.com/settings/workload-identity-federation), haz clic en **Conectar carga de trabajo**, elige **OIDC personalizado** e introdúcelos con el ámbito `workspace:developer`. Añade la cuenta de servicio que crea el asistente al espacio de trabajo del entorno.
+2. **Introduce los IDs.** El ID de la organización está en **Configuración → Organización** y el ID del espacio de trabajo en **Configuración → Espacios de trabajo**. Al conectar la carga de trabajo se muestran los IDs de la cuenta de servicio y de la regla de federación cuando finaliza, y la página de la regla en Identidad de carga de trabajo los muestra de nuevo. Ninguno de ellos es secreto. Si Anthropic rechaza el token de Tuist, el [historial de autenticación](https://platform.claude.com/settings/workload-identity-federation?tab=history) de la Consola muestra el motivo.
 
 #### Con la API {#managed-agents-connect-api}
 
@@ -61,7 +61,7 @@ curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments
   }'
 ```
 
-Para iniciar sesiones a través de la API de Tuist, envía también los cuatro IDs de federación (consulta [Conectar sin una clave de API](#managed-agents-federation)) o una `anthropic_api_key`. El entorno se ejecuta en Linux a menos que pases `"platform": "darwin"`; `vcpus`, `memory_mb` y `workspace_gb` cambian la forma de sus sandboxes, y `xcode_version` el [Xcode](#xcode) de sus sandboxes de macOS.
+Para iniciar sesiones a través de la API de Tuist, envía también los cuatro IDs de federación (consulta [Conectar sin una clave de API](#managed-agents-federation)) o una `anthropic_api_key`. El entorno se ejecuta en Linux a menos que pases `"platform": "darwin"`; `vcpus`, `memory_mb` y `workspace_gb` cambian la configuración (shape) de sus entornos aislados (sandboxes), y `xcode_version` la versión de [Xcode](#xcode) de sus entornos aislados (sandboxes) de macOS.
 
 ### Iniciar una sesión {#managed-agents-sessions}
 
@@ -85,9 +85,9 @@ curl https://api.anthropic.com/v1/sessions \
   }'
 ```
 
-`repository_url` y, opcionalmente, `repository_ref` (una rama o commit) hacen que Tuist clone un repositorio público en el sandbox antes del primer turno del agente.
+`repository_url` y, opcionalmente, `repository_ref` (una rama o un commit) hacen que Tuist clone un repositorio público en el entorno aislado (sandbox) antes del primer turno del agente.
 
-**Con la API de agent-sessions de Tuist**, Tuist crea el agente y la sesión por ti, y clona repositorios privados de GitHub que están conectados a tu cuenta de Tuist:
+**Con la API de sesiones de agentes de Tuist**, Tuist crea el agente y la sesión por ti, y clona repositorios privados de GitHub que están conectados a tu cuenta de Tuist:
 
 ```bash
 curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-sessions" \
@@ -102,40 +102,40 @@ curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-sessions" \
 
 Cuando la cuenta tiene más de un entorno, pasa `agent_environment_id`. Puedes seguir la sesión con `GET /agent-sessions/{id}/events`, responder con `POST /agent-sessions/{id}/messages` y finalizarla con `POST /agent-sessions/{id}/archive`.
 
-El repositorio se extrae en `/workspace` en Linux y en `/Users/runner/work` en macOS. El sandbox de una sesión se pausa después de que el agente termina un turno y se reanuda con el siguiente mensaje.
+El repositorio se extrae (checkout) en `/workspace` en Linux y en `/Users/runner/work` en macOS. El entorno aislado (sandbox) de una sesión se pausa después de que el agente termina un turno y se reanuda con el siguiente mensaje.
 
-### Elegir el Xcode de una sesión {#managed-agents-xcode}
+### Elegir la versión de Xcode de una sesión {#managed-agents-xcode}
 
-El Mac de una sesión arranca antes de que Claude ejecute cualquier herramienta, por lo que Claude no puede elegir su propio Xcode. Quien crea la sesión lo elige, de la misma manera que elige macOS. Tuist usa el primero de estos que esté establecido:
+El Mac de una sesión arranca antes de que Claude ejecute cualquier herramienta, por lo que Claude no puede elegir su propia versión de Xcode. Quien crea la sesión la elige, de la misma manera que elige macOS. Tuist utiliza el primero de estos que esté establecido:
 
-1. `xcode_version` en la API de agent-sessions de Tuist, junto a `platform`. Una versión que Tuist no ofrece será rechazada al crear la sesión, con la lista de versiones que puedes elegir.
+1. `xcode_version` en la API de sesiones de agentes de Tuist, junto a `platform`. Una versión que Tuist no ofrece será rechazada cuando crees la sesión, con la lista de versiones que puedes elegir.
 2. `tuist_xcode_version` en los metadatos de la sesión, cuando creas la sesión con la API de Claude:
 
    ```json
    "metadata": { "tuist_platform": "macos", "tuist_xcode_version": "26.1.1" }
    ```
 
-3. El `xcode_version` del entorno, cuando la sesión se ejecuta en la plataforma del entorno.
-4. El Xcode predeterminado.
+3. La `xcode_version` del entorno, cuando la sesión se ejecuta en la plataforma del entorno.
+4. La versión de Xcode predeterminada.
 
-Un Xcode sin plataforma solicita macOS. Algunas cosas que debes saber:
+Una versión de Xcode sin plataforma especificada solicita macOS. Algunas cosas que debes saber:
 
-- **La sesión mantiene su Xcode.** Su sandbox arranca una vez, y un mensaje posterior o unos metadatos cambiados no lo modifican. Usa una nueva sesión para otro Xcode.
-- **Tuist comprueba los metadatos cuando llega el primer turno.** Si `tuist_xcode_version` nombra un Xcode que Tuist no ofrece, Tuist detiene ese turno sin iniciar un sandbox y registra las versiones que puedes elegir. Usa la API de agent-sessions de Tuist para obtener el error al crear la sesión.
-- **En un entorno de macOS, Tuist espera en lugar de adivinar.** Si Tuist no puede leer los metadatos de una nueva sesión, retiene el turno y vuelve a intentarlo en lugar de arrancar el Xcode del entorno.
+- **La sesión mantiene su versión de Xcode.** Su entorno aislado (sandbox) arranca una vez, y un mensaje posterior o unos metadatos cambiados no la modifican. Usa una nueva sesión para otra versión de Xcode.
+- **Tuist verifica los metadatos cuando llega el primer turno.** Si `tuist_xcode_version` nombra una versión de Xcode que Tuist no ofrece, Tuist detiene ese turno sin iniciar un entorno aislado (sandbox) y registra las versiones que puedes elegir. Usa la API de sesiones de agentes de Tuist para obtener el error cuando creas la sesión.
+- **En un entorno macOS, Tuist espera en lugar de adivinar.** Si Tuist no puede leer los metadatos de una nueva sesión, retiene el turno y vuelve a intentarlo en lugar de arrancar la versión de Xcode del entorno.
 
 > [!WARNING]
-> Cualquier persona que pueda crear sesiones en el espacio de trabajo de Claude que posee el entorno puede ejecutar sesiones en tu cuenta de Tuist y solicitar macOS y su Xcode mediante los metadatos de la sesión. Limita el acceso a ese espacio de trabajo en consecuencia.
+> Cualquier persona que pueda crear sesiones en el espacio de trabajo de Claude que posee el entorno puede ejecutar sesiones en tu cuenta de Tuist y solicitar macOS y su versión de Xcode mediante los metadatos de la sesión. Limita el acceso a ese espacio de trabajo en consecuencia.
 
 ### Conectar sin una clave de API {#managed-agents-federation}
 
 El panel de control lo configura por ti. A través de la API, Tuist funciona de la misma manera: cada cuenta tiene su propio emisor de OpenID Connect en Tuist, `https://tuist.dev/oidc/accounts/<account id>`, y firma un token de corta duración para cada llamada a Anthropic, que luego intercambia por un token de acceso de Anthropic que dura unos minutos. Una regla de federación que confía en tu emisor nunca acepta tokens firmados por Tuist para otras cuentas.
 
-- Cada respuesta de entorno de agente incluye `federation_issuer_url` y `federation_subject` (`account:123:agent-environment:456`). En el asistente de OIDC personalizado de la consola, usa la URL del emisor y ya sea ese sujeto exacto para admitir solo este entorno, o `account:123:*` para admitir todos los entornos de la cuenta. Las comprobaciones de configuración del panel de control usan el sujeto `account:123:setup`, que solo admite el prefijo. Usa el ámbito `workspace:developer`.
-- Envía los IDs de organización, espacio de trabajo, cuenta de servicio y regla como `anthropic_organization_id`, `anthropic_workspace_id`, `anthropic_service_account_id` y `anthropic_federation_rule_id`, al crear o con `PATCH /agent-environments/{id}`. Cuando un entorno tiene tanto los IDs como una clave de API, Tuist usa la federación.
+- Cada respuesta de entorno de agente incluye `federation_issuer_url` y `federation_subject` (`account:123:agent-environment:456`). En el asistente de OIDC personalizado de la consola, usa la URL del emisor y ya sea ese sujeto exacto, para admitir solo este entorno, o `account:123:*` para admitir todos los entornos de la cuenta. Las comprobaciones de configuración del panel de control usan el sujeto `account:123:setup`, al que solo admite el prefijo. Usa el ámbito `workspace:developer`.
+- Envía los ID de organización, espacio de trabajo, cuenta de servicio y regla como `anthropic_organization_id`, `anthropic_workspace_id`, `anthropic_service_account_id` y `anthropic_federation_rule_id`, al crear o con `PATCH /agent-environments/{id}`. Cuando un entorno tiene tanto los ID como una clave de API, Tuist utiliza la federación.
 
 > [!NOTE]
-> Anthropic obtiene las claves del emisor a través de HTTPS en el puerto 443 desde un nombre de host público. Si tu servidor de Tuist autoalojado no es accesible desde Internet, elige la fuente JWKS **inline** en la consola y pega el conjunto de claves que tu servidor sirve en `<issuer>/jwks.json`. Vuelve a pegarlo cada vez que cambie la clave de firma de Tuist, lo cual ocurre cuando cambia `TUIST_SECRET_KEY_TOKENS` del servidor (o, si no está establecido, `TUIST_SECRET_KEY_BASE`).
+> Anthropic obtiene las claves del emisor a través de HTTPS en el puerto 443 desde un nombre de host público. Si tu servidor de Tuist autoalojado no es accesible desde Internet, elige la fuente JWKS **inline** en la consola y pega el conjunto de claves que sirve tu servidor en `<issuer>/jwks.json`. Vuelve a pegarlo cada vez que cambie la clave de firma de Tuist, lo cual ocurre cuando cambia `TUIST_SECRET_KEY_TOKENS` del servidor (o, cuando no está establecido, `TUIST_SECRET_KEY_BASE`).
 
 ## Claude Code {#claude-code}
 
@@ -161,27 +161,27 @@ Las sesiones en la nube de Claude Code son las que los desarrolladores inician d
 
    Repite con `"platform": "linux"` y el ID y la clave del otro entorno.
 
-En menos de un minuto, los entornos estarán listos para aceptar sesiones. Una sesión inactiva mantiene su sandbox en ejecución durante 30 minutos y luego la pausa; el siguiente mensaje de la sesión reanuda el mismo sandbox. Cambia la espera con `max_idle_seconds` (hasta 3600).
+En menos de un minuto, los entornos estarán listos para aceptar sesiones. Una sesión inactiva mantiene su entorno aislado (sandbox) en ejecución durante 30 minutos y luego lo pausa; el siguiente mensaje de la sesión reanuda el mismo entorno aislado. Cambia el tiempo de espera con `max_idle_seconds` (hasta 3600).
 
 ### Elegir Linux o macOS {#claude-code-choose}
 
 Los desarrolladores eligen el entorno, y con él la plataforma, cuando inician una sesión en la nube:
 
 - **claude.ai, aplicaciones de escritorio y móviles:** elige **Tuist Linux** o **Tuist macOS** en el selector de entorno de una nueva sesión.
-- **Claude Code CLI:** ejecuta `/remote-env` en `claude` y elige el entorno por nombre. `claude --cloud "<task>"` se ejecutará entonces en él. Para elegir uno para una sola sesión, pasa su ID: `claude --cloud "<task>" --environment ccpool_...`.
-- **Todo un equipo o repositorio:** establece el ID del entorno predeterminado en la [configuración](https://code.claude.com/docs/en/settings) de Claude Code, por ejemplo en `.claude/settings.json` de un repositorio:
+- **Claude Code CLI:** ejecuta `/remote-env` en `claude` y elige el entorno por nombre. `claude --cloud "<task>"` se ejecuta entonces en él. Para elegir uno para una sola sesión, pasa su ID: `claude --cloud "<task>" --environment ccpool_...`.
+- **Todo un equipo o repositorio:** establece el ID del entorno predeterminado en la [configuración](https://code.claude.com/docs/en/settings) de Claude Code, por ejemplo en el `.claude/settings.json` de un repositorio:
 
   ```json
   { "remote": { "defaultEnvironmentId": "ccpool_..." } }
   ```
 
-Las sesiones en estos entornos utilizan el uso de Claude Code de tu organización como de costumbre, y sus sandboxes cuentan para tu cuenta de Tuist.
+Las sesiones en estos entornos utilizan el uso de Claude Code de tu organización como de costumbre, y sus entornos aislados (sandboxes) cuentan para tu cuenta de Tuist.
 
-### Elegir un Xcode {#xcode}
+### Elegir una versión de Xcode {#xcode}
 
-Cada entorno de macOS arranca un <.localized_link href="/guides/features/sandboxes#xcode">Xcode</.localized_link>, el predeterminado a menos que lo conectes con `xcode_version`, por ejemplo `"xcode_version": "26.1.1"`. Para ofrecer más de uno, conecta un entorno para cada uno y nómbralos en consecuencia, por ejemplo **Tuist macOS · Xcode 26.1.1**. Los desarrolladores eligen entonces el Xcode eligiendo el entorno.
+Cada entorno macOS arranca una versión de <.localized_link href="/guides/features/sandboxes#xcode">Xcode</.localized_link>, la predeterminada a menos que la conectes con `xcode_version`, por ejemplo `"xcode_version": "26.1.1"`. Para ofrecer más de una, conecta un entorno para cada una y nómbralos en consecuencia, por ejemplo **Tuist macOS · Xcode 26.1.1**. Los desarrolladores eligen entonces la versión de Xcode eligiendo el entorno.
 
-Para mover un entorno a otro Xcode, actualízalo:
+Para mover un entorno a otra versión de Xcode, actualízalo:
 
 ```bash
 curl -X PATCH "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments/<id>" \
@@ -189,17 +189,17 @@ curl -X PATCH "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environment
   -d '{ "xcode_version": "27.0" }'
 ```
 
-Las nuevas sesiones obtienen el nuevo Xcode, y las sesiones que ya tienen un sandbox mantienen el suyo. `null` vuelve al predeterminado. Lo mismo se aplica a los entornos de Managed Agents, cuyas sesiones también pueden [elegir el suyo propio](#managed-agents-xcode).
+Las nuevas sesiones obtienen la nueva versión de Xcode, y las sesiones que ya tienen un entorno aislado (sandbox) mantienen el suyo. `null` vuelve a la versión predeterminada. Lo mismo se aplica a los entornos de Managed Agents, cuyas sesiones también pueden [elegir la suya propia](#managed-agents-xcode).
 
 ### Inicios de sesión y compilaciones más rápidos {#claude-code-caching}
 
 - **Caché de Tuist:** las sesiones reciben `TUIST_URL` y, cuando tu cuenta tiene una caché en el mismo rack, `TUIST_CACHE_ENDPOINT`. La CLI de Tuist y las tareas Mix de `tuist_ex` en una sesión inician sesión por sí mismas con el token de identidad de la sesión. Consulta <.localized_link href="/guides/server/authentication#claude-code-sessions">Sesiones de Claude Code</.localized_link> en la guía de autenticación.
-- **Checkouts en caché:** cuando la aplicación de GitHub de Tuist de tu cuenta puede leer el repositorio de una sesión, una nueva sesión comienza desde el mismo checkout en caché que usan tus runners de Tuist, por lo que solo obtiene los commits que le faltan en lugar de clonar. Cuando la sesión finaliza, devuelve los objetos del último commit de la rama predeterminada, lo que mantiene actualizado el checkout en caché incluso para repositorios que no ejecutan CI en Tuist. Solo el commit que GitHub informa para la rama predeterminada lo actualiza; las ramas propias de una sesión nunca lo hacen. Deshabilita los sandboxes o desinstala la aplicación para detener esto.
-- **macOS:** el Mac comparte la compilación que ejecutan las sesiones de Claude Code con cada VM, por lo que una nueva sesión no la descarga.
+- **Checkouts en caché:** cuando la aplicación de GitHub de Tuist de tu cuenta puede leer el repositorio de una sesión, una nueva sesión comienza desde el mismo checkout en caché que usan tus runners de Tuist, por lo que solo recupera los commits que le faltan en lugar de clonar. Cuando la sesión finaliza, devuelve los objetos del último commit de la rama predeterminada, lo que mantiene actualizado el checkout en caché incluso para repositorios que no ejecutan CI en Tuist. Solo el commit que GitHub reporta para la rama predeterminada lo actualiza; las ramas propias de una sesión nunca lo hacen. Desactiva los entornos aislados (sandboxes) o desinstala la aplicación para detener esto.
+- **macOS:** el Mac comparte las sesiones de compilación de Claude Code que se ejecutan con cada VM, por lo que una nueva sesión no lo descarga.
 
 ## Usar un Mac desde cualquier sesión de Claude Code {#remote-mac}
 
-Las sesiones de Claude Code que se ejecutan en Linux, como las sesiones en la nube en un entorno alojado por Anthropic, aún pueden compilar y probar código para plataformas de Apple en un sandbox de macOS de Tuist, como se describe en <.localized_link href="/guides/features/sandboxes#coding-agents">Compilar en un Mac desde un agente de programación</.localized_link>. A diferencia de un entorno **Tuist macOS**, la sesión mantiene su propio entorno.
+Las sesiones de Claude Code que se ejecutan en Linux, como las sesiones en la nube en un entorno alojado por Anthropic, aún pueden compilar y probar código para plataformas de Apple en un entorno aislado (sandbox) macOS de Tuist, como se describe en <.localized_link href="/guides/features/sandboxes#coding-agents">Compilar en un Mac desde un agente de programación</.localized_link>. A diferencia de un entorno **Tuist macOS**, la sesión mantiene su propio entorno.
 
 En un entorno **Tuist Linux** no hay nada que configurar: la CLI de Tuist y el servidor MCP de Tuist ya están instalados e inician sesión con la identidad de la sesión.
 
@@ -207,9 +207,22 @@ Para sesiones en la nube en un entorno alojado por Anthropic:
 
 1. Haz que el <.localized_link href="/guides/features/agentic-coding/mcp">servidor MCP</.localized_link> de Tuist esté disponible para las sesiones: añade `https://tuist.dev/mcp` como conector en claude.ai y actívalo para la sesión, o decláralo en el `.mcp.json` confirmado del repositorio.
 2. Instala la CLI de Tuist en el [script de configuración](https://code.claude.com/docs/en/cloud-environments#setup-scripts) del entorno, por ejemplo con `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist`.
-3. Crea un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link> con el ámbito `account:sandboxes:write` y añádelo a las [variables de entorno](https://code.claude.com/docs/en/cloud-environments#set-environment-variables) del entorno como `TUIST_TOKEN`. Cualquier persona que use el entorno puede leerlo, así que no le asignes ningún otro ámbito a menos que también pueda usar tu caché: los comandos del Mac obtienen <.localized_link href="/guides/features/sandboxes#tuist-in-sandbox">acceso a la caché</.localized_link> solo en la medida en que el token lo permita, por lo que añade `ci` para que las compilaciones en el Mac puedan leer y escribir en tu caché.
-4. Permite que el entorno se comunique con Tuist. El acceso de red **Trusted** predeterminado de Anthropic no incluye `tuist.dev`, así que selecciona **Custom**, mantén los dominios predeterminados y añade `tuist.dev` a los **dominios permitidos**. La CLI sube los archivos de la sesión al Mac a través de `tuist.dev`, por lo que no necesita ningún otro dominio.
+3. Crea un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link> con el ámbito `account:sandboxes:write` y añádelo a las [variables de entorno](https://code.claude.com/docs/en/cloud-environments#set-environment-variables) del entorno como `TUIST_TOKEN`. Todos los que usen el entorno pueden leerlo, así que no le asignes otro ámbito a menos que también puedan usar tu caché: los comandos del Mac obtienen <.localized_link href="/guides/features/sandboxes#tuist-in-sandbox">acceso a la caché</.localized_link> solo hasta donde lo permita el token, por lo que añade `ci` para que las compilaciones en el Mac puedan leer y escribir en tu caché.
+4. Permite que el entorno se comunique con Tuist. El acceso de red **Trusted** predeterminado de Anthropic no incluye `tuist.dev`, así que selecciona **Custom**, mantén los dominios predeterminados y añade `tuist.dev` a **Dominios permitidos**. La CLI sube los archivos de la sesión al Mac a través de `tuist.dev`, por lo que no necesita ningún otro dominio.
 
-Después de la primera sincronización, Claude ejecuta `mise install` en la raíz del repositorio en el Mac para instalar la versión de Tuist fijada en el proyecto; Tuist 4.218.0 y versiones posteriores inician sesión en la caché de tu cuenta por sí mismas en cada comando.
+El Mac tiene la CLI de Tuist instalada y ejecuta la versión propia del proyecto cuando esta se fija mediante mise; Tuist 4.218.0 y versiones posteriores inician sesión en la caché de tu cuenta automáticamente en cada comando.
 
-Claude elimina el Mac cuando la tarea está completa. Un Mac que queda atrás se pausa cuando está inactivo y se elimina después de 14 días pausado. Los Mac creados de esta manera cuentan para tu cuenta de Tuist como cualquier otro sandbox.
+### Macs listos {#remote-mac-snapshots}
+
+Un entorno **Tuist Linux** puede preparar estos Macs con antelación. Configura su script de configuración de macOS mediante la API (`macos_setup_script` en `PATCH /api/accounts/{account}/sandboxes/agent-environments/{id}`), por ejemplo:
+
+```bash
+mise install
+tuist install
+tuist generate --no-open
+xcodebuild build -workspace App.xcworkspace -scheme App -destination 'platform=iOS Simulator,name=iPhone 17'
+```
+
+Cuando Claude crea un Mac para un repositorio conectado a uno de tus proyectos de Tuist, `create_sandbox` obtiene el repositorio y el Mac arranca desde la instantánea de ese repositorio para su Xcode: la rama predeterminada se clona en `~/work/<name>`, el script se ha ejecutado allí y los productos de compilación están en su lugar. El primer `tuist sandbox sync` envía solo los archivos que difieren de ese commit, por lo que Xcode recompila solo lo que cambia. El primer Mac de un repositorio y Xcode arranca limpio y su instantánea se construye en un Mac inactivo, durante hasta una hora, para los Macs siguientes. Cambiar el script, el Xcode o la imagen vuelve a construirla. La instantánea conserva los simuladores de la imagen y elimina los creados por el script, y cada uno de estos Macs comienza a arrancar el iPhone Pro más reciente de la imagen (iPhone 18 Pro en Xcode 27.2) tan pronto como se ejecuta, por lo que está listo cuando termina la primera compilación; compila también para ese simulador en el script, para que las compilaciones de la sesión para él reutilicen las de la instantánea.
+
+Claude elimina el Mac cuando la tarea finaliza. Un Mac que queda atrás se pausa cuando está inactivo y se elimina después de 14 días pausado. Los Macs creados de esta manera cuentan para tu cuenta de Tuist como cualquier otro entorno aislado (sandbox).

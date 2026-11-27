@@ -2,32 +2,32 @@
 {
   "title": "Xcode テストシャーディング",
   "titleTemplate": ":title · テストシャーディング · 機能 · ガイド · Tuist",
-  "description": "Tuist Test Sharding で、複数の CI ランナーに Xcode テストを分散実行します。"
+  "description": "Tuist Test Sharding を使用して、複数の CI ランナーに Xcode テストを分散します。"
 }
 ---
-# Xcode テストのシャーディング {#xcode-test-sharding}
+# Xcodeテストのシャーディング {#xcode-test-sharding}
 
 > [!IMPORTANT]
 > **要件**
 >
-> - <.localized_link href="/guides/features/test-insights/xcode">Xcode テストインサイト</.localized_link>が設定されていること。シャーディングは過去30日間のテストインサイトの計時データを使用してシャードの負荷を分散します。インサイトがない場合、すべてのシャードはスイートが不明であるものとして実行されます。
+> - <.localized_link href="/guides/features/test-insights/xcode">Xcodeテストインサイト</.localized_link>が設定されていること。シャーディングは過去30日間のテストインサイトのタイミングデータを使用してシャードを分散します。インサイトがない場合、すべてのシャードはスイートが不明な状態で実行されます。
 
-Xcode プロジェクトのテストシャーディングでは、`tuist xcodebuild build-for-testing` を使用してシャードプランを作成し、`tuist xcodebuild test` を使用して各シャードを実行します。
+Xcodeプロジェクトのテストシャーディングでは、`tuist xcodebuild build-for-testing`を使用してシャードプランを作成し、`tuist xcodebuild test`を使用して各シャードを実行します。
 
 ## 仕組み {#how-it-works}
 
-テストシャーディングは2段階のワークフローに従います。
+テストシャーディングは2段階のワークフローに従います：
 
-1. **ビルドフェーズ:** Tuist はビルドされた `.xctestrun` ファイルからテストモジュールを読み取り、サーバー上で **シャードプラン** を作成します。サーバーは過去30日間の履歴的なテスト計時データを使用して、各シャードの実行時間が概ね同じになるようにテストをシャード間で分散します。ビルドフェーズは、CI システムが並列ランナーを起動するために使用する **シャードマトリクス** を出力します。
-2. **テストフェーズ:** 各継続的インテグレーションランナーは **シャードインデックス** と正確な **シャードプラン識別子** を受け取り、そのプランのテスト選択を実行します。
+1. **ビルドフェーズ：** Tuistはビルドされた`.xctestrun`ファイルからテストモジュールを読み取り、サーバー上に**シャードプラン**を作成します。サーバーは過去30日間の履歴テストタイミングデータを使用して、各シャードの実行時間が概ね同じになるようにテストを分散します。ビルドフェーズは、CIシステムが並列ランナーを生成するために使用する**シャードマトリックス**を出力します。
+2. **テストフェーズ：** 各継続的インテグレーションランナーは**シャードインデックス**と正確な**シャードプラン識別子**を受け取り、そのプランのテスト選択を実行します。
 
-スイート粒度の場合、サーバーは現在の `.xctestrun` 内の各モジュールについて、ブランチ上の最近の CI 実行で報告されたスイートを使用します。ブランチの履歴がないモジュールについては、プロジェクトのデフォルトブランチにフォールバックします。複数の実行を組み合わせることで、シャーディング実行や選択的実行によって最新のレポートから除外されていたスイートを維持できます。
+スイート粒度の場合、サーバーは現在の`.xctestrun`内の各モジュールについて、ブランチでの最近のCI実行で報告されたスイートを使用し、ブランチ履歴のないモジュールについてはプロジェクトのデフォルトブランチにフォールバックします。複数の実行を組み合わせることで、シャーディングまたは選択的実行によって最新のレポートから除外されたスイートを保持できます。
 
-`--shard-granularity suite` が使用される場合、Tuist は既知のスイートを要求されたシャード数に合わせて分散し、最後のシャードをキャッチオールとして使用します。例えば、`--shard-total 5` はシャードインデックス `0` から `4` を生成し、シャードインデックス `4` がキャッチオールとなります。通常のシャードは、割り当てられたスイートに対して `-only-testing` を付けて実行されます。最後のシャードは `-only-testing` なしで実行され、以前のシャードに割り当てられたすべてのスイートに対して `-skip-testing` を渡すため、計画されたスイートに加えて、新たに追加されたスイートや履歴インベントリに欠けていたスイートも実行されます。モジュール粒度では `.xctestrun` ファイルがモジュールリストを提供するため、キャッチオールは不要です。
+`--shard-granularity suite`を使用する場合、Tuistは既知のスイートを要求されたシャード数にわたって分散し、最後のシャードをキャッチオールとして使用します。例えば、`--shard-total 5`はシャードインデックス`0`から`4`までを生成し、シャードインデックス`4`をキャッチオールとします。通常のシャードは割り当てられたスイートに対して`-only-testing`を使用して実行されます。最後のシャードは`-only-testing`なしで実行され、以前のシャードに割り当てられたすべてのスイートに対して`-skip-testing`を渡すため、計画されたスイートに加えて新たに追加されたスイートや履歴在庫から欠落しているスイートも実行されます。モジュール粒度では`.xctestrun`ファイルがモジュールリストを提供するため、キャッチオールは不要です。
 
 ## ビルドフェーズ {#build-phase}
 
-テストをビルドし、シャードプランを作成します。
+テストをビルドし、シャードプランを作成します：
 
 ```sh
 tuist xcodebuild build-for-testing \
@@ -36,17 +36,17 @@ tuist xcodebuild build-for-testing \
   --shard-total 5
 ```
 
-このコマンドは以下の処理を行います。
-1. `xcodebuild build-for-testing` でテストをビルドします
-2. 履歴的な計時データを使用して Tuist サーバー上にシャードプランを作成します
-3. `.xctestproducts` バンドルをアップロードするか、シャードランナーが使用するシャードアーカイブを書き出します
-4. CI システム用のシャードマトリクスを出力します
+このコマンドは：
+1. `xcodebuild build-for-testing`でテストをビルドします
+2. 履歴タイミングデータを使用してTuistサーバー上にシャードプランを作成します
+3. `.xctestproducts`バンドルをアップロードするか、シャードランナーが使用するシャードアーカイブを書き込みます
+4. CIシステム用のシャードマトリックスを出力します
 
 <!-- @snippet: ./_xcode-build-options -->
 
 ## テストフェーズ {#test-phase}
 
-各シャードランナーは割り当てられたテストを実行します。
+各シャードランナーは割り当てられたテストを実行します：
 
 ```sh
 tuist xcodebuild test \
@@ -62,7 +62,7 @@ tuist xcodebuild test \
 
 ### GitHub Actions {#github-actions}
 
-マトリクス戦略を使用してシャードを並列に実行します。
+マトリックス戦略を使用してシャードを並列に実行します：
 
 ```yaml
 name: Tests
@@ -107,7 +107,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist は `.tuist-shard-child-pipeline.yml` を生成し、これを [子パイプライン](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines) としてトリガーできます。生成されたシャードジョブが拡張する `.tuist-shard` テンプレートジョブを定義します。
+Tuistは`.tuist-shard-child-pipeline.yml`を生成し、これを[子パイプライン](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines)としてトリガーできます。生成されたシャードジョブが拡張する`.tuist-shard`テンプレートジョブを定義します：
 
 ```yaml
 # .gitlab-ci.yml
@@ -153,7 +153,7 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist は [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation) 用のパラメータを含む `.tuist-shard-continuation.json` を生成します。`shard-plan-id` パラメータは継続設定で宣言する必要があります。
+Tuistは[continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation)用のパラメータを含む`.tuist-shard-continuation.json`を生成します。`shard-plan-id`パラメータは継続構成で宣言する必要があります：
 
 ```yaml
 # .circleci/config.yml
@@ -232,7 +232,7 @@ workflows:
 
 ### Buildkite {#buildkite}
 
-Tuist はシャードごとに1ステップを含む `.tuist-shard-pipeline.yml` を生成します。`buildkite-agent pipeline upload` でアップロードします。
+Tuistはシャードごとに1ステップを含む`.tuist-shard-pipeline.yml`を生成します。`buildkite-agent pipeline upload`を使用してアップロードします：
 
 ```yaml
 # pipeline.yml
@@ -249,7 +249,7 @@ steps:
       queue: macos
 ```
 
-生成された各ステップには環境変数 `TUIST_SHARD_INDEX` と `TUIST_SHARD_PLAN_ID` が設定されています。共有スクリプトを使用して、各シャードステップにテストコマンドを追加します。
+生成された各ステップには環境変数として`TUIST_SHARD_INDEX`と`TUIST_SHARD_PLAN_ID`が設定されています。共有スクリプトを使用して、各シャードステップにテストコマンドを追加します：
 
 ```bash
 # .buildkite/shard-step.sh
@@ -262,7 +262,7 @@ tuist xcodebuild test \
 
 ### Codemagic {#codemagic}
 
-Codemagic は動的なマトリクスジョブをサポートしていないため、シャードごとに個別のワークフローを定義します。Tuist は `TUIST_SHARD_MATRIX` と `TUIST_SHARD_COUNT` を `CM_ENV` ファイルに書き込み、ビルドワークフロー内で使用できるようにします。Codemagic の `CM_ENV` はワークフロー範囲であるため、正確なシャードプラン識別子はワークフローの境界を越えません。テストワークフローは参照ベースのシャード検索にフォールバックします。
+Codemagicは動的マトリックスジョブをサポートしていないため、シャードごとに個別のワークフローを定義します。Tuistは`TUIST_SHARD_MATRIX`と`TUIST_SHARD_COUNT`を`CM_ENV`ファイルに書き込み、ビルドワークフロー内で使用できるようにします。Codemagicの`CM_ENV`はワークフロースコープであるため、正確なシャードプラン識別子はワークフロー境界を越えません。テストワークフローは参照ベースのシャード検索にフォールバックします：
 
 ```yaml
 # codemagic.yaml
@@ -331,7 +331,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-Bitrise では、Tuist は `shard_plan_id` を含む `.tuist-shard-matrix.json` を `BITRISE_DEPLOY_DIR` に書き込み、下流のパイプラインステージでビルド成果物として利用できるようにします。各テストワークフローは `envman` を使用してダウンロードした成果物からプラン ID を抽出し、テストコマンドの環境変数に渡します。
+Bitriseでは、Tuistは`.tuist-shard-matrix.json`（`shard_plan_id`を含む）を`BITRISE_DEPLOY_DIR`に書き込み、下流のパイプラインステージでビルド成果物として利用できるようにします。各テストワークフローは、ダウンロードした成果物から`envman`を使用してプランIDを抽出し、テストコマンドの環境に渡します：
 
 ```yaml
 # bitrise.yml
@@ -405,17 +405,17 @@ workflows:
 ```
 
 > [!TIP]
-> Bitrise は実行時の動的な並列ジョブ作成をサポートしていません。パイプラインステージで固定数のシャードワークフローを定義してください。ステージ内のワークフローは自動的に並列で実行されます。
+> Bitriseは実行時に動的な並列ジョブ作成をサポートしていません。パイプラインステージで固定数のシャードワークフローを定義してください。ステージ内のワークフローは自動的に並列で実行されます。
 
 ## 共有ボリューム {#shared-volumes}
 
-デフォルトでは、ビルドフェーズで `.xctestproducts` バンドルをリモートストレージにアップロードし、各シャードランナーがそれをダウンロードします。CI プロバイダーが **共有ボリューム**（ジョブ間でマウントされる永続ストレージ）をサポートしている場合、テストプロダクトを共有ファイルシステム経由で渡すことで、このアップロード/ダウンロードを完全にスキップできます。
+デフォルトでは、ビルドフェーズは`.xctestproducts`バンドルをリモートストレージにアップロードし、各シャードランナーがそれをダウンロードします。CIプロバイダーが**共有ボリューム**（ジョブ間でマウントされる永続ストレージ）をサポートしている場合、テストプロダクトを共有ファイルシステム経由で渡すことで、このアップロード/ダウンロードを完全にスキップできます。
 
 これにより、特に大規模なテストバンドルの場合、シャードの起動時間を大幅に短縮できます。
 
-共有ボリュームを使用するには:
+共有ボリュームを使用するには：
 
-1. **ビルドフェーズ** で、共有ボリュームを指す `-testProductsPath` を渡し、リモートアップロードをスキップするために `--shard-skip-upload` を追加します。
+1. **ビルドフェーズ**で、共有ボリュームを指す`-testProductsPath`を渡し、`--shard-skip-upload`を追加してリモートアップロードをスキップします：
 
 ```sh
 tuist xcodebuild build-for-testing \
@@ -426,7 +426,7 @@ tuist xcodebuild build-for-testing \
   -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
 ```
 
-2. **テストフェーズ** で、同じ `-testProductsPath` を渡し、Tuist がテストプロダクトをダウンロードせずローカルから読み取るようにします。
+2. **テストフェーズ**で、同じ`-testProductsPath`を渡すことで、Tuistがテストプロダクトをダウンロードせずにローカルから読み取るようにします：
 
 ```sh
 tuist xcodebuild test \
@@ -436,17 +436,17 @@ tuist xcodebuild test \
 ```
 
 > [!IMPORTANT]
-> ワークフローの実行ごとに一意のパスを使用し（例: CI 実行 ID を含める）、同時実行間の競合を回避してください。また、シャード処理完了後にテストプロダクトをクリーンアップし、ボリューム上に古いデータが蓄積しないようにする必要があります。
+> ワークフロー実行ごとに一意のパスを使用し（CI実行IDを含めるなど）、同時実行間の衝突を回避してください。また、シャード処理完了後にテストプロダクトをクリーンアップし、ボリューム上に古いデータが蓄積されないようにする必要があります。
 
 | フラグ | 環境変数 | 説明 |
 |------|---------------------|-------------|
 | `--shard-skip-upload` | `TUIST_TEST_SHARD_SKIP_UPLOAD` | テストプロダクトバンドルのリモートストレージへのアップロードをスキップ |
 
-## セルフマネージドな成果物 {#self-managed-artifacts}
+## 自己管理の成果物 {#self-managed-artifacts}
 
-CI プロバイダーにすでに成果物のアップロードおよびダウンロード手順がある場合、Tuist にアーカイブと展開を任せ、CI で転送を処理できます。
+CIプロバイダーにすでに成果物のアップロードおよびダウンロードステップがある場合、Tuistにアーカイブと展開を任せ、CI側で転送を処理できます。
 
-1. **ビルドフェーズ** で `--shard-archive-path` を渡し、Tuist がテストプロダクトをアップロードする代わりに最適化されたシャードアーカイブをローカルに書き込むようにします。
+1. **ビルドフェーズ**で`--shard-archive-path`を渡し、Tuistがテストプロダクトをアップロードする代わりに最適化されたシャードアーカイブをローカルに書き込むようにします：
 
 ```sh
 tuist xcodebuild build-for-testing \
@@ -456,9 +456,9 @@ tuist xcodebuild build-for-testing \
   --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
 ```
 
-2. CI のネイティブな成果物ステップを使用して、そのアーカイブをアップロードします。
+2. CIネイティブの成果物ステップを使用して、そのアーカイブをアップロードします。
 
-3. 各 **テストフェーズ** ジョブで、アーカイブをダウンロードし、同じパスを Tuist に渡します。
+3. 各**テストフェーズ**ジョブで、アーカイブをダウンロードし、同じパスをTuistに渡します：
 
 ```sh
 tuist xcodebuild test \
@@ -467,11 +467,11 @@ tuist xcodebuild test \
   --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
 ```
 
-`--shard-archive-path` が設定されている場合、Tuist はリモートへのテストプロダクト転送をスキップし、代わりにローカルアーカイブを使用します。`--shard-skip-upload` も渡した場合、アーカイブパスが優先されます。
+`--shard-archive-path`が設定されている場合、Tuistはリモートへのテストプロダクト転送をスキップし、代わりにローカルアーカイブを使用します。`--shard-skip-upload`も併せて指定した場合、アーカイブパスが優先されます。
 
 ### Namespace {#namespace}
 
-[Namespace](https://namespace.so) ランナーは GitHub Actions の成果物と相性が良いです。`TUIST_TEST_SHARD_ARCHIVE_PATH` を一度設定し、ビルドジョブでシャードアーカイブをローカルに書き込み、アップロードしてから、各シャードジョブで `tuist xcodebuild test` を実行する前にダウンロードします。
+[Namespace](https://namespace.so)ランナーはGitHub Actionsの成果物と相性が良いです。`TUIST_TEST_SHARD_ARCHIVE_PATH`を一度設定することで、ビルドジョブがシャードアーカイブをローカルに書き込み、それをアップロードして、各シャードジョブで`tuist xcodebuild test`を実行する前にダウンロードできるようにします：
 
 ```yaml
 name: Tests

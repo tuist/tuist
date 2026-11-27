@@ -2,12 +2,12 @@
 {
   "title": "程式碼涵蓋率",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "追蹤每次測試執行中每個檔案與提交的行涵蓋率。"
+  "description": "從測試執行中追蹤每個檔案與提交的行涵蓋率。"
 }
 ---
 # 程式碼涵蓋率 {#code-coverage}
 
-程式碼涵蓋率會告訴你測試執行了哪些程式碼行。Tuist 會上傳每次測試執行的涵蓋率，並將一次提交的多次執行合併為單一數值，提供每個檔案與整個專案的數據，讓你能在儀表板上逐次提交追蹤進度。
+程式碼涵蓋率告訴你測試執行了哪些程式碼行。Tuist 會上傳每次測試執行的涵蓋率，並將一次提交中的所有執行結果合併為單一數值，提供每個檔案與整個專案的數據，讓你能在儀表板上逐次追蹤每次提交的變化。
 
 <.home_cards>
   <.home_card
@@ -32,7 +32,7 @@
 />
   <.home_card
     title="Gradle"
-    details="上傳 Gradle 專案的程式碼涵蓋率，並標示每次測試執行了哪些檔案。"
+    details="上傳 Gradle 專案的程式碼涵蓋率，並包含每個測試所執行的檔案。"
     link="/guides/features/test-code-coverage/gradle"
 />
 </.home_cards>

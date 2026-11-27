@@ -5,12 +5,12 @@
   "description": "Tuistダッシュボードで、Tuistが生成したXcodeプロジェクトのビルド分析を追跡します。"
 }
 ---
-# 生成されたXcodeプロジェクト {#generated-xcode-project-build-insights}
+# 生成された Xcode プロジェクト {#generated-xcode-project-build-insights}
 
 > [!NOTE]
 > 自動生成されたスキームには、`tuist inspect build` ポストアクションが自動的に含まれます。
 >
-> 生成されたスキームでビルドインサイトを追跡しない場合は、[buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) を使用して無効にしてください。
+> 生成されたスキームでビルドインサイトを追跡したくない場合は、[buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) を使用して無効にしてください。
 
 カスタムスキームを含む生成プロジェクトを使用している場合は、ポストアクションを自分で追加する必要があります。[Mise](https://mise.jdx.dev/) の場合:
 
@@ -43,7 +43,7 @@ let project = Project(
 )
 ```
 
-Miseを使用していない場合は、Xcodeのポストアクションがシェルの `PATH` を継承しないため、スキームの環境で `tuist` が利用可能であることを確認する必要があります。[Homebrew](https://brew.sh/) インストールの場合:
+Mise を使用していない場合は、Xcode のポストアクションがシェルの `PATH` を継承しないため、`tuist` がスキームの環境で利用可能であることを確認する必要があります。[Homebrew](https://brew.sh/) インストールの場合:
 
 ```swift
 buildAction: .buildAction(

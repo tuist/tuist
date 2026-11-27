@@ -2,7 +2,7 @@
 {
   "title": "tuist.toml",
   "titleTemplate": ":title · Referencias · Tuist",
-  "description": "Referencia del formato de archivo de configuración tuist.toml."
+  "description": "Referencia del formato del archivo de configuración tuist.toml."
 }
 ---
 
@@ -39,11 +39,11 @@ proxy = true
 ca_certificate = "/etc/ssl/certs/self-hosted-ca.pem"
 ```
 
-## Prioridad de configuración {#configuration-precedence}
+## Precedencia de configuración {#configuration-precedence}
 
-Cuando el mismo ajuste se define en varios lugares, Tuist lo resuelve usando el siguiente orden de prioridad (de mayor a menor):
+Cuando el mismo ajuste se define en varios lugares, Tuist lo resuelve usando el siguiente orden de precedencia (de mayor a menor):
 
-1. **Opciones de CLI**
+1. **Marcadores de CLI**
 2. **Variables de entorno**
 3. **Tuist.swift**
 4. **tuist.toml**

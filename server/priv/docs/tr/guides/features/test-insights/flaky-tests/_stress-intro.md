@@ -1,1 +1,1 @@
-Stress kapısı, dalınızın eklediği test senaryolarını her birini yeni bir süreçte birkaç kez yeniden çalıştırır ve kararsız çıkanları raporlar. Yeni bir kararsız testi, bunu tanıtan pull request üzerinde görürsünüz; haftalar sonra değil.
+Stres kapısı, dalınızın eklediği test senaryolarını her birini yeni bir süreçte birkaç kez yeniden çalıştırır ve kararsız çıkanları bildirir. Yeni bir kararsız testi bunu tanıtan çekme isteğinde görürsünüz, haftalar sonra değil.

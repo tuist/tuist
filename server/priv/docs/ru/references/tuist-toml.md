@@ -1,7 +1,7 @@
 ---
 {
   "title": "tuist.toml",
-  "titleTemplate": ":title · Справочники · Tuist",
+  "titleTemplate": ":title · Справочник · Tuist",
   "description": "Справочник по формату файла конфигурации tuist.toml."
 }
 ---
@@ -17,7 +17,7 @@ Tuist ищет `tuist.toml`, поднимаясь вверх по иерархи
 | Ключ | Тип | Обязательный | По умолчанию | Описание |
 | --- | --- | --- | --- | --- |
 | `project` | `String` | Да | — | Полный идентификатор вашего проекта (например, `"tuist/tuist"`). |
-| `url` | `String` | Нет | `https://tuist.dev` | URL-адрес сервера Tuist. |
+| `url` | `String` | Нет | `https://tuist.dev` | URL сервера Tuist. |
 
 ### Сеть {#network}
 
@@ -25,8 +25,8 @@ Tuist ищет `tuist.toml`, поднимаясь вверх по иерархи
 
 | Ключ | Тип | Обязательный | По умолчанию | Описание |
 | --- | --- | --- | --- | --- |
-| `proxy` | `Boolean` | Нет | `true` | При значении `true` Tuist использует прокси, заданный переменными `HTTPS_PROXY`/`HTTP_PROXY`, если они определены. См. <.localized_link href="/guides/integrations/http-proxy">руководство по HTTP-прокси</.localized_link>. |
-| `ca_certificate` | `String` | Нет | — | Путь к набору CA-сертификатов в формате PEM или DER, которым следует доверять поверх системного хранилища корневых сертификатов, например для самостоятельно размещённого сервера с собственным центром сертификации. Переменная окружения `TUIST_CA_CERTIFICATE` имеет приоритет. См. <.localized_link href="/cli/debugging#trusting-a-custom-ca-certificate">доверие пользовательскому CA-сертификату</.localized_link>. |
+| `proxy` | `Boolean` | Нет | `true` | Если `true`, Tuist использует прокси, заданный переменными `HTTPS_PROXY`/`HTTP_PROXY`, если они присутствуют. См. <.localized_link href="/guides/integrations/http-proxy">руководство по HTTP-прокси</.localized_link>. |
+| `ca_certificate` | `String` | Нет | — | Путь к набору CA-сертификатов в формате PEM или DER, которым следует доверять поверх системного хранилища корневых сертификатов, например для самостоятельно размещённого сервера с собственным CA. Переменная окружения `TUIST_CA_CERTIFICATE` имеет приоритет. См. <.localized_link href="/cli/debugging#trusting-a-custom-ca-certificate">доверие пользовательскому CA-сертификату</.localized_link>. |
 
 ## Пример {#example}
 
@@ -41,7 +41,7 @@ ca_certificate = "/etc/ssl/certs/self-hosted-ca.pem"
 
 ## Приоритет конфигурации {#configuration-precedence}
 
-Если один и тот же параметр задан в нескольких местах, Tuist определяет его значение согласно следующему порядку приоритета (от высшего к низшему):
+Если один и тот же параметр задан в нескольких местах, Tuist определяет его значение по следующему порядку приоритета (от высшего к низшему):
 
 1. **Флаги CLI**
 2. **Переменные окружения**

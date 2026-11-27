@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "a11180883a2410edc230bb3ca2f331ff8c39ca2d1048632bb11e9c8e2d83e437",
+  "hash": "e96501181729bfc5fa6c807317777927717f1c347060873c9cfbc20472f4abb1",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,19 +11,19 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Runners {#runners}": {
-                  "content_hash": "8a1c476309105464bcad39d3c64728ceac589261fff1de6f7536db77929caabb"
+                  "content_hash": "b420d5b5e4032b685ba0aad6f5eea19adbf2239d11613562c43bd2d54443f9dd"
                 },
                 "## Android emulators on Linux {#android-emulators}": {
                   "content_hash": "c5b3f0c44f3ae89ad3017cd5e8879236d42c2fdb555fd5809c538e1347b2d530"
                 },
                 "## Concurrency limits {#concurrency-limits}": {
-                  "content_hash": "2b786f231d3dd332dc592ba9c7fd19056e9780e50c7a10e140cf0fed68207cb6"
+                  "content_hash": "7d0f404a83636cb0157f76fb226eb0f8176843fa5426ac2bb3bc78bbf57243f6"
                 },
                 "## Network access {#network-access}": {
                   "content_hash": "58dbcc6af9ea31d8b85a64c4e3fd70c52b71ebbd99d4ac7065c85091984cb570"
                 },
-                "## Once graph actions {#once-graph-actions}": {
-                  "content_hash": "05ef56cb8e90e646c5ed770246d4fb085684b29d5fdd4b9639d3265d7dd0a4c9"
+                "## Struo graph actions {#struo-graph-actions}": {
+                  "content_hash": "5397948716cc38e0ca6ea071a0f0e02bfad823f07ba9e99bd29a0ad15ca5ef4a"
                 },
                 "## Why Tuist Runners {#why-tuist-runners}": {
                   "content_hash": "f0a2b324d20c0b97031def263c634647a3e31200a3ed3c3c823218ab4e5ab111"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "5615d3a538b997ba911b24bc5b54999ca6f8f2d3a2fcd915ae0f036f3141c846",
+          "hash": "f5c02f5e8b844a89ebc7ac6f5fc29c7903a5b53451e1a729fcd95094c97ba833",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners.md",
           "metadata": {
-            "content_hash": "be69836083506f7158a13e88c41c87fcf1c53a55e15b8a1e6140a593bc1b0d22"
+            "content_hash": "7027e04e842d844e1a5ff0ec56e29d23959b2c64be87bb17950f84724d457b6a"
           }
         },
         {
@@ -100,7 +100,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -113,13 +113,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -148,11 +142,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -235,21 +229,21 @@
             }
           ],
           "details": {},
-          "hash": "136b1b51fde5f0ea83d56a245ea8ffb9436e53e292c2b4057fe0df442b01670d",
+          "hash": "516e2ae8d24cb9b8e36abc3eb5189cdc82b855c6a8d9d468f0c63dd772495244",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "a11180883a2410edc230bb3ca2f331ff8c39ca2d1048632bb11e9c8e2d83e437",
+      "hash": "e96501181729bfc5fa6c807317777927717f1c347060873c9cfbc20472f4abb1",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "522339b273f550c956a02402e37b567e56a97dc264a5620bf4015731fe6dbfa0",
+  "output_hash": "3eddd04e91fd9d689cedc422b995c9cfa03c5c8fb1fc2f4b6977019eb6fcf1ef",
   "output_path": "server/priv/docs/tr/guides/features/runners.md",
   "protection_state": "recorded",
   "provider": "",
@@ -270,8 +264,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8d4e08dcf051ab2b7e244b180b46d91e841207e7",
+  "source_commit_sha": "b27af0ba1c1e0ece5a842080d4f1ce0425d542d1",
   "source_path": "server/priv/docs/en/guides/features/runners.md",
-  "translated_at": "2026-11-18T22:21:25.100449Z",
-  "translation_session_id": "01a1f0be-0914-7938-a78a-2b2186aa9559"
+  "translated_at": "2026-11-27T12:36:35.007681Z",
+  "translation_session_id": "01a21cfe-f983-7095-8fb0-927c39f1362e"
 }

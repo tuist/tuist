@@ -8,50 +8,50 @@
       "other-features": { "text": "其他功能" }
     },
     "items": {
-      "agentic-coding": { "text": "AI 代理編程" },
+      "agentic-coding": { "text": "AI 代理編碼" },
       "amp": { "text": "Amp" },
       "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel 快取" },
       "bitrise": { "text": "Bitrise" },
-      "build-and-publish": { "text": "建構與發布" },
+      "build-and-publish": { "text": "建構與發佈" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "快取磁碟區" },
       "calendar": { "text": "日曆" },
-      "channels": { "text": "渠道" },
+      "channels": { "text": "頻道" },
       "claude": { "text": "Claude" },
       "compatibility": { "text": "相容性" },
-      "coverage": { "text": "覆蓋率" },
+      "coverage": { "text": "涵蓋率" },
       "data-retention": { "text": "資料保留" },
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixir 快取" },
-      "entire": { "text": "完整" },
+      "entire": { "text": "Entire" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
-      "images": { "text": "映像" },
-      "implicit-dependencies": { "text": "隱含依賴" },
+      "images": { "text": "映像檔" },
+      "implicit-dependencies": { "text": "隱含相依性" },
       "iphone-app": { "text": "iPhone App" },
       "macos-app": { "text": "macOS App" },
       "new-project": { "text": "新專案" },
-      "once": { "text": "Once" },
-      "once-cache": { "text": "Once 快取" },
-      "once-project": { "text": "Once 專案" },
-      "once-remote-execution": { "text": "Once 遠端執行" },
-      "origin": { "text": "來源" },
+      "once": { "text": "Struo" },
+      "once-cache": { "text": "Struo 快取" },
+      "once-project": { "text": "Struo 專案" },
+      "once-remote-execution": { "text": "Struo 遠端執行" },
+      "origin": { "text": "Origin" },
       "profiles": { "text": "設定檔" },
       "project-description": { "text": "專案描述" },
       "release": { "text": "版本" },
       "release-calendar": { "text": "版本日曆" },
-      "release-channels": { "text": "版本渠道" },
+      "release-channels": { "text": "版本頻道" },
       "run-previews": { "text": "執行預覽" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rust 快取" },
       "rust-project": { "text": "Rust 專案" },
       "sandboxes": { "text": "沙盒" },
-      "scim-provisioning": { "text": "SCIM 配置" },
+      "scim-provisioning": { "text": "SCIM 佈建" },
       "server-api": { "text": "伺服器 API" },
       "single-sign-on": { "text": "單一登入" },
       "supported-types": { "text": "支援類型" },
@@ -89,12 +89,12 @@
           "cancel-button-aria-label": "取消"
         },
         "start-screen": {
-          "recent-searches-title": "搜尋紀錄",
-          "no-recent-searches-text": "沒有搜尋紀錄",
-          "save-recent-search-button-title": "儲存至搜尋紀錄",
-          "remove-recent-search-button-title": "從搜尋紀錄移除",
-          "favorite-searches-title": "收藏",
-          "remove-favorite-search-button-title": "從收藏移除"
+          "recent-searches-title": "搜尋記錄",
+          "no-recent-searches-text": "沒有搜尋記錄",
+          "save-recent-search-button-title": "儲存至搜尋記錄",
+          "remove-recent-search-button-title": "從搜尋記錄中移除",
+          "favorite-searches-title": "我的收藏",
+          "remove-favorite-search-button-title": "從收藏中移除"
         },
         "error-screen": {
           "title-text": "無法取得結果",
@@ -107,9 +107,9 @@
           "search-by-text": "搜尋提供者"
         },
         "no-results-screen": {
-          "no-results-text": "未找到相關結果",
+          "no-results-text": "找不到相關結果",
           "suggested-query-text": "你可以嘗試查詢",
-          "report-missing-results-text": "你認為此查詢應有結果嗎？",
+          "report-missing-results-text": "你認為此查詢應該有結果嗎？",
           "report-missing-results-link-text": "點擊提供回饋"
         }
       }
@@ -138,7 +138,7 @@
           "text": "貢獻者"
         },
         "changelog": {
-          "text": "更新日誌"
+          "text": "更新記錄"
         }
       }
     }
@@ -156,7 +156,7 @@
               "text": "目錄"
             },
             "shell-completions": {
-              "text": "Shell 自動補全"
+              "text": "Shell 自動完成"
             }
           }
         },
@@ -265,7 +265,7 @@
           "text": "簡介",
           "items": {
             "why-server": {
-              "text": "為何需要伺服器？"
+              "text": "為什麼需要伺服器？"
             },
             "accounts-and-projects": {
               "text": "帳戶與專案"
@@ -279,7 +279,7 @@
           }
         },
         "on-premise": {
-          "text": "內部部署",
+          "text": "本地部署",
           "items": {
             "install": {
               "text": "安裝"
@@ -382,7 +382,7 @@
                       "text": "建立新專案"
                     },
                     "swift-package": {
-                      "text": "試用 Swift Package"
+                      "text": "使用 Swift Package 試用"
                     },
                     "migrate": {
                       "text": "遷移",
@@ -404,7 +404,7 @@
                   }
                 },
                 "manifests": {
-                  "text": "清單檔案"
+                  "text": "Manifests"
                 },
                 "directory-structure": {
                   "text": "目錄結構"
@@ -413,7 +413,7 @@
                   "text": "編輯"
                 },
                 "dependencies": {
-                  "text": "依賴"
+                  "text": "相依性"
                 },
                 "code-sharing": {
                   "text": "程式碼共享"
@@ -513,6 +513,14 @@
                 }
               }
             },
+            "snapshots": {
+              "text": "快照",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "產生的 Xcode 專案"
+                }
+              }
+            },
             "insights": {
               "text": "洞察",
               "items": {
@@ -522,7 +530,7 @@
               }
             },
             "test-insights": {
-              "text": "測試洞察",
+              "text": "洞察",
               "items": {
                 "flaky-tests": {
                   "text": "不穩定性",
@@ -535,7 +543,7 @@
               }
             },
             "bundle-insights": {
-              "text": "套件洞察",
+              "text": "洞察",
               "items": {
                 "apple": {
                   "text": "Apple"
@@ -556,7 +564,7 @@
           }
         },
         "agentic-coding": {
-          "text": "AI 代理編程",
+          "text": "AI 代理編碼",
           "items": {
             "mcp": {
               "text": "MCP"

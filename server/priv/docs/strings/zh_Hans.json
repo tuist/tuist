@@ -4,7 +4,7 @@
       "builds": { "text": "构建" },
       "tests": { "text": "测试" },
       "compute": { "text": "计算" },
-      "bundles": { "text": "包" },
+      "bundles": { "text": "应用包" },
       "other-features": { "text": "其他功能" }
     },
     "items": {
@@ -26,7 +26,7 @@
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixir 缓存" },
-      "entire": { "text": "全部" },
+      "entire": { "text": "Entire" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -35,12 +35,12 @@
       "implicit-dependencies": { "text": "隐式依赖" },
       "iphone-app": { "text": "iPhone 应用" },
       "macos-app": { "text": "macOS 应用" },
-      "new-project": { "text": "新建项目" },
-      "once": { "text": "Once" },
-      "once-cache": { "text": "Once 缓存" },
-      "once-project": { "text": "Once 项目" },
-      "once-remote-execution": { "text": "Once 远程执行" },
-      "origin": { "text": "源" },
+      "new-project": { "text": "新项目" },
+      "once": { "text": "Struo" },
+      "once-cache": { "text": "Struo 缓存" },
+      "once-project": { "text": "Struo 项目" },
+      "once-remote-execution": { "text": "Struo 远程执行" },
+      "origin": { "text": "Origin" },
       "profiles": { "text": "配置文件" },
       "project-description": { "text": "项目描述" },
       "release": { "text": "发布" },
@@ -109,7 +109,7 @@
         "no-results-screen": {
           "no-results-text": "未找到相关结果",
           "suggested-query-text": "你可以尝试查询",
-          "report-missing-results-text": "你认为此查询应有结果？",
+          "report-missing-results-text": "你认为此查询应该有结果吗？",
           "report-missing-results-link-text": "点击提供反馈"
         }
       }
@@ -156,7 +156,7 @@
               "text": "目录"
             },
             "shell-completions": {
-              "text": "Shell 补全"
+              "text": "Shell 自动补全"
             }
           }
         },
@@ -253,7 +253,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "日志"
+              "text": "日志记录"
             }
           }
         }
@@ -498,7 +498,7 @@
               }
             },
             "selective-testing": {
-              "text": "选择",
+              "text": "选择性测试",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成的 Xcode 项目"
@@ -507,6 +507,14 @@
             },
             "test-sharding": {
               "text": "分片",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "生成的 Xcode 项目"
+                }
+              }
+            },
+            "snapshots": {
+              "text": "快照",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成的 Xcode 项目"

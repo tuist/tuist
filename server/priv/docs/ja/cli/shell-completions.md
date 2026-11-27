@@ -12,18 +12,18 @@ Tuist を **グローバルにインストール** している場合（例: Hom
 > [!NOTE]
 > **グローバルインストールとは**
 >
-> グローバルインストールとは、シェルの `$PATH` 環境変数で利用可能なインストールのことです。これにより、ターミナル内のどのディレクトリからでも `tuist` を実行できます。これは Homebrew のデフォルトのインストール方法です。
+> グローバルインストールとは、シェルの `$PATH` 環境変数で利用可能なインストールのことです。これにより、ターミナル内の任意のディレクトリから `tuist` を実行できます。これは Homebrew のデフォルトのインストール方法です。
 
 
 ## Zsh {#zsh}
 
-[oh-my-zsh](https://ohmyz.sh/) がインストールされている場合、補完スクリプトを自動読み込みするディレクトリ `.oh-my-zsh/completions` がすでに存在します。新しい補完スクリプトをそのディレクトリ内の `_tuist` という名前のファイルにコピーしてください。
+[oh-my-zsh](https://ohmyz.sh/) をインストールしている場合、補完スクリプトを自動的に読み込むディレクトリ `.oh-my-zsh/completions` がすでに存在します。新しい補完スクリプトをそのディレクトリ内の `_tuist` という名前のファイルにコピーしてください。
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 ```
 
-`oh-my-zsh` がない場合は、関数パスに補完スクリプトのパスを追加し、補完スクリプトの自動読み込みを有効にする必要があります。まず、以下の行を `~/.zshrc` に追加してください。
+`oh-my-zsh` を使用しない場合は、関数パスに補完スクリプト用のパスを追加し、補完スクリプトの自動読み込みを有効にする必要があります。まず、次の行を `~/.zshrc` に追加してください。
 
 ```bash
 fpath=(~/.zsh/completion $fpath)
@@ -39,20 +39,20 @@ tuist --generate-completion-script > ~/.zsh/completion/_tuist
 
 ## Bash {#bash}
 
-[bash-completion](https://github.com/scop/bash-completion) がインストールされている場合は、新しい補完スクリプトを bash-completion のディレクトリにコピーするだけで構いません。
+[bash-completion](https://github.com/scop/bash-completion) をインストールしている場合は、新しい補完スクリプトを bash-completion のディレクトリにコピーするだけです。
 
 ```bash
 tuist --generate-completion-script bash > "$(brew --prefix)/etc/bash_completion.d/_tuist"
 ```
 
-bash-completion がない場合は、補完スクリプトを直接 source する必要があります。`~/.bash_completions/` などのディレクトリに書き出してください。
+bash-completion を使用しない場合は、補完スクリプトを直接ソースとして読み込む必要があります。`~/.bash_completions/` などのディレクトリに書き込んでください。
 
 ```bash
 mkdir -p ~/.bash_completions
 tuist --generate-completion-script bash > ~/.bash_completions/tuist.bash
 ```
 
-その後、以下の行を `~/.bash_profile` または `~/.bashrc` に追加してください。
+その後、次の行を `~/.bash_profile` または `~/.bashrc` に追加してください。
 
 ```bash
 source ~/.bash_completions/tuist.bash

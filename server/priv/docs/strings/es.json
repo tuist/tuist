@@ -4,7 +4,7 @@
       "builds": { "text": "Compilaciones" },
       "tests": { "text": "Tests" },
       "compute": { "text": "Cómputo" },
-      "bundles": { "text": "Bundles" },
+      "bundles": { "text": "Paquetes" },
       "other-features": { "text": "Otras funcionalidades" }
     },
     "items": {
@@ -26,7 +26,7 @@
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Caché de Elixir" },
-      "entire": { "text": "Completo" },
+      "entire": { "text": "Entire" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -36,29 +36,29 @@
       "iphone-app": { "text": "App para iPhone" },
       "macos-app": { "text": "App para macOS" },
       "new-project": { "text": "Nuevo proyecto" },
-      "once": { "text": "Once" },
-      "once-cache": { "text": "Caché de Once" },
-      "once-project": { "text": "Proyecto de Once" },
-      "once-remote-execution": { "text": "Ejecución remota de Once" },
-      "origin": { "text": "Origen" },
+      "once": { "text": "Struo" },
+      "once-cache": { "text": "Caché de Struo" },
+      "once-project": { "text": "Proyecto de Struo" },
+      "once-remote-execution": { "text": "Ejecución remota de Struo" },
+      "origin": { "text": "Origin" },
       "profiles": { "text": "Perfiles" },
       "project-description": { "text": "Descripción del proyecto" },
-      "release": { "text": "Lanzamiento" },
-      "release-calendar": { "text": "Calendario de lanzamientos" },
+      "release": { "text": "Versión" },
+      "release-calendar": { "text": "Calendario de versiones" },
       "release-channels": { "text": "Canales de lanzamiento" },
-      "run-previews": { "text": "Previews en ejecución" },
+      "run-previews": { "text": "Ejecutar previsualizaciones" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Caché de Rust" },
       "rust-project": { "text": "Proyecto de Rust" },
       "sandboxes": { "text": "Sandboxes" },
       "scim-provisioning": { "text": "Aprovisionamiento SCIM" },
       "server-api": { "text": "API del servidor" },
-      "single-sign-on": { "text": "Inicio de sesión único (SSO)" },
+      "single-sign-on": { "text": "Inicio de sesión único" },
       "supported-types": { "text": "Tipos admitidos" },
       "webhooks": { "text": "Webhooks" },
       "xcodegen-project": { "text": "Proyecto de XcodeGen" },
       "xcodeproj-integration": { "text": "Integración con Xcodeproj" },
-      "ufeatures-architecture": { "text": "Arquitectura de uFeatures" }
+      "ufeatures-architecture": { "text": "Arquitectura uFeatures" }
     }
   },
   "aside": {
@@ -97,7 +97,7 @@
           "remove-favorite-search-button-title": "Eliminar de favoritos"
         },
         "error-screen": {
-          "title-text": "No se pueden recuperar los resultados",
+          "title-text": "No se han podido recuperar los resultados",
           "help-text": "Es posible que debas comprobar tu conexión de red"
         },
         "footer": {
@@ -156,7 +156,7 @@
               "text": "Directorios"
             },
             "shell-completions": {
-              "text": "Completado de shell"
+              "text": "Autocompletado de shell"
             }
           }
         },
@@ -253,7 +253,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "Registro de eventos"
+              "text": "Registros"
             }
           }
         }
@@ -282,7 +282,7 @@
           "text": "On-premise",
           "items": {
             "install": {
-              "text": "Instalar"
+              "text": "Instalación"
             },
             "metrics": {
               "text": "Métricas"
@@ -382,7 +382,7 @@
                       "text": "Crear un nuevo proyecto"
                     },
                     "swift-package": {
-                      "text": "Probar con un paquete de Swift"
+                      "text": "Probar con un paquete Swift"
                     },
                     "migrate": {
                       "text": "Migrar",
@@ -391,7 +391,7 @@
                           "text": "Un proyecto de Xcode"
                         },
                         "swift-package": {
-                          "text": "Un paquete de Swift"
+                          "text": "Un paquete Swift"
                         },
                         "xcodegen-project": {
                           "text": "Un proyecto de XcodeGen"
@@ -416,7 +416,7 @@
                   "text": "Dependencias"
                 },
                 "code-sharing": {
-                  "text": "Compartición de código"
+                  "text": "Uso compartido de código"
                 },
                 "synthesized-files": {
                   "text": "Archivos sintetizados"
@@ -490,7 +490,7 @@
                   "text": "Integración basada en XcodeProj"
                 },
                 "swift-package": {
-                  "text": "Paquete de Swift"
+                  "text": "Paquete Swift"
                 },
                 "continuous-integration": {
                   "text": "Integración continua"
@@ -507,6 +507,14 @@
             },
             "test-sharding": {
               "text": "Fragmentación",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "Proyecto de Xcode generado"
+                }
+              }
+            },
+            "snapshots": {
+              "text": "Instantáneas",
               "items": {
                 "generated-xcode-project": {
                   "text": "Proyecto de Xcode generado"
@@ -582,7 +590,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Forjas de Git",
+              "text": "Forjas Git",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -623,7 +631,7 @@
           "text": "Compartir",
           "items": {
             "previews": {
-              "text": "Previews"
+              "text": "Previsualizaciones"
             }
           }
         }

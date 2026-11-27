@@ -7,20 +7,20 @@
 ---
 # 範本 {#templates}
 
-在已有架構的專案中，開發者可能希望建立與專案一致的新元件或功能。使用 `tuist scaffold` 可以從範本產生檔案。你可以定義自己的範本，或使用 Tuist 內建的範本。以下是一些適合使用 scaffolding 的情境：
+在架構已確立的專案中，開發人員可能希望建立與專案一致的新元件或功能。使用 `tuist scaffold` 即可從範本產生檔案。你可以定義自己的範本，或使用 Tuist 內建的範本。以下是一些適合使用 scaffolding 的情境：
 
-- 建立符合指定架構的新功能：`tuist scaffold viper --name MyFeature`。
+- 建立遵循特定架構的新功能：`tuist scaffold viper --name MyFeature`。
 - 建立新專案：`tuist scaffold feature-project --name Home`
 
 > [!NOTE]
-> **非強制性規範**
+> **不強制規範**
 >
-> Tuist 不會對你的範本內容或使用方式施加限制。唯一的要求是將它們放在特定目錄中。
+> Tuist 不會對你的範本內容或使用方式設限。唯一的要求是將它們放在指定的目錄中。
 
 
 ## 定義範本 {#defining-a-template}
 
-若要定義範本，你可以執行 <.localized_link href="/guides/features/projects/editing">`tuist edit`</.localized_link>，然後在 `Tuist/Templates` 下建立一個名為 `name_of_template` 的目錄來代表你的範本。範本需要一個描述範本的清單檔案 `name_of_template.swift`。因此，如果你要建立一個名為 `framework` 的範本，應該在 `Tuist/Templates` 建立一個新的 `framework` 目錄，並在其中建立一個名為 `framework.swift` 的清單檔案，內容可能如下所示：
+若要定義範本，你可以執行 <.localized_link href="/guides/features/projects/editing">`tuist edit`</.localized_link>，然後在 `Tuist/Templates` 底下建立一個名為 `name_of_template` 的目錄來代表你的範本。範本需要一個描述範本的清單檔案 `name_of_template.swift`。因此，如果你要建立一個名為 `framework` 的範本，應該在 `Tuist/Templates` 建立一個新目錄 `framework`，並在當中放入名為 `framework.swift` 的清單檔案，內容可能如下所示：
 
 
 ```swift
@@ -53,7 +53,7 @@ let template = Template(
 
 ## 使用範本 {#using-a-template}
 
-定義範本後，我們可以透過 `scaffold` 指令來使用它：
+定義好範本後，我們可以透過 `scaffold` 指令來使用它：
 
 ```bash
 tuist scaffold name_of_template --name Name --platform macos
@@ -63,11 +63,11 @@ tuist scaffold name_of_template --name Name --platform macos
 > 由於 platform 是選用引數，我們也可以在不加上 `--platform macos` 引數的情況下呼叫該指令。
 
 
-如果 `.string` 和 `.files` 提供的彈性不足，你可以透過 `.file` 選項使用 [Stencil](https://stencil.fuller.li/en/latest/) 範本語言。此外，你也可以使用此處定義的其他過濾器。
+如果 `.string` 和 `.files` 提供的彈性不足，你可以透過 `.file` 選項運用 [Stencil](https://stencil.fuller.li/en/latest/) 範本語言。此外，你也可以使用此處定義的其他過濾器。
 
-使用字串插值時，上面的 `\(nameAttribute)` 會解析為 `{{ name }}`。如果你希望在範本定義中使用 Stencil 過濾器，可以手動使用該插值並加入任何你想要的過濾器。例如，你可以使用 `{ { name | lowercase } }` 取代 `\(nameAttribute)`，以取得 name 屬性的全小寫值。
+使用字串插值時，上述的 `\(nameAttribute)` 會解析為 `{{ name }}`。如果你希望在範本定義中使用 Stencil 過濾器，可以手動撰寫該插值並加入任何你想要的過濾器。例如，你可以使用 `{ { name | lowercase } }` 而非 `\(nameAttribute)`，以取得 name 屬性的小寫值。
 
-你也可以使用 `.directory`，它能讓你將整個資料夾複製到指定路徑。
+你也可以使用 `.directory`，這樣就能將整個資料夾複製到指定路徑。
 
 > [!TIP]
 > **專案描述輔助工具**

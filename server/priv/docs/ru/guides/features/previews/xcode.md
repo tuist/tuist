@@ -1,7 +1,7 @@
 ---
 {
   "title": "Предпросмотры Xcode",
-  "titleTemplate": ":title · Previews · Tuist",
+  "titleTemplate": ":title · Предпросмотры · Tuist",
   "description": "Делитесь предпросмотрами приложений из существующих проектов Xcode и проектов, сгенерированных Tuist."
 }
 ---
@@ -28,7 +28,7 @@ tuist xcodebuild build -scheme App -project App.xcodeproj \
 tuist share App --configuration Debug --platforms iOS
 ```
 
-Замените названия схемы, проекта и рабочего пространства на свои. Чтобы поделиться сборкой Release, используйте `-configuration Release` при сборке и `--configuration Release` при публикации.
+Замените названия схемы, проекта и рабочей области на свои. Чтобы поделиться сборкой Release, используйте `-configuration Release` при сборке и `--configuration Release` при публикации.
 
 ## Физические устройства
 
@@ -46,7 +46,7 @@ tuist share App --configuration Debug --platforms iOS
 tuist share App.ipa
 ```
 
-Получатели могут открыть ссылку на предпросмотр IPA на своем мобильном устройстве, чтобы установить приложение. Аутентификация и настройки видимости предпросмотра проекта по-прежнему применяются.
+Получатели могут открыть ссылку предпросмотра IPA на своем мобильном устройстве, чтобы установить приложение. Аутентификация и настройки видимости предпросмотра проекта остаются в силе.
 
 ## CI и номера сборок
 
@@ -56,8 +56,8 @@ tuist share App.ipa
 tuist share App --track beta --release-notes "Fix sign-in"
 ```
 
-См. раздел <.localized_link href="/guides/features/previews#run-a-preview">Запуск предпросмотра</.localized_link> для информации о запуске опубликованных сборок, доступе, треках и бейджах для README.
+См. <.localized_link href="/guides/features/previews#run-a-preview">Запуск предпросмотра</.localized_link> для информации о запуске опубликованных сборок, доступе, треках и бейджах README.
 
 <!-- @snippet: ./_tuist-share -->
 
-Получатели могут использовать <.localized_link href="/guides/features/previews/run/macos">приложение Tuist для macOS</.localized_link> или <.localized_link href="/guides/features/previews/run/ios">приложение для iPhone</.localized_link> независимо от интеграции со системой сборки. Руководство для iPhone также охватывает <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">уведомления об обновлениях внутри приложения</.localized_link> с помощью Tuist SDK.
+Получатели могут использовать <.localized_link href="/guides/features/previews/run/macos">приложение Tuist для macOS</.localized_link> или <.localized_link href="/guides/features/previews/run/ios">приложение для iPhone</.localized_link> независимо от интеграции с системой сборки. Руководство для iPhone также охватывает <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">уведомления об обновлениях внутри приложения</.localized_link> с помощью Tuist SDK.

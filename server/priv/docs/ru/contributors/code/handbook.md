@@ -1,7 +1,7 @@
 ---
 {
   "title": "Руководство",
-  "titleTemplate": ":title · Код · Участники · Tuist",
+  "titleTemplate": ":title · Code · Contributors · Tuist",
   "description": "Внесите свой вклад в Руководство Tuist."
 }
 ---
@@ -9,9 +9,9 @@
 
 Источник: [github.com/tuist/tuist/tree/main/handbook](https://github.com/tuist/tuist/tree/main/handbook)
 
-## Назначение {#what-it-is-for}
+## Для чего это нужно {#what-it-is-for}
 
-В руководстве описано, как устроена работа Tuist как компании: ценности, политики и инженерные практики. Это сайт на VitePress.
+В руководстве описано, как Tuist работает как компания: ценности, политики и инженерные практики. Это сайт на VitePress.
 
 ## Как внести вклад {#how-to-contribute}
 

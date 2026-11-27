@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "595f609097990299eadce276b705cf758608f7eda1f3cdfc4a2da4921201b390",
+  "hash": "20411e0fc80820c9045aaf4d10d62bd4bc889237dcfc6f4ce49441185c72ea11",
   "hash_tree": {
     "root": {
       "children": [
@@ -20,7 +20,7 @@
                   "content_hash": "9893f82bf527103cfadbb774955c188f9fbf7fefd9bfc72811e0bcd0eef75323"
                 },
                 "## Use a Mac from any Claude Code session {#remote-mac}": {
-                  "content_hash": "c0b36b27ae4dc5707a8821dc4f87b2f05c4f740952037e1a0d5a6c7d615c947f"
+                  "content_hash": "97fd53ff758fedcb929318a908cc3ed45ee9ccda76561e71fbde36e9675aaaa3"
                 },
                 "### Choose Linux or macOS {#claude-code-choose}": {
                   "content_hash": "b96f4121af699e6a5e19a191a8a9636f52d9ea87d037774894cff1abac20e5c3"
@@ -43,6 +43,9 @@
                 "### Faster session starts and builds {#claude-code-caching}": {
                   "content_hash": "dae74f72682b29d2d5fdc72c8845201b61028da17151332ee8db098733f18f31"
                 },
+                "### Ready Macs {#remote-mac-snapshots}": {
+                  "content_hash": "a9a75690f2fe9b03857475f0e9b63ae0c3c1beefeda73b28685afd1b33981aeb"
+                },
                 "### Start a session {#managed-agents-sessions}": {
                   "content_hash": "b84fe9af63efa1ccc72cb51d1eaa01f7abfc729246aa5a4bfb227d7c9ce54af2"
                 },
@@ -62,11 +65,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "1afbe14346043bdbcc7aa006366dd3c35b84cb698b9f4fd9f31c2bcb8ea2cf28",
+          "hash": "9bbc98b8b96b4f3861201ff1377298eb2ea4ceb3653833240382867e3a9bd259",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/sandboxes/claude.md",
           "metadata": {
-            "content_hash": "37dff1bce7a2ba246ce87a34a0d8f34cb3e01f8f348c86d8f73f374c1a2a682c"
+            "content_hash": "39d4ae08a9eb2cefd509a964b5521cca44a5c76a82f01722d54c425cba3561b7"
           }
         },
         {
@@ -127,7 +130,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -140,13 +143,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -175,11 +172,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -256,21 +253,21 @@
             }
           ],
           "details": {},
-          "hash": "a7141ddc75eb7936f842b3144751828879e1ee61f2d0ec1e303c879927f7c11f",
+          "hash": "63826a64424dc74640e886f17d5e824db5dc1f8fd110a0fe0b9855519e768d4b",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "595f609097990299eadce276b705cf758608f7eda1f3cdfc4a2da4921201b390",
+      "hash": "20411e0fc80820c9045aaf4d10d62bd4bc889237dcfc6f4ce49441185c72ea11",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/sandboxes/claude.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "9f892a3af0bfe57a2770b4e4c4328b5a5a63b72363438215dd26743baa67aa3b",
+  "output_hash": "5e2fbfdb4eefaffc58a79b0a01dca5ab48e78a27f3f8d3ee962f935ede6b2eca",
   "output_path": "server/priv/docs/yue_Hant/guides/features/sandboxes/claude.md",
   "protection_state": "recorded",
   "provider": "",
@@ -290,8 +287,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1c5f2719555ef6a364756c8b4816d6bfaa654288",
+  "source_commit_sha": "bbee4418c8eb8f81e5533fa0d09bb75fa7406569",
   "source_path": "server/priv/docs/en/guides/features/sandboxes/claude.md",
-  "translated_at": "2026-11-18T22:56:40.708321Z",
-  "translation_session_id": "01a1f0d5-0649-7925-a79d-a6aef802c1ae"
+  "translated_at": "2026-11-25T17:51:49.328096Z",
+  "translation_session_id": "01a213cf-6b91-75cb-8002-9aced897dabf"
 }

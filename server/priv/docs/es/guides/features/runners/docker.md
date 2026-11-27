@@ -2,12 +2,12 @@
 {
   "title": "Docker",
   "titleTemplate": ":title · Runners · Funcionalidades · Guías · Tuist",
-  "description": "Usa Docker en los runners de Tuist: compila y ejecuta contenedores, trabajos en contenedores, contenedores de servicio y registros privados."
+  "description": "Usa Docker en los runners de Tuist: compila y ejecuta contenedores, trabajos de contenedor, contenedores de servicio y registros privados."
 }
 ---
 # Docker {#docker}
 
-Los runners de Linux incluyen Docker listo para usar. Cada trabajo obtiene su propio demonio de Docker dentro de la máquina virtual del trabajo, y el CLI de `docker`, Buildx y Compose vienen preinstalados. No necesitas una acción de configuración ni `sudo`.
+Los runners de Linux incluyen Docker listo para usar. Cada trabajo obtiene su propio demonio de Docker dentro de la máquina virtual del trabajo, y la CLI de `docker`, Buildx y Compose vienen preinstaladas. No necesitas una acción de configuración ni `sudo`.
 
 ```yaml
 jobs:
@@ -44,7 +44,7 @@ jobs:
 
 ## Contenedores de servicio {#service-containers}
 
-`services` funciona igual que en los runners alojados en GitHub. Los servicios son accesibles en `localhost` en sus puertos asignados:
+`services` funciona igual que en los runners alojados por GitHub. Los servicios son accesibles en `localhost` en sus puertos asignados:
 
 ```yaml
 jobs:
@@ -64,7 +64,7 @@ jobs:
 
 ## Registros privados {#private-registries}
 
-Autentícate con la acción de inicio de sesión del propio registro o con `docker login` antes de hacer pull o push:
+Autentícate con la acción de inicio de sesión propia del registro o con `docker login` antes de hacer pull o push:
 
 ```yaml
       - uses: docker/login-action@v3
@@ -79,7 +79,7 @@ Para un `container` a nivel de trabajo, pasa las mismas credenciales a través d
 
 ## Descargas de imágenes {#image-pulls}
 
-Las descargas desde Docker Hub se sirven a través de una caché pull-through operada por Tuist, por lo que los trabajos no consumen el límite anónimo de tasa de Docker Hub. Las imágenes de otros registros se descargan directamente.
+Las descargas desde Docker Hub se sirven a través de una caché de paso que opera Tuist, por lo que los trabajos no consumen el límite anónimo de tasa de Docker Hub. Las imágenes de otros registros se descargan directamente.
 
 Cada trabajo comienza con un almacén de imágenes vacío, por lo que una imagen que usa tu flujo de trabajo se descarga una vez por trabajo en lugar de reutilizarse entre trabajos. Si un trabajo descarga una imagen personalizada grande, mantén la imagen pequeña o constrúyela en el flujo de trabajo con un builder de Buildx con caché:
 

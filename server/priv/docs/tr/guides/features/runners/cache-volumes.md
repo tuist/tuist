@@ -7,16 +7,19 @@
 ---
 # Önbellek birimleri {#cache-volumes}
 
-Tuist runner'ları işler arasında önbellekleri saklayabilir, böylece yeni bir runner sıcak başlar. Her iş, en son kaydedilen içeriğin özel, yazılabilir bir kopyasını alır.
+Tuist runner'lar işler arasında önbellekleri saklayabilir, böylece yeni bir runner sıcak başlar. Her iş, en son kaydedilen içeriğin özel ve yazılabilir bir kopyasını alır.
 
-- **Yönetilen önbellekler**, Xcode derleme önbelleğini, Tuist'in modül önbelleğini ve Gradle'ın önbelleklerini her biri için tek bir adımla saklar. Tuist, her önbelleğin nerede bulunduğunu bilir ve onu kendi depolama alanında tutar.
-- **Özel birimler**, seçtiğiniz bir anahtar altında paket yöneticisinin indirme önbelleği gibi başka dizinleri saklar.
+- **Yönetilen önbellekler**, Xcode derleme önbelleğini, Tuist'in modül önbelleğini ve Gradle'ın önbelleklerini her biri için tek bir adımla saklar. Tuist, her önbelleğin nerede bulunduğunu bilir ve bunları kendi depolama alanında tutar.
+- **Özel birimler**, seçtiğiniz bir anahtar altında paket yöneticisinin indirme önbelleği gibi diğer dizinleri saklar.
 
-Adımları checkout'tan sonra ve önbellekleri kullanan komutlardan önce ekleyin. Tuist runner'ı olmayan runner'larda hiçbir işlem yapmazlar ve bir önbellek sorunu asla işi başarısız kılmaz: adım bir uyarı günlüğe kaydeder ve iş boş bir önbellekle devam eder.
+Adımları checkout işleminden sonra ve önbellekleri kullanan komutlardan önce ekleyin. Tuist runner olmayan runner'larda bu adımlar hiçbir şey yapmaz ve bir önbellek sorunu asla işi başarısız kılmaz: adım bir uyarı günlüğe kaydeder ve iş boş bir önbellekle devam eder.
+
+> [!NOTE]
+> macOS 27 üzerindeki runner'lar henüz önbellek birimlerini veya önbelleğe alınmış checkout'ları bağlamaz. Önbellek adımları bir uyarı günlüğe kaydeder ve iş boş bir önbellekle devam eder; `actions/checkout` depoyu her zamanki gibi klonlar.
 
 ## Yönetilen önbellekler {#managed-caches}
 
-Adımlar yalnızca önbelleklerin nerede bulunacağını belirler. Mevcut önbellek kurulumunuzu koruyun: `tuist setup cache` veya derleme önbelleğini açan derleme ayarları (bkz. <.localized_link href="/guides/features/cache/xcode-cache">Xcode önbellek kılavuzu</.localized_link>), modül önbelleği için kimlik doğrulama ve Gradle'ın uzak derleme önbelleği için <.localized_link href="/guides/features/cache/gradle-cache">Tuist Gradle eklentisi</.localized_link>. GitLab CI'da snippet'leri `!reference` ile birleştirin, çünkü `extends`, `before_script` yerine geçer.
+Adımlar yalnızca önbelleklerin nerede bulunacağını belirler. Mevcut önbellek kurulumunuzu koruyun: `tuist setup cache` veya derleme önbelleğini açan derleme ayarları (<.localized_link href="/guides/features/cache/xcode-cache">Xcode önbellek kılavuzu</.localized_link> bakın), modül önbelleği için kimlik doğrulama ve Gradle'ın uzak derleme önbelleği için <.localized_link href="/guides/features/cache/gradle-cache">Tuist Gradle eklentisi</.localized_link>. GitLab CI'da snippet'leri `!reference` ile birleştirin, çünkü `extends`, `before_script` yerine geçer.
 
 ### Xcode önbelleği {#xcode-cache}
 
@@ -60,7 +63,7 @@ build:
 
 ### Modül önbelleği {#module-cache}
 
-macOS runner'larda Tuist'in yerel önbelleğini saklar: <.localized_link href="/guides/features/cache/module-cache">modül önbelleği</.localized_link> ikili dosyaları, derlenmiş manifestolar, eklentiler ve seçici test sonuçları.
+macOS runner'larda Tuist'in yerel önbelleğini saklar: <.localized_link href="/guides/features/cache/module-cache">modül önbelleği</.localized_link> ikili dosyaları, derlenmiş bildirimleri, eklentileri ve seçici test sonuçlarını.
 
 ::: code-group
 
@@ -116,7 +119,7 @@ test:
 
 ### Gradle önbelleği {#gradle-cache}
 
-Linux ve macOS runner'larda Gradle'ın kullanıcı ev dizinindeki `caches` ve `wrapper` dizinlerini saklar: bağımlılıklar, dönüştürülmüş jar dosyaları, derlenmiş derleme betikleri ve Gradle dağıtımları. Kullanıyorsanız adımdan önce `GRADLE_USER_HOME` ayarlayın ve bu dizinlerin diğer önbelleğe alma işlemlerini, örneğin `actions/setup-java` üzerindeki `cache: gradle` gibi, kapatın.
+Linux ve macOS runner'larda Gradle'ın kullanıcı ev dizinindeki `caches` ve `wrapper` dizinlerini saklar: bağımlılıklar, dönüştürülmüş jar dosyaları, derlenmiş derleme betikleri ve Gradle dağıtımları. Kullanıyorsanız, adımdan önce `GRADLE_USER_HOME` ayarlayın ve bu dizinlerin başka şekilde önbelleğe alınmasını kapatın, örneğin `actions/setup-java` üzerindeki `cache: gradle`.
 
 ::: code-group
 
@@ -160,7 +163,7 @@ test:
 
 ## Özel birimler {#custom-volumes}
 
-Kararlı bir `key` ve bir `path` seçin, ardından bağımlılıkları yüklemeden önce birimi bağlayın. Yol boş olmalı veya mevcut olmamalıdır. Aynı dizine yazan herhangi bir arşiv önbelleğini veya yapıt geri yüklemesini kaldırın. Tek bir birimde birden çok dizini saklamak için bkz. [Bir birimde birden çok dizin](#several-directories-in-one-volume).
+Kararlı bir `key` ve bir `path` seçin, ardından bağımlılıkları yüklemeden önce birimi bağlayın. Yol boş olmalı veya mevcut olmamalıdır. Aynı dizine yazan arşiv önbelleğini veya yapıt geri yüklemeyi kaldırın. Tek bir birimde birden fazla dizini saklamak için bkz. [Bir birimde birden fazla dizin](#several-directories-in-one-volume).
 
 ::: code-group
 
@@ -205,9 +208,9 @@ test:
 <!-- -->
 :::
 
-### Bir birimde birden çok dizin {#several-directories-in-one-volume}
+### Bir birimde birden fazla dizin {#several-directories-in-one-volume}
 
-Bir birim birden çok dizin barındırabilir. GitHub Actions'ta satır başına bir yol listeleyin; Buildkite'ta `path` değerini bir listeye ayarlayın; GitLab CI'da dizin başına bir kez `--path` geçirin. Boş satırlar ve çevredeki boşluklar yoksayılır.
+Bir birim birden fazla dizini barındırabilir. GitHub Actions'ta her satıra bir yol yazın; Buildkite'ta `path` değerini bir liste olarak ayarlayın; GitLab CI'da `--path` parametresini dizin başına bir kez geçirin. Boş satırlar ve çevreleyen boşluklar yok sayılır.
 
 ::: code-group
 
@@ -259,20 +262,20 @@ lint:
 - **Paylaşılan kapasite.** Tüm yollar birimin kapasitesini paylaşır ve birlikte geri yüklenip kaydedilir.
 - **Küçük, ilişkili dizinleri gruplayın.** Büyük veya hızlı değişen bir dizine kendi birimini verin.
 - **İç içe geçme yok.** Bir birimdeki yollar birbirini içermemelidir.
-- **Listeyi değiştirmek soğuk başlatır.** Her yol, birim içindeki kendi dizininde saklanır ve yolun yazım şekliyle tanımlanır. Tek bir yol ile birkaç yol arasında geçiş yapmak veya bir yol eklemek, kaldırmak ya da yeniden yazmak bu düzeni değiştirir: değişiklikten sonraki ilk iş, etkilenen yollar için soğuk başlar. Artık listede olmayan yolların içeriği, siz silene kadar birimde kalır.
+- **Listeyi değiştirmek soğuk başlatır.** Her yol, birim içindeki kendi dizininde saklanır ve yolun yazım şekliyle tanımlanır. Tek bir yol ile birkaç yol arasında geçiş yapmak veya bir yol eklemek, kaldırmak ya da yeniden yazmak bu düzeni değiştirir: değişiklikten sonraki ilk iş, etkilenen yollar için soğuk başlar. Listede artık yer almayan yolların içeriği, siz silene kadar birimde kalır.
 
 ### Anahtarlar nasıl çalışır {#how-keys-work}
 
 Bir anahtar, zamanla değişen bir birimi adlandırır; `actions/cache` anahtarı gibi sabit bir anlık görüntünün adı değildir.
 
-- **Anahtar başına bir birim.** Her anahtar depo (Buildkite'ta pipeline; GitLab CI'da proje), platform, CPU mimarisi ve kullanıcı ile sınırlıdır. Onu bağlayan her iş en son kaydedilen içerikten başlar ve uygun işler değişikliklerini aynı birime geri kaydeder.
-- **Anahtarları kararlı tutun.** Anahtara sürümleri veya kilit dosyası hash'lerini koymayın. `actions/cache` ile `deps-${{ hashFiles('Package.resolved') }}` gibi bir anahtar her değişiklik için yeni bir giriş oluşturur ve `restore-keys` daha eski birine geri döner. Burada yeni bir anahtar yeni, boş bir birimdir: her değişiklikten sonraki ilk iş soğuk başlar ve eski birimler süresi dolana kadar kalır. Anahtarı koruyun ve aracınızın içeriği güncellemesine izin verin; paket yöneticileri hâlâ geçerli olanları yeniden kullanır.
+- **Anahtar başına bir birim.** Her anahtar depo (Buildkite'ta pipeline; GitLab CI'da proje), platform, CPU mimarisi ve kullanıcı kapsamındadır. Onu bağlayan her iş en son kaydedilen içerikten başlar ve uygun işler değişikliklerini aynı birime geri kaydeder.
+- **Anahtarları kararlı tutun.** Anahtara sürüm numaraları veya kilit dosyası hash'leri koymayın. `actions/cache` ile `deps-${{ hashFiles('Package.resolved') }}` gibi bir anahtar her değişiklik için yeni bir giriş oluşturur ve `restore-keys` daha eski birine geri döner. Burada yeni bir anahtar, yeni ve boş bir birimdir: her değişiklikten sonraki ilk iş soğuk başlar ve eski birimler süresi dolana kadar kalır. Anahtarı sabit tutun ve aracınızın içeriği güncellemesine izin verin; paket yöneticileri hâlâ geçerli olanları yeniden kullanır.
 - **Kısmi eşleşme yok.** Geri yükleme anahtarları yoktur. Henüz kaydedilmemiş bir anahtar boş başlar.
 - **`tuist-` ile başlayan anahtarlar ayrılmıştır** ve Tuist'in kendi önbellekleri için kullanılır; birim bağlanmadan önce reddedilirler.
 - **Bilerek yeniden başlatın.** Bir işin boş başlamasını istediğinizde anahtarı değiştirin veya birimi silin.
 - **`tuist-` anahtarlarını Tuist'e bırakın.** Yönetilen önbellekler `tuist-` ile başlayan anahtarlar kullanır, bu nedenle kendi birimleriniz için farklı bir ad seçin.
 
-Linux'ta yollar normal dizinler olarak bağlanır, bu nedenle araçlar `deps`, `_build` ve `node_modules` gibi alışıldık konumlarını kullanabilir. Normal `.gitignore` kurallarınızı koruyun. macOS'ta yollar sembolik bağlantılardır: `~/.npm` gibi indirme önbelleklerini kullanın; `node_modules` ve önbellek dizinini değiştiren araçlar desteklenmez. `.gitignore` içinde sondaki eğik çizgi olmadan çalışma alanı bağlantılarını yoksayın.
+Linux'ta yollar normal dizinler olarak bağlanır, bu nedenle araçlar `deps`, `_build` ve `node_modules` gibi alışıldık konumlarını kullanabilir. Normal `.gitignore` kurallarınızı koruyun. macOS'ta yollar sembolik bağlantılardır: `~/.npm` gibi indirme önbelleklerini kullanın; `node_modules` ve önbellek dizinini değiştiren araçlar desteklenmez. `.gitignore` içinde sondaki eğik çizgi olmadan çalışma alanı bağlantılarını yok sayın.
 
 ## Değişiklikleri kaydetme {#saving-changes}
 
@@ -280,32 +283,32 @@ Yönetilen önbellekler ve özel birimler, kendi deponuzdaki başarılı işleri
 
 | Sağlayıcı | Değişiklikleri kaydeden işler |
 | --- | --- |
-| GitHub Actions | Depodan gelen push, zamanlanmış, manuel tetiklenen ve pull request işleri |
+| GitHub Actions | Deponun kendisinden gelen push, zamanlanmış, manuel tetiklemeli ve pull request işleri |
 | Buildkite | Pipeline deposunun webhook ve zamanlanmış derlemeleri, pull request'leri dahil |
-| GitLab CI | Projenin push, zamanlanmış ve web pipeline'ları ve bağlantının bir <.localized_link href="/guides/features/runners/ci-providers/gitlab-ci#merge-request-pipelines">API erişim belirteci</.localized_link> olduğunda kendi merge request'lerinin pipeline'ları |
+| GitLab CI | Projenin push, zamanlanmış ve web pipeline'ları ve bağlantıda bir <.localized_link href="/guides/features/runners/ci-providers/gitlab-ci#merge-request-pipelines">API erişim belirteci</.localized_link> olduğunda kendi merge request'lerinin pipeline'ları |
 
-Diğer işler önbelleği kullanabilir ancak değişiklikleri atılır. Buna fork pull request'leri, `pull_request_target` işleri, API veya panelden başlatılan Buildkite derlemeleri, fork'lardan gelen veya API erişim belirteci olmayan GitLab merge request'leri ve etiketler dahildir. Bir birimi değiştirmeyen iş, kaydedilen sürümü olduğu gibi bırakır. Runner profilinde hangi dalların kaydedeceğini daraltabilirsiniz; bkz. [Kaydetme için hangi dalları seçin](#choose-which-branches-save).
+Diğer işler önbelleği kullanabilir ancak değişiklikleri atılır. Buna çatallanmış depolardan gelen pull request'ler, `pull_request_target` işleri, API veya panodan başlatılan Buildkite derlemeleri, çatallanmış depolardan gelen veya API erişim belirteci olmayan GitLab merge request'leri ve etiketler dahildir. Bir birimi değiştirmeyen bir iş, kaydedilen sürümü yerinde bırakır. Runner profilinde hangi dalların kaydedeceğini daraltabilirsiniz; bkz. [Kaydetme yapan dalları seçin](#choose-which-branches-save).
 
 Eşzamanlı işler bağımsız çalışır; farklı işlerden gelen değişiklikler birleştirilmez. Kimlik bilgilerini veya yerine konulamaz verileri asla önbelleğe almayın.
 
-### Kaydetme için hangi dalları seçin {#choose-which-branches-save}
+### Kaydetme yapan dalları seçin {#choose-which-branches-save}
 
-Yönetilen önbelleklerin ve özel birimlerin kaydedileceği dalları değiştirebilirsiniz. **Runner'lar → Profiller** bölümünü açın, işlerinizin kullandığı profili düzenleyin ve **Şuradan önbelleği kaydet** seçeneğini genişletin. İşler istedikleri profili kullanır: GitHub Actions'ta `runs-on:`, Buildkite'ta kuyruk olarak veya GitLab CI'da `tags:` içinde. Ayarlar, o profildeki işler tarafından kullanılan tüm birimler için geçerlidir; sonradan oluşturulan birimler de buna dahildir.
+Yönetilen önbellekleri ve özel birimleri kaydeden dalları değiştirebilirsiniz. **Runner'lar → Profiller** bölümünü açın, işlerinizin kullandığı profili düzenleyin ve **Önbelleği şuradan kaydet** kısmını genişletin. İşler istedikleri profili kullanır: GitHub Actions'ta `runs-on:`, Buildkite'ta kuyruk olarak veya GitLab CI'da `tags:` içinde. Ayarlar, o profildeki işler tarafından kullanılan, sonradan oluşturulan birimler de dahil olmak üzere tüm birimlere uygulanır.
 
-![Varsayılan dal açıkken ve ek dallar olarak develop ile release/* eklenmiş şekilde, Kaydetme kaynağı bölümü genişletilmiş runner profili formu](/images/guides/features/runners/save-cache-from.png)
+![Varsayılan dal açıkken ve ek dallar olarak develop ile release/* eklenmiş, Kaydetme kaynağı bölümü genişletilmiş runner profili formu](/images/guides/features/runners/save-cache-from.png)
 
-Varsayılan olarak depodan gelen her başarılı iş değişikliklerini kaydeder. Yalnızca bazı dallardan kaydetmek için **Belirli dallarla sınırla** seçeneğini açın:
+Varsayılan olarak depodaki her başarılı iş değişikliklerini kaydeder. Yalnızca bazı dallardan kaydetmek için **Belirli dallarla sınırla** seçeneğini açın:
 
-- **Varsayılan dal**, her deponun varsayılan dalındaki işlerin kaydetmesine olanak tanır. Yalnızca ek dallardan kaydetmek için bunu kapatın.
-- **Ek dallar** altında, ayrıca kaydedecek en fazla 20 dal adı ekleyin. Joker karakter olarak `*` kullanın: `release/*`, `release/1.0` ile eşleşir.
+- **Varsayılan dal**, her deponun varsayılan dalındaki işlerin kaydetmesine izin verir. Yalnızca ek dallardan kaydetmek için bunu kapatın.
+- **Ek dallar** altında, ayrıca kaydeden en fazla 20 dal adı ekleyin. Joker karakter olarak `*` kullanın: `release/*`, `release/1.0` ile eşleşir.
 
-[Değişiklikleri kaydetme](#saving-changes) bölümünde listelenen işler, dalları eşleştiğinde değişikliklerini kaydeder. GitHub Actions push ve manuel tetikleme çalıştırmalarında, eşleşen ada sahip bir etiket de eşleşir.
+[Değişiklikleri kaydetme](#saving-changes) bölümünde listelenen işler, dalları eşleştiğinde değişikliklerini kaydeder. GitHub Actions push ve manuel tetiklemeli çalıştırmalarda, eşleşen ada sahip bir etiket de eşleşir.
 
-Diğer dallardaki işler hâlâ önbelleği kullanabilir ancak değişiklikleri atılır. Fork pull request'leri gibi hiçbir zaman kaydetmeyen işler, eşleşen bir dalda da kaydetmez. Bu ayarları daraltmak veya profili silmek, artık izin vermedikleri bekleyen değişiklikleri atar; silinen bir profil, her daldan kaydetmeye geri döner.
+Diğer dallardaki işler hâlâ önbelleği kullanabilir ancak değişiklikleri atılır. Çatallanmış pull request'ler gibi hiçbir zaman kaydetmeyen işler, eşleşen bir dalda da kaydetmez. Bu ayarları daraltmak veya profili silmek, artık izin vermedikleri bekleyen değişiklikleri atar; silinen bir profil, her daldan kaydetmeye geri döner.
 
-## Kapasite ve saklama {#capacity-and-retention}
+## Kapasite ve saklama süresi {#capacity-and-retention}
 
-Xcode önbelleği **30 GB** ile başlar. Modül önbelleği, Gradle önbelleği ve her özel birim **20 GB** ile başlar. Bir önbelleğe veya birime farklı bir kapasite vermek için `1gb` ile `100gb` arasında tam sayı GB cinsinden bir boyut ayarlayın:
+Xcode önbelleği **30 GB** ile başlar. Modül önbelleği, Gradle önbelleği ve her özel birim **20 GB** ile başlar. Bir önbelleğe veya birime başka bir kapasite vermek için `1gb` ile `100gb` arasında tam sayı GB cinsinden bir boyut ayarlayın:
 
 ::: code-group
 
@@ -335,17 +338,17 @@ build:
 <!-- -->
 :::
 
-Gradle önbelleği ve özel birimler aynı `size` girişini alır (GitLab CI'da `TUIST_GRADLE_CACHE_SIZE` ve `TUIST_VOLUME_SIZE`, `tuist-cache-volume` için `--size`). Daha büyük bir boyut, içeriğini koruyarak birimi sonraki işinden itibaren büyütür. Daha küçük bir boyut, birim bir sonraki silindiğinde veya süresi dolduğunda uygulanır. İşler tek bir önbellek için farklı boyutlar istediğinde en büyük olanı uygulanır, bu nedenle her boyutu tek bir yerde belirtin.
+Gradle önbelleği ve özel birimler aynı `size` girişini alır (GitLab CI'da `TUIST_GRADLE_CACHE_SIZE` ve `TUIST_VOLUME_SIZE`, `tuist-cache-volume` için `--size`). Daha büyük bir boyut, içeriğini koruyarak birimi sonraki işten itibaren büyütür. Daha küçük bir boyut, birim bir sonraki silindiğinde veya süresi dolduğunda uygulanır. İşler tek bir önbellek için farklı boyutlar istediğinde en büyüğü uygulanır, bu nedenle her boyutu tek bir yerde belirtin.
 
-Tümü, **bir iş bağlaması olmadan 7 gün** sonra süresi dolar ve süresi dolduktan sonra sonraki iş boş bir birimle başlar. Tuist, Xcode ve modül önbelleklerini kapasitelerine sığacak şekilde budar ve Gradle önbelleği adımı, her derlemeden sonra yedi gün boyunca kullanılmayan girdileri Gradle tarafından kaldırtır.
+Tümü **iş bağlaması olmadan 7 gün** sonra süresi dolar ve süre dolduktan sonra sonraki iş boş bir birimle başlar. Tuist, Xcode ve modül önbelleklerini kapasitelerine sığacak şekilde budar ve Gradle önbellek adımı, her derlemeden sonra yedi gündür kullanılmayan girişleri Gradle tarafından kaldırtır.
 
-Özel birimler eski bağımlılıkları budamaz: bunları küçük tutmak için aracınızın temizleme ayarlarını kullanın. Dolu bir birime yazma işlemi işi başarısız kılabilir. Kaydedilen içerikler birimin kapasitesinin **%80**'ine ulaştığında ve bir iş üzerinde alan bittiğinde, sonraki iş boş bir birimle başlar ve değişiklikleri yeni bir kaydedilen durum başlatır.
+Özel birimler eski bağımlılıkları budamaz: bunları küçük tutmak için aracınızın temizleme ayarlarını kullanın. Dolu bir birime yazma işlemi işi başarısız kılabilir. Kaydedilen içerikler birimin kapasitesinin **%80**'ine ulaştığında ve bir iş bunlarda alan bittiğinde, sonraki iş boş bir birimle başlar ve değişiklikleri yeni bir kaydedilen durum başlatır.
 
 ## Birimleri inceleme ve silme {#inspecting-and-clearing-volumes}
 
 Kullanılan alanı, önbellek isabeti oranını ve iş geçmişini incelemek için **Runner'lar → Birimler** bölümünü açın. Xcode, modül ve Gradle önbellekleri de burada görünür.
 
-Hesap yöneticileri, bir birimi ve kaydedilen içeriğini kaldırmak için **Birimi sil** seçeneğini belirleyebilir. Çalışan işler özel kopyalarını korur ancak bunları geri kaydedemez ve aynı anahtarı kullanan sonraki iş boş bir birimle başlar. Silinen birimler artık listede görünmez.
+Hesap yöneticileri, bir birimi ve kaydedilen içeriğini kaldırmak için **Birimi sil** seçeneğini seçebilir. Çalışan işler özel kopyalarını korur ancak bunları geri kaydedemez ve aynı anahtarı kullanan sonraki iş boş bir birimle başlar. Silinen birimler artık listede görünmez.
 
 Bir birimi terminalden veya bir iş akışından silmek için kimliğini bulun ve `tuist runner volume delete` komutuna iletin:
 

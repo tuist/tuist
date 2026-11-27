@@ -7,23 +7,23 @@
 ---
 # Gradle test sharding {#gradle-test-sharding}
 
-Tuist Gradle eklentisi, test sharding için yerleşik destek içerir. Projelerinizin test görevlerinin önceki CI çalıştırmalarında Tuist tarafından kaydedilen test paketlerini planlar ve geçmiş zamanlama verilerine dayanarak dengeli shard planları oluşturmak için Tuist sunucusunu kullanır.
+Tuist Gradle eklentisi, test sharding için yerleşik destek içerir. Tuist, projelerinizin test görevlerinin önceki CI çalıştırmalarında kaydettiği test paketlerini planlar ve geçmiş zamanlama verilerine dayalı olarak dengeli shard planları oluşturmak için Tuist sunucusunu kullanır.
 
 > [!IMPORTANT]
 > **Gereksinimler**
 >
-> - <.localized_link href="/guides/features/test-insights/gradle">Test içgörileri</.localized_link> yapılandırılmalıdır
+> - <.localized_link href="/guides/features/test-insights/gradle">Test içgörülerinin</.localized_link> yapılandırılmış olması gerekir
 
 ## Nasıl çalışır {#how-it-works}
 
 Test sharding iki aşamalı bir iş akışı izler:
 
-1. **Derleme aşaması:** Tuist, projeleriniz için kaydedilen test paketlerinden sunucuda bir **shard planı** oluşturur. Sunucu, her shard'ın yaklaşık olarak aynı sürede tamamlanması için testleri shard'lara dağıtmak amacıyla son 30 güne ait geçmiş test zamanlama verilerini kullanır. Derleme aşaması, CI sisteminizin paralel çalıştırıcıları başlatmak için kullandığı bir **shard matrisi** çıktısı verir.
-2. **Test aşaması:** Her CI çalıştırıcısı bir **shard indeksi** alır ve yalnızca o shard'a atanmış testleri yürütür. Son shard, başka bir shard'a atanmamış olan tüm test paketlerini de çalıştırır.
+1. **Oluşturma aşaması:** Tuist, projeleriniz için kaydedilen test paketlerinden sunucuda bir **shard planı** oluşturur. Sunucu, her shard’ın yaklaşık aynı süreyi alması için testleri shard’lara dağıtmak amacıyla son 30 günün geçmiş test zamanlama verilerini kullanır. Oluşturma aşaması, CI sisteminizin paralel çalıştırıcılar başlatmak için kullandığı bir **shard matrisi** çıktısı verir.
+2. **Test aşaması:** Her CI çalıştırıcısı bir **shard indeksi** alır ve yalnızca o shard’a atanmış testleri yürütür. Son shard, başka bir shard’a atanmamış olan her test paketini de çalıştırır.
 
-## Derleme aşaması {#build-phase}
+## Oluşturma aşaması {#build-phase}
 
-Test shard'larını `tuistPrepareTestShards` görevini kullanarak hazırlayın:
+Test shard’larını `tuistPrepareTestShards` görevini kullanarak hazırlayın:
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -31,24 +31,24 @@ Test shard'larını `tuistPrepareTestShards` görevini kullanarak hazırlayın:
 ```
 
 Bu görev:
-1. Shard'lanacak test görevine sahip projeleri bulur, onları derlemeden
-2. Son 30 gün içinde bu projeler için kaydedilen test paketleri ve zamanlamalardan Tuist sunucusunda bir shard planı oluşturur
+1. Derlemeden, shard’lanacak test görevine sahip projeleri bulur
+2. Son 30 gün içinde bu projeler için kaydedilen test paketlerinden ve zamanlamalardan Tuist sunucusunda bir shard planı oluşturur
 3. CI sisteminiz için bir shard matrisi çıktısı verir
 
-Henüz hiçbir test paketi kaydedilmemişse, örneğin ilk çalıştırmada, plan her testi çalıştıran tek bir shard içerir.
+Henüz hiçbir test paketi kaydedilmediğinde, örneğin ilk çalıştırmada, plan her testi çalıştıran tek bir shard içerir.
 
-### Derleme seçenekleri {#build-options}
+### Oluşturma seçenekleri {#build-options}
 
-Sharding'i Gradle proje özellikleri aracılığıyla yapılandırın:
+Sharding’i Gradle proje özellikleri üzerinden yapılandırın:
 
 | Özellik | Açıklama |
 |----------|-------------|
 | `-PtuistShardMax=<N>` | Maksimum shard sayısı (varsayılan: 2) |
 | `-PtuistShardMin=<N>` | Minimum shard sayısı |
 | `-PtuistShardMaxDuration=<MS>` | Shard başına hedeflenen maksimum süre (milisaniye cinsinden) |
-| `-PtuistShardTestTask=<NAME>` | Testleri shard'lanan test görevi, örneğin `testDebugUnitTest`. Varsayılan olarak derlemedeki her test görevidir |
+| `-PtuistShardTestTask=<NAME>` | Testleri shard’lanan test görevi, örneğin `testDebugUnitTest`. Varsayılan olarak derlemedeki her test görevidir |
 
-Birden fazla derleme varyantına sahip Android projeleri, varyant başına bir birim test görevine sahiptir. Shard'larınızın çalıştığı varyanta `-PtuistShardTestTask` ayarlayın, böylece yalnızca buna sahip projeler planlanır:
+Birden fazla derleme varyantına sahip Android projeleri, varyant başına bir birim test görevine sahiptir. Shard’larınızın çalıştığı varyanta `-PtuistShardTestTask` ayarlayın, böylece yalnızca bu varyanta sahip projeler planlanır:
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -60,25 +60,25 @@ Shard referansı otomatik olarak CI ortam değişkenlerinden (`GITHUB_RUN_ID`, `
 
 ## Test aşaması {#test-phase}
 
-Her shard çalıştırıcısı, standart `test` görevini kullanarak kendisine atanan testleri yürütür. `TUIST_SHARD_INDEX` ayarlandığında, eklenti shard atamasını sunucudan otomatik olarak alır ve test yürütmeyi yalnızca atanan test paketlerini içerecek şekilde filtreler. Shard'a atanmış paketi olmayan projelerdeki test görevleri atlanır.
+Her shard çalıştırıcısı, standart `test` görevini kullanarak kendisine atanan testleri yürütür. `TUIST_SHARD_INDEX` ayarlandığında, eklenti shard atamasını sunucudan otomatik olarak alır ve test yürütmeyi yalnızca atanan test paketlerini içerecek şekilde filtreler. Shard’a atanmış paketi olmayan projelerin test görevleri atlanır.
 
-Son shard, her test görevini çalıştırır ve diğer shard'lara atanmış paketleri hariç tutar, böylece henüz kaydedilmiş çalıştırması olmayan paketler, örneğin yeni eklenenler, yine de çalışır.
+Son shard, her test görevini çalıştırır ve diğer shard’lara atanmış paketleri dışlar; böylece henüz kaydedilmiş çalıştırması olmayan paketler, örneğin yeni eklenenler, yine de çalışır.
 
 ```sh
 TUIST_SHARD_INDEX=0 ./gradlew test
 ```
 
-Derleme aşamasında `-PtuistShardTestTask` ayarlarsanız, her shard'da aynı görevi çalıştırın, örneğin `./gradlew testDebugUnitTest`.
+Oluşturma aşamasında `-PtuistShardTestTask` ayarladıysanız, her shard’da aynı görevi çalıştırın, örneğin `./gradlew testDebugUnitTest`.
 
 ## Sürekli entegrasyon {#continuous-integration}
 
 <!-- @snippet: ./_ci-providers -->
 
-Her derleme ve shard işinin Gradle'ı çalıştırmadan önce kimlik doğrulaması yapması gerekir. Ya Tuist CLI'yı yükleyip CI sağlayıcınızın OIDC kimliğiyle `tuist auth login` komutunu çalıştırın ya da bir hesap token'ını `TUIST_TOKEN` olarak erişime açın. Bkz. <.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradle eklentisi kimlik doğrulaması</.localized_link>. Aşağıdaki örneklerde bu adım atlanmıştır.
+Her derleme ve shard işi, Gradle’ı çalıştırmadan önce kimlik doğrulaması yapmalıdır. Ya Tuist CLI’yi yükleyip CI sağlayıcınızın OIDC kimliğiyle `tuist auth login` komutunu çalıştırın ya da bir hesap token’ını `TUIST_TOKEN` olarak erişime açın. Bkz. <.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradle eklentisi kimlik doğrulaması</.localized_link>. Aşağıdaki örnekler bu adımı atlar.
 
 ### GitHub Actions {#github-actions}
 
-Shard'ları paralel çalıştırmak için bir matris stratejisi kullanın:
+Shard’ları paralel çalıştırmak için bir matris stratejisi kullanın:
 
 ```yaml
 name: Tests
@@ -122,7 +122,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist, bir [alt pipeline](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines) olarak tetikleyebileceğiniz bir `.tuist-shard-child-pipeline.yml` dosyası oluşturur. Oluşturulan shard işlerinin genişlettiği bir `.tuist-shard` şablon işi tanımlayın:
+Tuist, bir [alt boru hattı](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines) olarak tetiklediğiniz bir `.tuist-shard-child-pipeline.yml` dosyası oluşturur. Oluşturulan shard işlerinin genişlettiği bir `.tuist-shard` şablon işi tanımlayın:
 
 ```yaml
 # .gitlab-ci.yml
@@ -148,7 +148,7 @@ test-shards:
     strategy: depend
 ```
 
-Alt pipeline'ın bir `.tuist-shard` iş şablonuna ihtiyacı vardır:
+Alt boru hattının bir `.tuist-shard` iş şablonuna ihtiyacı vardır:
 
 ```yaml
 # .gitlab/shard-template.yml
@@ -159,7 +159,7 @@ Alt pipeline'ın bir `.tuist-shard` iş şablonuna ihtiyacı vardır:
 
 ### CircleCI {#circleci}
 
-Tuist, [devam orb'u](https://circleci.com/developer/orbs/orb/circleci/continuation) için parametreler içeren bir `.tuist-shard-continuation.json` dosyası oluşturur:
+Tuist, [süreklilik orb’ı](https://circleci.com/developer/orbs/orb/circleci/continuation) için parametreler içeren bir `.tuist-shard-continuation.json` dosyası oluşturur:
 
 ```yaml
 # .circleci/config.yml
@@ -238,7 +238,7 @@ steps:
       buildkite-agent pipeline upload .tuist-shard-pipeline.yml
 ```
 
-Oluşturulan her adımda ortamında `TUIST_SHARD_INDEX` ayarlıdır. Paylaşılan bir betik kullanarak her shard adımına test komutunu ekleyin:
+Oluşturulan her adımın ortamında `TUIST_SHARD_INDEX` ayarlanır. Paylaşılan bir betik kullanarak her shard adımına test komutunu ekleyin:
 
 ```bash
 # .buildkite/shard-step.sh
@@ -310,7 +310,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-Bitrise'te Tuist, `BITRISE_DEPLOY_DIR` dizinine `.tuist-shard-matrix.json` yazar ve bunu sonraki pipeline aşamaları için bir derleme yapıtı olarak kullanılabilir hale getirir. Önceden tanımlanmış paralel iş akışlarıyla Bitrise Pipelines'ı kullanın:
+Bitrise’ta Tuist, `.tuist-shard-matrix.json` dosyasını `BITRISE_DEPLOY_DIR` dizinine yazar ve bunu sonraki boru hattı aşamaları için bir derleme yapıtı olarak kullanılabilir hale getirir. Önceden tanımlanmış paralel iş akışlarıyla Bitrise Pipelines’ı kullanın:
 
 ```yaml
 # bitrise.yml
@@ -369,4 +369,4 @@ workflows:
 ```
 
 > [!TIP]
-> Bitrise çalışma zamanında dinamik paralel iş oluşturmayı desteklemez. Pipeline aşamalarınızda sabit sayıda shard iş akışı tanımlayın — bir aşama içindeki iş akışları otomatik olarak paralel çalışır.
+> Bitrise çalışma zamanında dinamik paralel iş oluşturmayı desteklemez. Boru hattı aşamalarınızda sabit sayıda shard iş akışı tanımlayın; bir aşama içindeki iş akışları otomatik olarak paralel çalışır.

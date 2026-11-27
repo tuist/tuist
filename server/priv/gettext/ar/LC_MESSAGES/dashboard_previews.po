@@ -31,7 +31,7 @@ msgstr "الفرع"
 #: lib/tuist_web/live/previews_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Built at"
-msgstr "تاريخ البناء"
+msgstr "بُني في"
 
 #: lib/tuist_web/live/preview_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -47,7 +47,7 @@ msgstr "SHA الالتزام"
 #: lib/tuist_web/live/preview_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Created by"
-msgstr "تم الإنشاء بواسطة"
+msgstr "أنشأه"
 
 #: lib/tuist_web/live/preview_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -62,7 +62,7 @@ msgstr "التفاصيل"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "أليس تطبيق Tuist مثبتًا لديك؟"
+msgstr "ألم تقم بتثبيت تطبيق Tuist؟"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:110
@@ -89,12 +89,12 @@ msgstr "الاسم"
 #: lib/tuist_web/live/previews_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "None"
-msgstr "لا شيء"
+msgstr "لا يوجد"
 
 #: lib/tuist_web/live/preview_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Or run using CLI"
-msgstr "أو التشغيل باستخدام سطر الأوامر"
+msgstr "أو التشغيل باستخدام واجهة سطر الأوامر"
 
 #: lib/tuist_web/live/previews_live.html.heex:78
 #, elixir-autogen, elixir-format
@@ -134,18 +134,18 @@ msgstr "تشغيل"
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "شغّل الأمر التالي لمشاركة معاينة التطبيق."
+msgstr "نفّذ الأمر التالي لمشاركة معاينة التطبيق."
 
 #: lib/tuist_web/live/preview_live.html.heex:227
 #: lib/tuist_web/live/preview_live.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "Scan QR code"
-msgstr "امسح رمز الاستجابة السريعة (QR)"
+msgstr "مسح رمز الاستجابة السريعة (QR)"
 
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "امسح رمز الاستجابة السريعة (QR) هذا على جهاز iOS لديك لتثبيت هذا الإصدار من التطبيق"
+msgstr "امسح رمز الاستجابة السريعة (QR) هذا على جهاز iOS الخاص بك لتثبيت هذا الإصدار من التطبيق"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -160,7 +160,7 @@ msgstr "المنصات المدعومة"
 #: lib/tuist_web/live/preview_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "هذه المعاينة مدعومة فقط على المحاكيات ولا يمكن تثبيتها على جهاز فعلي"
+msgstr "هذا المعاينة مدعومة فقط على المحاكيات ولا يمكن تثبيتها على جهاز فعلي"
 
 #: lib/tuist_web/live/preview_live.html.heex:310
 #, elixir-autogen, elixir-format
@@ -170,7 +170,7 @@ msgstr "هذه المعاينة غير متاحة للتثبيت على الجه
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "لتشغيل المعاينة مباشرةً من المتصفح، نزّل وثبّت تطبيق Tuist لنظام macOS"
+msgstr "لتشغيل المعاينة مباشرةً من المتصفح، قم بتنزيل وتثبيت تطبيق Tuist لنظام macOS"
 
 #: lib/tuist_web/live/preview_live.html.heex:95
 #, elixir-autogen, elixir-format
@@ -202,27 +202,27 @@ msgstr "اسم الحزمة"
 #: lib/tuist_web/live/preview_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "امسح رمز الاستجابة السريعة هذا على جهاز Android الخاص بك لتنزيل وتثبيت هذا الإصدار من التطبيق"
+msgstr "امسح رمز QR هذا على جهاز Android الخاص بك لتنزيل وتثبيت هذا الإصدار من التطبيق"
 
 #: lib/tuist_web/live/preview_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "The APK for this preview is no longer available"
-msgstr "ملف APK لهذا المعاينة لم يعد متاحاً"
+msgstr "ملف APK لهذا العرض لم يعد متاحًا"
 
 #: lib/tuist_web/live/preview_live.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for download"
-msgstr "هذه المعاينة غير متاحة للتنزيل"
+msgstr "هذا العرض غير متاح للتنزيل"
 
 #: lib/tuist_web/live/preview_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "App preview"
-msgstr "معاينة التطبيق"
+msgstr "عرض التطبيق"
 
 #: lib/tuist_web/live/preview_live.ex:53
 #, elixir-autogen, elixir-format
 msgid "Preview"
-msgstr "معاينة"
+msgstr "عرض"
 
 #: lib/tuist_web/live/preview_live.html.heex:203
 #, elixir-autogen, elixir-format
@@ -232,7 +232,7 @@ msgstr "ملاحظات الإصدار"
 #: lib/tuist_web/live/preview_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "CLI"
-msgstr "واجهة سطر الأوامر"
+msgstr "واجهة سطر الأوامر (CLI)"
 
 #: lib/tuist_web/live/preview_live.html.heex:62
 #, elixir-autogen, elixir-format
@@ -242,12 +242,12 @@ msgstr "معاينة عبر سطر الأوامر"
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "تعمل معاينات سطح المكتب بصلاحيات المستخدم الخاص بك، مع الوصول إلى ملفاتك وبيئتك. وهي غير معزولة."
+msgstr "تعمل معاينات سطح المكتب بصلاحيات مستخدمك، مع الوصول إلى ملفاتك وبيئتك. وهي غير معزولة في بيئة آمنة (sandboxed)."
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "Only run previews you trust"
-msgstr "شغّل فقط المعاينات التي تثق بها"
+msgstr "تشغيل المعاينات الموثوقة فقط"
 
 #: lib/tuist_web/live/preview_live.html.heex:214
 #, elixir-autogen, elixir-format

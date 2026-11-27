@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "6bd9a1a1d283d70f61d9b3f1e3a3a5dc8cd1a82bca3f77bdd02dd9ee7e28c864",
+  "hash": "96e292a656b3b52dc48a8fe4d6e29729c79faf90452252edb8237a0ce5b9e889",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,7 +26,7 @@
                   "content_hash": "948786e15bda6e2b70dac565241cd528f4c59cca2e7ae4ed23822a5e44c0ce84"
                 },
                 "## effect: edit them in PO (.po) files instead.": {
-                  "content_hash": "cfabf52198c21d403c3121e20f79c5e8274e5a41689742efb92db1f857555c10"
+                  "content_hash": "d7daecb41076911129f4f273a0211e3a6b832574404d6b78401ed8bc3a715d43"
                 },
                 "## messages that can't be statically extracted.": {
                   "content_hash": "953b56d83f9504088c6b842f692f07f39d9f70ba2c334466776a5a6efc791c48"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "a97bfd0d15d28659c5ca005ee4b98f35fa0446283510e67b00c0b0d2039cd741",
+          "hash": "0710a1e093fb89c6d149eb2141e0121aecd9a8d51813dc53a77030ff79a44e81",
           "kind": "source",
           "label": "server/priv/gettext/dashboard.pot",
           "metadata": {
-            "content_hash": "08f7fb743ecedd2320731b333f58d35f64ecb90ec075740733fb68345f136d2e"
+            "content_hash": "865a26bb415cb5460a073f2e0232d945941ad72eacce5eb44607f1faa624b00a"
           }
         },
         {
@@ -100,7 +100,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -113,24 +113,34 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/gettext/L10N.md": {
+                    "content_hash": "baf67c8575122ab33bf6d55af39a1bcda272121bca06889608f9d3c73007490c",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Gettext Translation Context": {
+                        "content_hash": "5da0d103cac66e60b0e791e126ea11c78241d1bd2608cc6a02b7f747f9c0ae4e"
                       },
                       "## Plural Forms by Locale": {
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c58cccd6bd647392b2ace4f19dfca189bdaa5c5ad8eadaa191ad52ea2540f30b",
+              "hash": "1bdd64400ec983fee41bde23b367af24e84212e74320dba2509ef13497fed684",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "8a0153f81a5743cfadb937e7cc5c722f2b8dbdd73edb7ece8b75ed68cd28243c"
+                "content_hash": "fe9d86afda0962597f76dcec911fb86f1943216c7f641b3831bb30a5cb4dc361"
               }
             },
             {
@@ -225,21 +235,21 @@
             }
           ],
           "details": {},
-          "hash": "62b750a6cdcbd1792ea1222d7243e452c54e3fce4950184f4778f6eed2cd1907",
+          "hash": "2bd77a021854e4020406d3ecada94149d9aee3b89b7b95e99dfdf060a14bdba2",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "6bd9a1a1d283d70f61d9b3f1e3a3a5dc8cd1a82bca3f77bdd02dd9ee7e28c864",
+      "hash": "96e292a656b3b52dc48a8fe4d6e29729c79faf90452252edb8237a0ce5b9e889",
       "kind": "translation_input",
       "label": "server/priv/gettext/dashboard.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "16316e343ac2ff10ceab547b7653cde57cb28b7940eb1cf18cd401a14ec4b6c4",
+  "output_hash": "f4d8a71fcb34b95d1c4db601c523c802dcbbf0926697aede3e76e2d7acbff1e8",
   "output_path": "server/priv/gettext/zh_Hant/LC_MESSAGES/dashboard.po",
   "po_units": {
     "0005126fb5409cd2dcabef45976e06a618d170d8e761ee7a682db8a7c64bb2fa": "a00bfb76eb697fcd1cb2b3f9067dae91a541ce9a764c85682102c6a705a1786a",
@@ -543,6 +553,7 @@
     "72cf9e973706c476cc19e37602eff2c24da90d8315d3b71925e7af4d715df788": "b0068273bfc78ada704196e7bc4f27720531658d284f31331140d5ec7e0935ee",
     "730e7a6e38945297063c3f6a847cb5aa19426d0d151317e19d506bf71e79efa2": "aee23e138af61cd7b4a2cd1c1a2d0c69f6be7fd5bb097e320053e5555e02e690",
     "739ef365b511d04e755af99098e3fd2d476c77d410a46fc97e0f81c3201d46a2": "52a9d33b6634499f82a4a06ef05e8063ececc0c9d1f39600882358736cf718a4",
+    "74a1dd0dae24ac927bd44c04c9b233af397a781dd5678048cc634956851aed6a": "e1b60d46e2b6ca88b647d36ca322785550ecea452da38ce589da42fb27a63b31",
     "74e1f7b89c07547cb2d0555481576c787106e5f8f689ce14dbc311343dbc2207": "48fba963e425eee6acf0e7f8c5cb7e29764cfe2428193eda84d105b41bab6450",
     "753f704fe000981bad5bca729a6b14c457c7e9ad6e17fe94729b9a0d67f964b3": "59aaf6b71979822e60f26844b1fb47001e03b2ac662abaa393cbd08733e887b7",
     "7551885ae1e572a82229140c090b3e35ac99aa32a2c0400a52c0eafc1e0342bd": "69d0337a295173fa460753557b590382ed240cd97812d07e19833a06a5639d99",
@@ -550,7 +561,6 @@
     "7624e6d5d3738ecc7b90334be83366d255c94ef15f0fd89735891a68e5591f2a": "edbc2011e225e7464830f5266c7276141be35115384e0e69ad392994d0c8a0b0",
     "7733e63bff9e3825913ec9f4945bbb129ac8e4baab5f3ae22ec9516cb2876bd4": "b10d16c2368c91e7f53c235f79775a38392305fed5a93c23293760e64243ebf5",
     "775a691cd77c8b80f91594baf18472617261bb413a26b396de9b4f97cd6eb1f6": "b7f2e97e2c1c36c9cda3d167ac191dde3b0e4614aea66bec6bd59985dcf71524",
-    "77b1392e2868fa9c7811c0ae9774001b8dbf8be336bb8ff37e582cf639fd7e20": "d3d4c71faa1b92e3509fd2383894d4cb8623b15e4f6fded857bf8bc58a993db7",
     "780bee4f755cfa9a3afa5dc0d0ac94e4dbd1f5bfb57849d065849c4e8b254cbf": "dedcdd92f3eba6becba3014d97cce3fa5d5ef0c7aae0bc1269ffa9579c374a54",
     "785c5ce26d186a9186fa867e35b4a62a81c47fed5b3ae4e7d69141450b48d5a3": "19388bab0a48c746175f9490d2fab6d7a1fcb8aa9a8b483d9c12efacc7ad202d",
     "785ef53847d2916dab34d64e49684e9f58fc5386dade9e8adcb775931764b23a": "12b69d77a7572fedfd1795997e6b5c2261f9c23aed2f82a1a9a8da596c75c98c",
@@ -568,6 +578,7 @@
     "7bc8637111545beb73ad2cc91c0fea27599566dd2d9e269d8e4c906abdfa6b2b": "ec974704c051fc44c9ef3428aca8f76677086c22c650b974de1ea7b2a94857b9",
     "7bed73648bb5af01e7c4e4e566f8b31bc7af7f401d6cea3ed42e3921403cbbc1": "547d9277df48c22efef537823f532e7f0d118e61e518c9e892d1b5ecc2116d7e",
     "7ce596c31be2364f1a99bcecc7bb7dd7cb3408596dc56608c9bd0cbd5d4abafc": "48a5d1be11cca75b9cee63d53388a0e69b69d28f51da3b80725899d6f5b1e9a0",
+    "7dc8ee0825da2b57f44c37d86c5247686a3fd5e806426491f25c01fd910b9051": "ad67f70bccde5fcd4292f22de36ec11377a35b2da01cb31abfc3ae268e5930e1",
     "7e10f533982a0c2419a593f3b1076fae47eeee2e50aae1086d00e024755dfb15": "7bd01eecc4a165b477eabf054b2358a6aeaa7d2b586acc03ed9872e752ab9be2",
     "7e16afcbe989b4ce9db1a25197735bcec48e20f0dbaf5bc4e3ceb4254988a040": "076204ee404e49a30f72a14ad38d44c68df9b6ab51326aed1654ac0078681162",
     "7ff8e991e2fc05103b186b3e8a42446dafe5e0cd970992f992a49ec5f5835d26": "92ccefa1431466ec5e7c7cd4712239faff17e07dbe553fecd234af8cb7d3f384",
@@ -639,7 +650,6 @@
     "99e5ac5ff7a742c98c2dc45754f0661da3c5f70a9b1c86cf2e00f411474cd1e2": "2f74f5d8d1832a51e8e6e44ddbd1a3934ce1b7c772fc851ae9d1041e58d5b551",
     "9af72c54544d3190fb9b533686b42264eac58887c9173a779ef52626d83d438e": "d3db117df9bfb568ee6c7ccbf3e3b3e8b00e4bde60604ad4b67e9067c87c2410",
     "9b404028516e49689a87ecc8a38a8d400ce5ec26fcac355e4e0d0946b51b814e": "0ba256be6b2090d2a1f39e6a91a635501fde5d46ca0d68b312685e5e1ce27fe4",
-    "9b8278d8171d873b60cd08498563868d2e427b7c43006ee434d8e70285474fe2": "c2a0199ea0a5076e25df643c32c39f5dc5a77904e79880423716aa38519ffd89",
     "9ba73b56bb45576077ebdf9eb1d9047eb54490e4779b35c4348121ebeb8ae790": "0a1cabf38ca2ee0dfbeee6758961ae9f62988d02db5629e44fa435fc8c779bfd",
     "9be431436f2089965bdfd1e0f88a1cf7231131220a2d50dfe2abcae3c6f53dc6": "6b1c5a04d7f04b2d1401d4c39b7156fa59bdae53502ed91a2b226af5ff9a1988",
     "9bf57cae831f410829ed963b6a0321d780198d671f26bb2e39fc6df6c634d8b0": "8a6c8a5a8ab9e27fb292722e32f3541b43d24f87a451680308be9f59d33ddc8e",
@@ -760,6 +770,7 @@
     "c8f2173255c907b6ea82232fb1b4d2904db52ef0a9c18b9ee14390f083734e21": "f044e4fc2750ccbdd66e91518eddbeedef41c0a95b997dafa46e8b13431eaf67",
     "c9567fd06141446c43fa48e03089a1b3da2c6e3747b73b71f4d6dfd983c05d2b": "1d4517db40bd7fa5fb755e488057bdde1f638551c210b7ca648730d52398039b",
     "c981b317f605609c7f8188eedca46ed614637ed8e8ac52650571c9bb5fe9978c": "e3e98e0711fe7bf2702ff2fc4dfa8feb71caa29a8f8243e7d92dc962f360256b",
+    "c9a252f41f1cc19d68712192b882bbdd1e6a74566f547f976de61455bdeba78e": "da4e3a358b6beb732ad9a0b4fad83aa005d89a2b925f4920b689c1b7013415ed",
     "ca291aedf5feca1ba7e435f09d2718a924241e5427a24086febdae4f965813bc": "5fab86b25b49b999888dd74d9ca634cb49d9c22f9f959e196eb76f4b09715d32",
     "cab3f2f441552aeb6d377059cc49f039b5e746faaaa61c55d85d652a7e80a62d": "7f972f5527b9fd80c45fad2ea104e303d68014a8efacc868d24d043397686b20",
     "cac44ed0f008809843fac578a1d1d7ba508a544bad6ecd7575fba396c1b43ec8": "ba492b080379bc831177c00e83ff753974ab6f1059d659b1d59dcfe7f7046fda",
@@ -916,8 +927,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "84bb7d2e418aaa057973fd386cf14a9b9aa116b8",
+  "source_commit_sha": "70b3fb8b458d2649098e3c23e01c5af6680b1c05",
   "source_path": "server/priv/gettext/dashboard.pot",
-  "translated_at": "2026-11-18T13:01:17.993700Z",
-  "translation_session_id": "01a1eeb4-a5e6-752f-ad14-c45bda7fd7b9"
+  "translated_at": "2026-11-20T11:33:01.535650Z",
+  "translation_session_id": "01a1f8b8-6311-7129-beb5-32b297d87704"
 }

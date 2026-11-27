@@ -7,7 +7,7 @@
 ---
 # Kod Kapsamı {#code-coverage}
 
-Kod kapsamı, testlerinizin kodunuzun hangi satırlarını çalıştırdığını gösterir. Tuist, her bir test çalıştırmasının kapsamını yükler ve bir commit'in çalıştırmalarını dosya bazında ve tüm proje için tek bir değerde birleştirir; böylece dashboard üzerinden commit commit takip edebilirsiniz.
+Kod kapsamı, testlerinizin kodunuzun hangi satırlarını çalıştırdığını gösterir. Tuist, her bir test çalıştırmasının kapsamını yükler ve bir commit içindeki çalıştırmaları dosya bazında ve tüm proje için tek bir rakamda birleştirir; böylece panoda commit commit ilerleyişi takip edebilirsiniz.
 
 <.home_cards>
   <.home_card
@@ -17,7 +17,7 @@ Kod kapsamı, testlerinizin kodunuzun hangi satırlarını çalıştırdığın�
 />
   <.home_card
     title="Oluşturulan projeler"
-    details="Tuist tarafından oluşturulan projelerde tuist test, binary cache ve seçici test ile kod kapsamını ölçün."
+    details="Tuist tarafından oluşturulan projelerde tuist test, ikili önbellek ve seçici test ile kod kapsamını ölçün."
     link="/guides/features/test-code-coverage/generated-xcode-project"
 />
   <.home_card

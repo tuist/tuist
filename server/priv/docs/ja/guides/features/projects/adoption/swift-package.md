@@ -1,16 +1,16 @@
 ---
 {
-  "title": "Swift Package で Tuist を使う",
+  "title": "Swift Package で Tuist を使用する",
   "titleTemplate": ":title · 導入 · プロジェクト · 機能 · ガイド · Tuist",
-  "description": "Swift Package で Tuist を使う方法を学びます。"
+  "description": "Swift Package で Tuist を使用する方法を学びます。"
 }
 ---
 # Swift Package で Tuist を使う <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
-Tuist は、プロジェクトの DSL として `Package.swift` を使用することをサポートしており、パッケージターゲットをネイティブな Xcode プロジェクトとターゲットに変換します。
+Tuist はプロジェクトの DSL として `Package.swift` の使用をサポートしており、パッケージのターゲットをネイティブな Xcode プロジェクトとターゲットに変換します。
 
 > [!WARNING]
-> この機能の目的は、開発者が Swift Package に Tuist を導入する影響を簡単に評価できるようにすることです。そのため、Swift Package Manager の全機能をサポートしたり、<.localized_link href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</.localized_link> など Tuist 固有のすべての機能をパッケージの世界に持ち込んだりすることは予定していません。
+> この機能の目的は、開発者が Swift Packages で Tuist を導入した際の影響を簡単に評価できるようにすることです。そのため、Swift Package Manager の全機能をサポートしたり、<.localized_link href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</.localized_link> など Tuist 独自の機能をすべてパッケージの世界に持ち込んだりすることは予定していません。
 
 
 > [!NOTE]
@@ -40,4 +40,4 @@ tuist install
 tuist generate
 ```
 
-これで、開いて作業を開始できるネイティブな Xcode プロジェクトができました。
+これで完了です。ネイティブな Xcode プロジェクトが作成され、開いて作業を始められます。

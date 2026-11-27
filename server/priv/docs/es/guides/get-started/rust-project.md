@@ -25,7 +25,7 @@ Tuist funciona con tu proyecto Cargo existente. No necesitas añadir una depende
 
 ## Conectar el proyecto
 
-Instala la <.localized_link href="/guides/install-tuist">CLI de Tuist</.localized_link> y Rust. Crea un proyecto en el dashboard con **Cargo (Rust)** como sistema de compilación. Después, añade el proyecto al archivo raíz del workspace `Cargo.toml`:
+Instala la <.localized_link href="/guides/install-tuist">CLI de Tuist</.localized_link> y Rust. Crea un proyecto en el panel de control con **Cargo (Rust)** como sistema de compilación. Después, añade el proyecto al archivo raíz del espacio de trabajo `Cargo.toml`:
 
 ```toml
 [workspace.metadata.tuist]
@@ -43,7 +43,7 @@ tuist cargo check --all-targets
 tuist cargo test --workspace
 ```
 
-Usa los mismos argumentos que normalmente pasas a Cargo, incluyendo funcionalidades, toolchains y filtros de tests. Cargo mantiene su salida y código de salida habituales, incluso si Tuist no puede subir un informe.
+Usa los mismos argumentos que normalmente pasas a Cargo, incluidas las funcionalidades, las toolchains y los filtros de tests. Cargo mantiene su salida y código de salida habituales, incluso si Tuist no puede subir un informe.
 
 ## Sigue escribiendo Cargo
 
@@ -62,13 +62,13 @@ Ejecuta `mise reshim` después de añadir el wrapper. Luego podrás usar `cargo 
 
 ## Caché de compilación
 
-`tuist cargo build` almacena en caché automáticamente las compilaciones elegibles, las dependencias y las ejecuciones de scripts de compilación, tanto localmente como a través de la caché remota de Kura. No se necesita ninguna herramienta adicional ni configuración de caché. La caché es experimental, está validada en Macs con Apple silicon y aún no cubre todas las compilaciones. Consulta la <.localized_link href="/guides/features/cache/rust">caché de Rust</.localized_link> para ver las compilaciones compatibles, la autenticación y cómo verificar la reutilización.
+`tuist cargo build` almacena automáticamente en caché las compilaciones elegibles, las dependencias y las ejecuciones de scripts de compilación, tanto localmente como a través de la caché remota de Kura. No se necesita ninguna herramienta adicional ni configuración de caché. La caché es experimental, está validada en Macs con Apple Silicon y aún no cubre todas las compilaciones. Consulta la <.localized_link href="/guides/features/cache/rust">caché de Rust</.localized_link> para ver las compilaciones compatibles, la autenticación y cómo verificar la reutilización.
 
 ## Análisis de compilaciones
 
-Abre **Compilaciones** en el dashboard para ver cuánto tardan tus compilaciones y comparar las compilaciones locales con las de CI. Selecciona una compilación para encontrar los crates que más tardaron en compilarse e inspeccionar sus advertencias y errores.
+Abre **Compilaciones** en el panel para ver cuánto tardan tus compilaciones y comparar las compilaciones locales con las de CI. Selecciona una compilación para identificar los crates que más tardaron en compilarse e inspeccionar sus advertencias y errores.
 
-Los tiempos del compilador corresponden a crates, no a archivos fuente individuales. Consulta los <.localized_link href="/guides/features/build-insights/rust">Análisis de compilaciones de Rust</.localized_link> para obtener más información sobre cómo leer un informe de compilación.
+Los tiempos del compilador corresponden a los crates, no a archivos fuente individuales. Consulta los <.localized_link href="/guides/features/build-insights/rust">Análisis de compilaciones de Rust</.localized_link> para obtener más información sobre cómo leer un informe de compilación.
 
 ## Análisis de tests
 
@@ -78,7 +78,7 @@ Ejecuta tus tests como de costumbre:
 tuist cargo test --workspace
 ```
 
-Abre **Tests** en el dashboard para ver los tests aprobados, fallidos e ignorados, incluidos los doctests. Cargo informa de la duración de las suites, pero libtest estable no expone los tiempos por test.
+Abre **Tests** en el panel para ver los tests aprobados, fallidos e ignorados, incluidos los doctests. Cargo informa de la duración de las suites, pero libtest estable no expone los tiempos por test.
 
 Para ejecutar solo doctests:
 
@@ -86,8 +86,8 @@ Para ejecutar solo doctests:
 tuist cargo test --doc
 ```
 
-Lee más en los <.localized_link href="/guides/features/test-insights/rust">Análisis de tests de Rust</.localized_link> y en los <.localized_link href="/guides/features/test-insights/flaky-tests/rust">Tests inestables de Rust</.localized_link>.
+Lee más en <.localized_link href="/guides/features/test-insights/rust">Análisis de tests de Rust</.localized_link> y <.localized_link href="/guides/features/test-insights/flaky-tests/rust">Tests inestables de Rust</.localized_link>.
 
 ## Marcas comerciales {#trademarks}
 
-Rust y Cargo son marcas comerciales de la Rust Foundation. Tuist no está afiliada ni respaldada por el Proyecto Rust ni por la Rust Foundation. El logotipo de Rust en estas guías es © de la Rust Foundation, usado bajo [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) y mostrado en un solo color que sigue el tema de la página.
+Rust y Cargo son marcas comerciales de la Rust Foundation. Tuist no está afiliada ni avalada por el Proyecto Rust ni por la Rust Foundation. El logotipo de Rust en estas guías es © de la Rust Foundation, usado bajo [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) y mostrado en un solo color que sigue el tema de la página.

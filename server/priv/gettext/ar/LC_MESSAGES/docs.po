@@ -11,50 +11,50 @@
 msgid ""
 msgstr "Language: ar\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5);\n"
 
-#: lib/tuist_web/live/docs_live.ex:464
-#: lib/tuist_web/live/docs_live.ex:812
+#: lib/tuist_web/live/docs_live.ex:469
+#: lib/tuist_web/live/docs_live.ex:817
 #, elixir-autogen, elixir-format
 msgid "Artifacts"
 msgstr "المخرجات"
 
-#: lib/tuist_web/live/docs_live.ex:433
-#: lib/tuist_web/live/docs_live.ex:802
+#: lib/tuist_web/live/docs_live.ex:438
+#: lib/tuist_web/live/docs_live.ex:807
 #, elixir-autogen, elixir-format
 msgid "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
-msgstr "اكتشف تلقائيًا الاختبارات غير المستقرة التي تفشل دون تغييرات في الكود، ووفّر الوقت المُهدَر في التحقيق بشأن حالات الفشل الزائفة."
+msgstr "اكتشف تلقائيًا الاختبارات غير المستقرة التي تفشل دون تغييرات في الشيفرة البرمجية، ووفّر الوقت المُهدر في التحقيق حول حالات الفشل الكاذبة."
 
 #: lib/tuist_web/docs/layouts.ex:58
-#: lib/tuist_web/docs/layouts/root.html.heex:196
+#: lib/tuist_web/docs/layouts/root.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Bluesky"
-msgstr "Bluesky"
+msgstr "بلوسكاي"
 
-#: lib/tuist_web/live/docs_live.ex:347
-#: lib/tuist_web/live/docs_live.ex:771
+#: lib/tuist_web/live/docs_live.ex:352
+#: lib/tuist_web/live/docs_live.ex:776
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "عمليات البناء"
 
-#: lib/tuist_web/live/docs_live.ex:362
-#: lib/tuist_web/live/docs_live.ex:778
+#: lib/tuist_web/live/docs_live.ex:367
+#: lib/tuist_web/live/docs_live.ex:783
 #, elixir-autogen, elixir-format
 msgid "Cache"
 msgstr "ذاكرة التخزين المؤقت"
 
-#: lib/tuist_web/live/docs_live.ex:584
-#: lib/tuist_web/live/docs_live.ex:850
+#: lib/tuist_web/live/docs_live.ex:589
+#: lib/tuist_web/live/docs_live.ex:855
 #, elixir-autogen, elixir-format
 msgid "Chat with the Tuist community in real-time."
-msgstr "تواصل مع مجتمع Tuist في الوقت الفعلي."
+msgstr "تحدث مع مجتمع Tuist في الوقت الفعلي."
 
-#: lib/tuist_web/live/docs_live.ex:554
-#: lib/tuist_web/live/docs_live.ex:843
+#: lib/tuist_web/live/docs_live.ex:559
+#: lib/tuist_web/live/docs_live.ex:848
 #, elixir-autogen, elixir-format
 msgid "Connect with thousands of developers who are shipping better apps with Tuist. Get help, share wins, and shape the future of app development tooling."
-msgstr "انضم إلى آلاف المطورين الذين يسلّمون تطبيقات أفضل باستخدام Tuist. احصل على المساعدة، شارك النجاحات، وساهم في تشكيل مستقبل أدوات تطوير التطبيقات."
+msgstr "تواصل مع آلاف المطورين الذين ينشرون تطبيقات أفضل باستخدام Tuist. احصل على المساعدة، شارك النجاحات، وساهم في تشكيل مستقبل أدوات تطوير التطبيقات."
 
-#: lib/tuist_web/live/docs_live.ex:572
-#: lib/tuist_web/live/docs_live.ex:849
+#: lib/tuist_web/live/docs_live.ex:577
+#: lib/tuist_web/live/docs_live.ex:854
 #, elixir-autogen, elixir-format
 msgid "Contribute or report issues to our open source repository."
 msgstr "ساهم أو أبلغ عن المشكلات في مستودعنا مفتوح المصدر."
@@ -73,44 +73,44 @@ msgstr "نسخ الصفحة"
 #: lib/tuist_web/docs/components/toc.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Copy page as markdown for LLMs"
-msgstr "نسخ الصفحة بصيغة Markdown لنماذج اللغات الكبيرة (LLMs)"
+msgstr "نسخ الصفحة بتنسيق Markdown لنماذج الذكاء الاصطناعي اللغوية"
 
 #: lib/tuist_web/docs/components/page_layout.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "Documentation navigation"
 msgstr "تنقل المستندات"
 
-#: lib/tuist_web/live/docs_live.ex:297
+#: lib/tuist_web/live/docs_live.ex:302
 #, elixir-autogen, elixir-format
 msgid "Explore dashboard"
 msgstr "استكشاف لوحة التحكم"
 
-#: lib/tuist_web/live/docs_live.ex:429
-#: lib/tuist_web/live/docs_live.ex:801
+#: lib/tuist_web/live/docs_live.ex:434
+#: lib/tuist_web/live/docs_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Flakiness"
 msgstr "عدم الاستقرار"
 
-#: lib/tuist_web/live/docs_live.ex:649
-#: lib/tuist_web/live/docs_live.ex:860
+#: lib/tuist_web/live/docs_live.ex:654
+#: lib/tuist_web/live/docs_live.ex:865
 #, elixir-autogen, elixir-format
 msgid "Follow Tuist on LinkedIn for news and updates."
 msgstr "تابع Tuist على LinkedIn للاطلاع على آخر الأخبار والتحديثات."
 
-#: lib/tuist_web/live/docs_live.ex:625
-#: lib/tuist_web/live/docs_live.ex:856
+#: lib/tuist_web/live/docs_live.ex:630
+#: lib/tuist_web/live/docs_live.ex:861
 #, elixir-autogen, elixir-format
 msgid "Follow us on Bluesky to stay up to date with our work."
-msgstr "تابعنا على Bluesky للبقاء على اطلاع بأعمالنا."
+msgstr "تابعنا على Bluesky للبقاء على اطلاع بآخر أعمالنا."
 
-#: lib/tuist_web/live/docs_live.ex:637
-#: lib/tuist_web/live/docs_live.ex:858
+#: lib/tuist_web/live/docs_live.ex:642
+#: lib/tuist_web/live/docs_live.ex:863
 #, elixir-autogen, elixir-format
 msgid "Follow us on Mastodon to stay up to date with our work."
-msgstr "تابعنا على Mastodon للبقاء على اطلاع بأعمالنا."
+msgstr "تابعنا على Mastodon للبقاء على اطلاع بآخر أعمالنا."
 
 #: lib/tuist_web/docs/layouts.ex:47
-#: lib/tuist_web/docs/layouts/root.html.heex:172
+#: lib/tuist_web/docs/layouts/root.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr "GitHub"
@@ -119,64 +119,64 @@ msgstr "GitHub"
 #: lib/tuist_web/docs/layouts/root.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Guides"
-msgstr "أدلة إرشادية"
+msgstr "أدلة"
 
-#: lib/tuist_web/live/docs_live.ex:380
-#: lib/tuist_web/live/docs_live.ex:447
-#: lib/tuist_web/live/docs_live.ex:783
-#: lib/tuist_web/live/docs_live.ex:806
+#: lib/tuist_web/live/docs_live.ex:385
+#: lib/tuist_web/live/docs_live.ex:452
+#: lib/tuist_web/live/docs_live.ex:788
+#: lib/tuist_web/live/docs_live.ex:811
 #, elixir-autogen, elixir-format
 msgid "Insights"
-msgstr "تحليلات"
+msgstr "رؤى"
 
-#: lib/tuist_web/live/docs_live.ex:525
-#: lib/tuist_web/live/docs_live.ex:741
+#: lib/tuist_web/live/docs_live.ex:530
+#: lib/tuist_web/live/docs_live.ex:746
 #, elixir-autogen, elixir-format
 msgid "Learn from real implementations and get inspired by what's possible when your toolchain just works."
-msgstr "استفد من تطبيقات واقعية واحصل على الإلهام مما يمكن تحقيقه عندما تعمل سلسلة أدواتك بسلاسة."
+msgstr "تعلّم من تطبيقات حقيقية واستلهم الإلهام مما يمكن تحقيقه عندما تعمل سلسلة أدواتك بسلاسة."
 
-#: lib/tuist_web/live/docs_live.ex:613
-#: lib/tuist_web/live/docs_live.ex:854
+#: lib/tuist_web/live/docs_live.ex:618
+#: lib/tuist_web/live/docs_live.ex:859
 #, elixir-autogen, elixir-format
 msgid "Learn from videos from the Tuist team and the community."
-msgstr "استفد من مقاطع الفيديو التي يقدمها فريق Tuist والمجتمع."
+msgstr "تعلّم من مقاطع الفيديو التي يقدمها فريق Tuist والمجتمع."
 
 #: lib/tuist_web/docs/layouts/root.html.heex:111
-#: lib/tuist_web/docs/layouts/root.html.heex:271
+#: lib/tuist_web/docs/layouts/root.html.heex:278
 #, elixir-autogen, elixir-format
 msgid "Main navigation"
 msgstr "التنقل الرئيسي"
 
 #: lib/tuist_web/docs/layouts.ex:52
-#: lib/tuist_web/docs/layouts/root.html.heex:180
+#: lib/tuist_web/docs/layouts/root.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Mastodon"
 msgstr "Mastodon"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:359
+#: lib/tuist_web/docs/layouts/root.html.heex:367
 #, elixir-autogen, elixir-format
 msgid "Menu"
 msgstr "القائمة"
 
 #: lib/tuist_web/docs/components/toc.html.heex:39
-#: lib/tuist_web/docs/layouts/root.html.heex:369
+#: lib/tuist_web/docs/layouts/root.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "On this page"
 msgstr "في هذه الصفحة"
 
-#: lib/tuist_web/live/docs_live.ex:552
-#: lib/tuist_web/live/docs_live.ex:841
+#: lib/tuist_web/live/docs_live.ex:557
+#: lib/tuist_web/live/docs_live.ex:846
 #, elixir-autogen, elixir-format
 msgid "Open source and community"
 msgstr "المصدر المفتوح والمجتمع"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:343
+#: lib/tuist_web/docs/layouts/root.html.heex:351
 #, elixir-autogen, elixir-format
 msgid "Page navigation"
 msgstr "تنقل الصفحة"
 
-#: lib/tuist_web/live/docs_live.ex:475
-#: lib/tuist_web/live/docs_live.ex:819
+#: lib/tuist_web/live/docs_live.ex:480
+#: lib/tuist_web/live/docs_live.ex:824
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr "المعاينات"
@@ -198,25 +198,25 @@ msgstr "الموارد"
 msgid "Return to top"
 msgstr "العودة إلى الأعلى"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:251
+#: lib/tuist_web/docs/layouts/root.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr "بحث"
 
-#: lib/tuist_web/live/docs_live.ex:523
-#: lib/tuist_web/live/docs_live.ex:739
+#: lib/tuist_web/live/docs_live.ex:528
+#: lib/tuist_web/live/docs_live.ex:744
 #, elixir-autogen, elixir-format
 msgid "See Tuist in action"
 msgstr "شاهد Tuist أثناء العمل"
 
-#: lib/tuist_web/live/docs_live.ex:411
-#: lib/tuist_web/live/docs_live.ex:796
+#: lib/tuist_web/live/docs_live.ex:416
+#: lib/tuist_web/live/docs_live.ex:801
 #, elixir-autogen, elixir-format
 msgid "Selection"
 msgstr "التحديد"
 
-#: lib/tuist_web/live/docs_live.ex:597
-#: lib/tuist_web/live/docs_live.ex:852
+#: lib/tuist_web/live/docs_live.ex:602
+#: lib/tuist_web/live/docs_live.ex:857
 #, elixir-autogen, elixir-format
 msgid "Share your ideas, report issues, and discuss with other community members."
 msgstr "شارك أفكارك، وأبلغ عن المشكلات، وتناقش مع أعضاء المجتمع الآخرين."
@@ -227,7 +227,7 @@ msgid "Skip to content"
 msgstr "تخطي إلى المحتوى"
 
 #: lib/tuist_web/docs/layouts.ex:56
-#: lib/tuist_web/docs/layouts/root.html.heex:188
+#: lib/tuist_web/docs/layouts/root.html.heex:191
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr "Slack"
@@ -238,17 +238,17 @@ msgstr "Slack"
 msgid "Table of contents"
 msgstr "جدول المحتويات"
 
-#: lib/tuist_web/live/docs_live.ex:397
-#: lib/tuist_web/live/docs_live.ex:789
+#: lib/tuist_web/live/docs_live.ex:402
+#: lib/tuist_web/live/docs_live.ex:794
 #, elixir-autogen, elixir-format
 msgid "Tests"
-msgstr "اختبارات"
+msgstr "الاختبارات"
 
-#: lib/tuist_web/live/docs_live.ex:611
-#: lib/tuist_web/live/docs_live.ex:853
+#: lib/tuist_web/live/docs_live.ex:616
+#: lib/tuist_web/live/docs_live.ex:858
 #, elixir-autogen, elixir-format
 msgid "Videos"
-msgstr "مقاطع فيديو"
+msgstr "الفيديوهات"
 
 #: lib/tuist_web/docs/components/page_layout.html.heex:93
 #: lib/tuist_web/docs/components/toc.html.heex:24
@@ -266,7 +266,7 @@ msgstr "عرض هذه الصفحة كنص عادي"
 #: lib/tuist_web/docs/layouts/root.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "CLI"
-msgstr "واجهة سطر الأوامر"
+msgstr "CLI"
 
 #: lib/tuist_web/docs/components/search_modal.html.heex:71
 #, elixir-autogen, elixir-format
@@ -283,7 +283,7 @@ msgstr "تنقل"
 msgid "No search history"
 msgstr "لا يوجد سجل بحث"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:387
+#: lib/tuist_web/docs/layouts/root.html.heex:395
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr "بحث..."
@@ -293,29 +293,29 @@ msgstr "بحث..."
 msgid "Select"
 msgstr "تحديد"
 
-#: lib/tuist_web/live/docs_live.ex:695
+#: lib/tuist_web/live/docs_live.ex:700
 #, elixir-autogen, elixir-format
 msgid "Edit this page"
 msgstr "تعديل هذه الصفحة"
 
-#: lib/tuist_web/live/docs_live.ex:705
+#: lib/tuist_web/live/docs_live.ex:710
 #, elixir-autogen, elixir-format
 msgid "Last updated on %{date}"
 msgstr "آخر تحديث في %{date}"
 
-#: lib/tuist_web/live/docs_live.ex:683
+#: lib/tuist_web/live/docs_live.ex:688
 #, elixir-autogen, elixir-format
 msgid "View"
 msgstr "عرض"
 
-#: lib/tuist_web/live/docs_live.ex:685
+#: lib/tuist_web/live/docs_live.ex:690
 #, elixir-autogen, elixir-format
 msgid "as Markdown"
 msgstr "كـ Markdown"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:212
-#: lib/tuist_web/docs/layouts/root.html.heex:234
-#: lib/tuist_web/docs/layouts/root.html.heex:286
+#: lib/tuist_web/docs/layouts/root.html.heex:217
+#: lib/tuist_web/docs/layouts/root.html.heex:239
+#: lib/tuist_web/docs/layouts/root.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr "تسجيل الدخول"
@@ -326,145 +326,145 @@ msgstr "تسجيل الدخول"
 msgid "Copied"
 msgstr "تم النسخ"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:209
-#: lib/tuist_web/docs/layouts/root.html.heex:230
+#: lib/tuist_web/docs/layouts/root.html.heex:214
+#: lib/tuist_web/docs/layouts/root.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "Toggle theme"
 msgstr "تبديل السمة"
 
-#: lib/tuist_web/live/docs_live.ex:336
-#: lib/tuist_web/live/docs_live.ex:764
+#: lib/tuist_web/live/docs_live.ex:341
+#: lib/tuist_web/live/docs_live.ex:769
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist's capabilities"
-msgstr "استكشاف إمكانيات Tuist"
+msgstr "استكشف إمكانيات Tuist"
 
-#: lib/tuist_web/live/docs_live.ex:761
+#: lib/tuist_web/live/docs_live.ex:766
 #, elixir-autogen, elixir-format
 msgid "Install Tuist"
 msgstr "تثبيت Tuist"
 
-#: lib/tuist_web/live/docs_live.ex:466
-#: lib/tuist_web/live/docs_live.ex:814
+#: lib/tuist_web/live/docs_live.ex:471
+#: lib/tuist_web/live/docs_live.ex:819
 #, elixir-autogen, elixir-format
 msgid "Move from a successful build to useful feedback with shareable previews and bundle-size insights."
-msgstr "انتقل من بناء ناجح إلى ملاحظات مفيدة عبر معاينات قابلة للمشاركة ورؤى حول حجم الحزمة."
+msgstr "انتقل من بناء ناجح إلى ملاحظات مفيدة عبر المعاينات القابلة للمشاركة ورؤى حول حجم الحزمة."
 
-#: lib/tuist_web/live/docs_live.ex:233
-#: lib/tuist_web/live/docs_live.ex:754
+#: lib/tuist_web/live/docs_live.ex:238
+#: lib/tuist_web/live/docs_live.ex:759
 #, elixir-autogen, elixir-format
 msgid "One platform for faster build toolchains"
 msgstr "منصة واحدة لسلاسل أدوات بناء أسرع"
 
-#: lib/tuist_web/live/docs_live.ex:415
-#: lib/tuist_web/live/docs_live.ex:797
+#: lib/tuist_web/live/docs_live.ex:420
+#: lib/tuist_web/live/docs_live.ex:802
 #, elixir-autogen, elixir-format
 msgid "Run only impacted tests by detecting changes since your last successful run, both locally and in continuous integration."
-msgstr "نفّذ الاختبارات المتأثرة فقط من خلال اكتشاف التغييرات منذ آخر تشغيل ناجح، سواء محليًا أو في التكامل المستمر."
+msgstr "نفّذ فقط الاختبارات المتأثرة عن طريق اكتشاف التغييرات منذ آخر تشغيل ناجح، سواء محلياً أو في التكامل المستمر."
 
-#: lib/tuist_web/live/docs_live.ex:399
-#: lib/tuist_web/live/docs_live.ex:791
+#: lib/tuist_web/live/docs_live.ex:404
+#: lib/tuist_web/live/docs_live.ex:796
 #, elixir-autogen, elixir-format
 msgid "Run the tests that matter, detect flaky behavior, and understand test performance locally and in continuous integration."
-msgstr "نفّذ الاختبارات المهمة، واكتشف السلوك غير المستقر، وافهم أداء الاختبارات محليًا وفي التكامل المستمر."
+msgstr "نفّذ الاختبارات المهمة، واكتشف السلوك غير المستقر، وافهم أداء الاختبارات محلياً وفي التكامل المستمر."
 
-#: lib/tuist_web/live/docs_live.ex:349
-#: lib/tuist_web/live/docs_live.ex:773
+#: lib/tuist_web/live/docs_live.ex:354
+#: lib/tuist_web/live/docs_live.ex:778
 #, elixir-autogen, elixir-format
 msgid "Share build work across developer machines, continuous integration, runners, and coding agents, then use insights to find regressions."
-msgstr "شارك أعمال البناء بين أجهزة المطورين والتكامل المستمر والمشغّلات ووكلاء البرمجة، ثم استخدم الرؤى لاكتشاف التراجعات."
+msgstr "شارك أعمال البناء عبر أجهزة المطورين والتكامل المستمر والمشغلات ووكلاء البرمجة، ثم استخدم الرؤى لاكتشاف التراجعات."
 
-#: lib/tuist_web/live/docs_live.ex:479
-#: lib/tuist_web/live/docs_live.ex:820
+#: lib/tuist_web/live/docs_live.ex:484
+#: lib/tuist_web/live/docs_live.ex:825
 #, elixir-autogen, elixir-format
 msgid "Share your app with a link so others can run it on their device or simulator without TestFlight setup."
 msgstr "شارك تطبيقك عبر رابط ليتمكن الآخرون من تشغيله على أجهزتهم أو المحاكي دون إعداد TestFlight."
 
-#: lib/tuist_web/live/docs_live.ex:338
-#: lib/tuist_web/live/docs_live.ex:766
+#: lib/tuist_web/live/docs_live.ex:343
+#: lib/tuist_web/live/docs_live.ex:771
 #, elixir-autogen, elixir-format
 msgid "Speed up builds, improve test reliability, understand performance, and run workflows on infrastructure designed for your toolchain."
-msgstr "سرّع عمليات البناء، وحسّن موثوقية الاختبارات، وافهم الأداء، ونفّذ سير العمل على بنية تحتية مصممة لسلسلة الأدوات الخاصة بك."
+msgstr "سرّع عمليات البناء، وحسّن موثوقية الاختبارات، وافهم الأداء، ونفّذ سير العمل على بنية تحتية مصممة لسلسلة أدواتك."
 
-#: lib/tuist_web/live/docs_live.ex:384
-#: lib/tuist_web/live/docs_live.ex:784
+#: lib/tuist_web/live/docs_live.ex:389
+#: lib/tuist_web/live/docs_live.ex:789
 #, elixir-autogen, elixir-format
 msgid "Understand build performance across local and continuous integration environments before slowdowns affect your team."
 msgstr "افهم أداء البناء عبر بيئات التطوير المحلية والتكامل المستمر قبل أن تؤثر التباطؤات على فريقك."
 
-#: lib/tuist_web/docs/layouts/root.html.heex:302
+#: lib/tuist_web/docs/layouts/root.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "Close menu"
 msgstr "إغلاق القائمة"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:309
+#: lib/tuist_web/docs/layouts/root.html.heex:317
 #, elixir-autogen, elixir-format
 msgid "Documentation sections"
 msgstr "أقسام الوثائق"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:258
+#: lib/tuist_web/docs/layouts/root.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Open menu"
 msgstr "فتح القائمة"
 
-#: lib/tuist_web/live/docs_live.ex:661
+#: lib/tuist_web/live/docs_live.ex:666
 #, elixir-autogen, elixir-format
 msgid "Follow us on X to stay up to date with our work."
 msgstr "تابعنا على X للبقاء على اطلاع بأعمالنا."
 
-#: lib/tuist_web/live/docs_live.ex:276
+#: lib/tuist_web/live/docs_live.ex:281
 #, elixir-autogen, elixir-format
 msgid "Copy command"
 msgstr "نسخ الأمر"
 
-#: lib/tuist_web/live/docs_live.ex:762
+#: lib/tuist_web/live/docs_live.ex:767
 #, elixir-autogen, elixir-format
 msgid "Get started"
 msgstr "ابدأ الآن"
 
-#: lib/tuist_web/live/docs_live.ex:252
-#: lib/tuist_web/live/docs_live.ex:255
+#: lib/tuist_web/live/docs_live.ex:257
+#: lib/tuist_web/live/docs_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "Install Tuist CLI"
 msgstr "تثبيت Tuist CLI"
 
-#: lib/tuist_web/live/docs_live.ex:201
+#: lib/tuist_web/live/docs_live.ex:206
 #, elixir-autogen, elixir-format
 msgid "Supported for:"
-msgstr "متاح لـ:"
+msgstr "مدعوم لـ:"
 
-#: lib/tuist_web/live/docs_live.ex:290
+#: lib/tuist_web/live/docs_live.ex:295
 #, elixir-autogen, elixir-format
 msgid "install specific version of tuist"
 msgstr "تثبيت إصدار محدد من Tuist"
 
-#: lib/tuist_web/live/docs_live.ex:288
+#: lib/tuist_web/live/docs_live.ex:293
 #, elixir-autogen, elixir-format
 msgid "or follow the instructions to"
-msgstr "أو اتبع التعليمات الخاصة بـ"
+msgstr "أو اتبع التعليمات لـ"
 
-#: lib/tuist_web/live/docs_live.ex:492
-#: lib/tuist_web/live/docs_live.ex:825
+#: lib/tuist_web/live/docs_live.ex:497
+#: lib/tuist_web/live/docs_live.ex:830
 #, elixir-autogen, elixir-format
 msgid "Compute"
 msgstr "الحوسبة"
 
-#: lib/tuist_web/live/docs_live.ex:506
-#: lib/tuist_web/live/docs_live.ex:832
+#: lib/tuist_web/live/docs_live.ex:511
+#: lib/tuist_web/live/docs_live.ex:837
 #, elixir-autogen, elixir-format
 msgid "Runners"
 msgstr "مشغّلات CI"
 
-#: lib/tuist_web/live/docs_live.ex:494
-#: lib/tuist_web/live/docs_live.ex:827
+#: lib/tuist_web/live/docs_live.ex:499
+#: lib/tuist_web/live/docs_live.ex:832
 #, elixir-autogen, elixir-format
 msgid "Run workflows on managed compute with cache infrastructure colocated for the best performance."
-msgstr "نفّذ سير العمل على حوسبة مُدارة مع بنية تحتية للتخزين المؤقت موجودة في نفس الموقع لتحقيق أفضل أداء."
+msgstr "نفِّذ سير العمل على حوسبة مُدارة مع بنية تحتية للتخزين المؤقت موضوعة في نفس الموقع لأفضل أداء."
 
-#: lib/tuist_web/live/docs_live.ex:510
-#: lib/tuist_web/live/docs_live.ex:833
+#: lib/tuist_web/live/docs_live.ex:515
+#: lib/tuist_web/live/docs_live.ex:838
 #, elixir-autogen, elixir-format
 msgid "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
-msgstr "نفّذ سير عمل التكامل المستمر على مشغّلات macOS وLinux المُدارة، مع بنية تحتية للتخزين المؤقت موجودة بجانب الحوسبة لتحقيق أفضل النتائج ومشاركتها مع أجهزة المطورين لديك."
+msgstr "نفِّذ سير عمل التكامل المستمر على مشغّلات macOS وLinux المُدارة، مع بنية تحتية للتخزين المؤقت موضوعة بجانب الحوسبة لتحقيق أفضل النتائج ومشاركتها مع أجهزة المطورين لديك."
 
 #: lib/tuist_web/docs/components/page_layout.html.heex:40
 #: lib/tuist_web/docs/components/page_layout.html.heex:50
@@ -472,23 +472,11 @@ msgstr "نفّذ سير عمل التكامل المستمر على مشغّلا
 msgid "Overview"
 msgstr "نظرة عامة"
 
-#: lib/tuist_web/live/docs_live.ex:235
-#: lib/tuist_web/live/docs_live.ex:756
-#, elixir-autogen, elixir-format
-msgid "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Once projects, providing the infrastructure that lets software integration and delivery keep pace."
-msgstr "يتم إنتاج الشيفرات البرمجية بسرعة وحجم أكبر من أي وقت مضى. يتكامل Tuist مع أنظمة البناء التي تستخدمها بالفعل، مثل Xcode وGradle وBazel وElixir وRust وOnce، ليوفر البنية التحتية التي تسمح لعمليات دمج وتسليم البرمجيات بمواكبة هذا التسارع."
-
-#: lib/tuist_web/live/docs_live.ex:366
-#: lib/tuist_web/live/docs_live.ex:779
-#, elixir-autogen, elixir-format
-msgid "Share Xcode, Gradle, Bazel, Rust, and Once build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
-msgstr "شارك مخرجات بناء Xcode وGradle وBazel وRust وOnce وحزم اعتماديات Elixir المدققة عبر الأجهزة وبيئات التكامل المستمر (CI). دعم التخزين المؤقت لـ Rust تجريبي."
-
-#: lib/tuist_web/live/docs_live.ex:451
-#: lib/tuist_web/live/docs_live.ex:807
+#: lib/tuist_web/live/docs_live.ex:456
+#: lib/tuist_web/live/docs_live.ex:812
 #, elixir-autogen, elixir-format
 msgid "Track test performance, catch slow tests early, and investigate continuous integration failures through reported results and test history."
-msgstr "تتبّع أداء الاختبارات، واكتشف الاختبارات البطيئة مبكرًا، وتحقّق من إخفاقات التكامل المستمر من خلال النتائج المُبلَّغة وسجل الاختبارات."
+msgstr "تتبّع أداء الاختبارات، واكتشف الاختبارات البطيئة مبكرًا، وتحقّق من أعطال التكامل المستمر من خلال النتائج المُبلَّغة وسجل الاختبارات."
 
 #: lib/tuist_web/docs/release_status.ex:258
 #, elixir-autogen, elixir-format
@@ -503,7 +491,7 @@ msgstr "مُلغى"
 #: lib/tuist_web/docs/release_status.ex:47
 #, elixir-autogen, elixir-format
 msgid "Enable JavaScript to load live release status and the calendar."
-msgstr "فعّل JavaScript لتحميل حالة الإصدارات الحية والتقويم."
+msgstr "فعّل JavaScript لتحميل حالة الإصدار الحي والتقويم."
 
 #: lib/tuist_web/docs/release_status.ex:281
 #, elixir-autogen, elixir-format
@@ -513,7 +501,7 @@ msgstr "فشل"
 #: lib/tuist_web/docs/release_status.ex:74
 #, elixir-autogen, elixir-format
 msgid "GitHub could not be refreshed. These are the last successfully checked versions; the calendar may be outdated."
-msgstr "لم يتمكّن GitHub من التحديث. هذه آخر النسخ التي تم التحقق منها بنجاح؛ قد يكون التقويم غير محدّث."
+msgstr "تعذّر تحديث GitHub. هذه آخر النسخ التي تم التحقق منها بنجاح؛ قد يكون التقويم غير محدّث."
 
 #: lib/tuist_web/docs/release_status.ex:279
 #, elixir-autogen, elixir-format
@@ -560,7 +548,7 @@ msgstr "بيانات قديمة"
 #: lib/tuist_web/docs/release_status.ex:229
 #, elixir-autogen, elixir-format
 msgid "Published"
-msgstr "تم النشر"
+msgstr "منشور"
 
 #: lib/tuist_web/docs/release_status.ex:24
 #, elixir-autogen, elixir-format
@@ -571,17 +559,17 @@ msgstr "تأتي الإصدارات المنشورة من GitHub. النوافذ
 #: lib/tuist_web/docs/release_status.ex:261
 #, elixir-autogen, elixir-format
 msgid "Release candidate"
-msgstr "مرشح للإصدار"
+msgstr "مرشح الإصدار"
 
 #: lib/tuist_web/docs/release_status.ex:88
 #, elixir-autogen, elixir-format
 msgid "Release data is unavailable. No release dates or versions have been inferred."
-msgstr "بيانات الإصدار غير متاحة. لم يتم استنتاج أي تواريخ إصدار أو إصدارات."
+msgstr "بيانات الإصدار غير متوفرة. لم يتم استنتاج أي تواريخ إصدار أو إصدارات."
 
 #: lib/tuist_web/docs/release_status.ex:42
 #, elixir-autogen, elixir-format
 msgid "Release status is unavailable. Check GitHub for the latest releases."
-msgstr "حالة الإصدار غير متاحة. تحقق من GitHub للحصول على أحدث الإصدارات."
+msgstr "حالة الإصدار غير متوفرة. تحقق من GitHub لأحدث الإصدارات."
 
 #: lib/tuist_web/docs/release_status.ex:173
 #, elixir-autogen, elixir-format
@@ -606,7 +594,7 @@ msgstr "الهدف: %{version} مستقر"
 #: lib/tuist_web/docs/release_status.ex:195
 #, elixir-autogen, elixir-format
 msgid "The release schedule could not be verified. Check the workflow for upcoming releases."
-msgstr "لا يمكن التحقق من جدول الإصدارات. تحقق من سير العمل للإصدارات القادمة."
+msgstr "لم يمكن التحقق من جدول الإصدار. تحقق من سير العمل للإصدارات القادمة."
 
 #: lib/tuist_web/docs/release_status.ex:28
 #, elixir-autogen, elixir-format
@@ -626,7 +614,7 @@ msgstr "خادم Tuist"
 #: lib/tuist_web/docs/release_status.ex:273
 #, elixir-autogen, elixir-format
 msgid "Unavailable"
-msgstr "غير متاح"
+msgstr "غير متوفر"
 
 #: lib/tuist_web/docs/release_status.ex:271
 #, elixir-autogen, elixir-format
@@ -636,7 +624,7 @@ msgstr "محدّث"
 #: lib/tuist_web/docs/release_status.ex:161
 #, elixir-autogen, elixir-format
 msgid "Upcoming release windows"
-msgstr "نوافذ الإصدارات القادمة"
+msgstr "فترات الإصدارات القادمة"
 
 #: lib/tuist_web/docs/release_status.ex:208
 #, elixir-autogen, elixir-format
@@ -657,12 +645,12 @@ msgstr "إصدار"
 #: lib/tuist_web/docs/release_status.ex:189
 #, elixir-autogen, elixir-format
 msgid "Stable releases require a ready candidate. A successful release creates the next candidate."
-msgstr "تتطلب الإصدارات المستقرة مرشحاً جاهزاً. يؤدي الإصدار الناجح إلى إنشاء المرشح التالي."
+msgstr "تتطلب الإصدارات المستقرة مرشحاً جاهزاً. يُنشئ الإصدار الناجح المرشح التالي."
 
 #: lib/tuist_web/docs/release_status.ex:183
 #, elixir-autogen, elixir-format
 msgid "Version to be confirmed"
-msgstr "الإصدار قيد التأكيد"
+msgstr "النسخة قيد التأكيد"
 
 #: lib/tuist_web/docs/release_status.ex:154
 #, elixir-autogen, elixir-format
@@ -677,7 +665,7 @@ msgstr "الأسبوعان الماضيان"
 #: lib/tuist_web/docs/release_status.ex:139
 #, elixir-autogen, elixir-format
 msgid "No releases found in this snapshot for the last two weeks."
-msgstr "لم يتم العثور على إصدارات في هذه اللقطة خلال الأسبوعين الماضيين."
+msgstr "لم تُعثر على إصدارات في هذه اللقطة خلال الأسبوعين الماضيين."
 
 #: lib/tuist_web/docs/release_status.ex:119
 #, elixir-autogen, elixir-format
@@ -687,27 +675,27 @@ msgstr "الإصدارات السابقة"
 #: lib/tuist_web/docs/release_status.ex:262
 #, elixir-autogen, elixir-format
 msgid "Patch"
-msgstr "تصحيح"
+msgstr "إصلاح"
 
 #: lib/tuist_web/docs/release_status.ex:147
 #, elixir-autogen, elixir-format
 msgid "Patch releases include on-demand fixes and backports; they do not have a weekly schedule. Canary updates are shown above, not in the calendar."
-msgstr "تشمل إصدارات التصحيح إصلاحات فورية ونقل التحديثات إلى الإصدارات الأقدم؛ ولا تتبع جدولاً أسبوعياً. تُعرض تحديثات Canary أعلاه، وليس في التقويم."
+msgstr "تتضمن إصدارات التصحيح إصلاحات ونسخاً احتياطية عند الطلب؛ ولا تتبع جدولاً أسبوعياً. تُعرض تحديثات Canary أعلاه، وليس في التقويم."
 
 #: lib/tuist_web/docs/release_status.ex:123
 #, elixir-autogen, elixir-format
 msgid "Release history could not be loaded. View past releases on GitHub."
-msgstr "تعذر تحميل سجل الإصدارات. اعرض الإصدارات السابقة على GitHub."
+msgstr "تعذر تحميل سجل الإصدارات. عرض الإصدارات السابقة على GitHub."
 
 #: lib/tuist_web/docs/release_status.ex:127
 #, elixir-autogen, elixir-format
 msgid "Show earlier releases"
-msgstr "عرض الإصدارات الأقدم"
+msgstr "إظهار الإصدارات الأقدم"
 
 #: lib/tuist_web/docs/release_status.ex:144
 #, elixir-autogen, elixir-format
 msgid "Showing a recent snapshot, not the full release history."
-msgstr "يُعرض لقطة حديثة، وليس سجل الإصدارات الكامل."
+msgstr "يعرض لقطة حديثة، وليس سجل الإصدارات الكامل."
 
 #: lib/tuist_web/docs/release_status.ex:260
 #, elixir-autogen, elixir-format
@@ -728,3 +716,15 @@ msgstr "تأتي الإصدارات المنشورة من GitHub."
 #, elixir-autogen, elixir-format
 msgid "View release calendar"
 msgstr "عرض تقويم الإصدارات"
+
+#: lib/tuist_web/live/docs_live.ex:240
+#: lib/tuist_web/live/docs_live.ex:761
+#, elixir-autogen, elixir-format
+msgid "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Struo projects, providing the infrastructure that lets software integration and delivery keep pace."
+msgstr "يُنتَج الكود بسرعة وحجم أكبر من أي وقت مضى. يتكامل Tuist مع أنظمة البناء التي تستخدمها بالفعل في مشاريع Xcode وGradle وBazel وElixir وRust وStruo، ليوفر البنية التحتية التي تسمح لعمليات دمج البرمجيات وتسليمها بالواكب مع هذا التسارع."
+
+#: lib/tuist_web/live/docs_live.ex:371
+#: lib/tuist_web/live/docs_live.ex:784
+#, elixir-autogen, elixir-format
+msgid "Share Xcode, Gradle, Bazel, Rust, and Struo build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
+msgstr "شارك مخرجات بناء Xcode وGradle وBazel وRust وStruo وحزم تبعيات Elixir المدققة عبر الأجهزة وأنظمة التكامل المستمر (CI). دعم التخزين المؤقت لـ Rust تجريبي."

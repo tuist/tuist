@@ -2,20 +2,14 @@
 {
   "title": "러너",
   "titleTemplate": ":title · 기능 · 가이드 · Tuist",
-  "description": "Tuist 러너는 GitHub Actions, Buildkite, GitLab CI, Bitrise를 위한 관리형 macOS 및 Linux 러너로, 컴퓨팅 환경과 동일한 위치에 캐시가 배치되어 로컬 머신과 공유됩니다."
+  "description": "Tuist 러너는 GitHub Actions, Buildkite, GitLab CI, Bitrise를 위한 관리형 macOS 및 Linux 러너로, 컴퓨팅 환경과 동일한 위치에 캐시를 배치하고 로컬 머신과 공유합니다."
 }
 ---
-# Runners {#runners}
+# 러너 {#runners}
 
-> [!IMPORTANT]
-> **초대 전용**
->
-> Tuist Runners는 현재 용량을 확장 중이므로 초대 전용으로 제공됩니다. 계정에 대한 액세스를 요청하려면 [문의하기](mailto:contact@tuist.dev) 또는 [커뮤니티 Slack](https://slack.tuist.dev)에서 저희에게 연락해 주세요. Runners가 일반 공개될 때 가격이 발표됩니다.
+Tuist 러너는 GitHub Actions, Buildkite, GitLab CI 및 Bitrise 파이프라인을 위한 관리형 macOS 및 Linux 러너입니다. CI 제공자의 호스팅 머신에서 작업을 실행하는 대신, 작업을 Tuist <.localized_link href="/guides/features/runners/profiles">프로필</.localized_link>로 지정하면 Tuist의 플릿에서 실행되며, 팀이 이미 사용하는 동일한 <.localized_link href="/guides/features/cache">캐시</.localized_link> 옆에서 실행됩니다. 설치해야 하는 러너 에이전트나 유지보수해야 하는 인프라가 없습니다. 머신을 변경하기 전에 CI 비용에 영향을 주는 요인을 파악하려면 [CI 비용](https://tuist.dev/solutions/ci-costs)을 참조하세요.
 
-
-Tuist Runners는 GitHub Actions, Buildkite, GitLab CI 및 Bitrise 파이프라인을 위한 관리형 macOS 및 Linux 러너입니다. CI 제공업체의 호스팅 머신에서 작업을 실행하는 대신, Tuist <.localized_link href="/guides/features/runners/profiles">프로필</.localized_link>을 지정하면 Tuist의 플릿에서 실행되며, 팀이 이미 사용하는 동일한 <.localized_link href="/guides/features/cache">캐시</.localized_link> 옆에서 실행됩니다. 설치해야 하는 러너 에이전트나 유지 관리해야 하는 인프라가 없습니다. 머신을 변경하기 전에 CI 비용에 영향을 주는 요인을 파악하려면 [CI 비용](https://tuist.dev/solutions/ci-costs)을 참조하세요.
-
-적용은 일반적으로 작업에 한 줄 변경만으로 가능합니다:
+도입은 일반적으로 작업에 한 줄 변경만 필요합니다:
 
 ::: code-group
 
@@ -42,9 +36,9 @@ Tuist Runners는 GitHub Actions, Buildkite, GitLab CI 및 Bitrise 파이프라�
 
 ## Linux의 Android 에뮬레이터 {#android-emulators}
 
-Linux 러너는 기본적으로 `/dev/kvm`을 통해 하드웨어 가속 가상화를 제공합니다. Gradle Managed Devices를 포함하여 x86_64 Android 에뮬레이터를 실행하려면 일반적인 Linux <.localized_link href="/guides/features/runners/profiles">프로필</.localized_link>(예: `tuist-linux`)을 사용하세요. 장치에 액세스하기 위해 특별한 러너 프로필, KVM 설정 액션, 권한 변경 또는 `sudo`가 필요하지 않습니다.
+Linux 러너는 기본적으로 `/dev/kvm`를 통해 하드웨어 가속 가상화를 제공합니다. Gradle Managed Devices를 포함한 x86_64 Android 에뮬레이터를 실행하려면 일반적인 Linux <.localized_link href="/guides/features/runners/profiles">프로필</.localized_link>(예: `tuist-linux`)을 사용하세요. 장치에 액세스하기 위해 특별한 러너 프로필, KVM 설정 액션, 권한 변경 또는 `sudo`가 필요하지 않습니다.
 
-러너 이미지에는 Android SDK가 포함되어 있습니다. 장치를 시작하기 전에 에뮬레이터와 런타임 라이브러리를 설치하세요. `pixel6`이라는 Gradle Managed Device를 이미 정의한 프로젝트의 경우 GitHub Actions 작업은 다음과 같습니다:
+러너 이미지에는 Android SDK가 포함되어 있습니다. 장치를 시작하기 전에 에뮬레이터와 런타임 라이브러리를 설치하세요. 이미 `pixel6`라는 이름의 Gradle Managed Device를 정의한 프로젝트의 경우, GitHub Actions 작업은 다음과 같습니다:
 
 ```yaml
 jobs:
@@ -72,7 +66,7 @@ jobs:
         run: ./gradlew :app:pixel6DebugAndroidTest
 ```
 
-Android Gradle Plugin에서 요구하는 Java 버전을 사용하고 테스트 작업을 프로젝트의 managed-device 작업으로 대체하세요. **x86_64** 시스템 이미지를 구성하세요. Gradle과 에뮬레이터 모두에 충분한 메모리를 갖춘 러너 셰이프를 선택하세요. 동시에 실행되는 장치는 작업의 CPU 및 메모리 할당량을 공유합니다.
+Android Gradle Plugin에서 요구하는 Java 버전을 사용하고, 테스트 작업을 프로젝트의 managed-device 작업으로 교체하세요. **x86_64** 시스템 이미지를 구성하세요. Gradle과 에뮬레이터 모두에 충분한 메모리를 갖춘 러너 셰이프를 선택하세요. 동시에 실행되는 장치는 작업의 CPU 및 메모리 할당량을 공유합니다.
 
 일반 러너 사용자로 에뮬레이터를 실행하세요. 이 예제에서 `sudo`는 운영 체제 패키지를 설치하는 용도로만 사용됩니다.
 
@@ -80,34 +74,34 @@ Android Gradle Plugin에서 요구하는 Java 버전을 사용하고 테스트 �
 
 ## 동시성 제한 {#concurrency-limits}
 
-각 계정에는 macOS와 Linux에 대해 독립적인 vCPU 및 메모리 동시성 제한이 있습니다. Tuist는 작업을 승인하기 전에 해당 플랫폼에서 현재 실행 중인 모든 작업과 비교하여 작업의 <.localized_link href="/guides/features/runners/profiles#machine-shapes">머신 셰이프</.localized_link>를 확인합니다. 작업의 vCPU와 메모리가 남은 용량 내에 맞을 때만 작업이 시작됩니다. 그렇지 않으면 용량이 확보될 때까지 대기열에 남습니다. 한 플랫폼에서의 작업은 다른 플랫폼의 용량을 소비하지 않습니다.
+각 계정에는 macOS와 Linux에 대한 독립적인 vCPU 및 메모리 동시성 제한이 있습니다. Tuist가 작업을 허용하기 전에, 해당 플랫폼에서 현재 실행 중인 모든 작업과 비교하여 작업의 <.localized_link href="/guides/features/runners/profiles#machine-shapes">머신 셰이프</.localized_link>를 확인합니다. 작업의 vCPU와 메모리가 남은 용량 내에 맞을 때만 작업이 시작됩니다. 그렇지 않으면 용량이 사용 가능해질 때까지 대기열에 남습니다. 한 플랫폼에서의 작업은 다른 플랫폼의 용량을 소비하지 않습니다.
 
-Air 계정에는 고정된 동시성 제한이 있습니다. Pro 및 Enterprise 계정의 경우 Tuist는 반복적인 사용량과 활성 러너와 함께 실행할 수 없는 최근 대기 작업을 기반으로 자동으로 여유 용량을 추가합니다. 자동 조정은 제한을 증가시키기만 합니다. 기존 부여량과 계약상 최소 용량은 유지됩니다. 성장은 점진적이며 안전 상한선으로 제한되므로 갑작스러운 급증이 무제한 동시성을 부여하지는 않습니다. 더 높은 계정 제한이 즉시 사용 가능한 머신을 보장하지는 않습니다.
+Air 계정은 고정된 동시성 제한을 가집니다: 표준 macOS 작업 2개(16 vCPU / 48 GB) 및 Linux에서 16 vCPU / 64 GB입니다. Pro 및 Enterprise 계정은 표준 macOS 작업 6개(48 vCPU / 144 GB) 및 Linux에서 64 vCPU / 128 GB로 시작하며, Tuist는 반복적인 사용량과 활성 러너와 함께 실행될 수 없는 최근 대기열 작업을 기반으로 자동으로 여유 공간을 추가합니다. 제한이 낮은 동안(최대 표준 macOS 작업 12개 또는 Linux에서 128 vCPU / 512 GB), 시간당 최대 한 번씩 모든 대기열 작업을 수용할 수 있도록 증가할 수 있습니다. 그 이상에서는 안전 상한선까지 하루에 최대 한 번, 그리고 한 번에 최대 50%씩 증가하므로 갑작스러운 급증이 무제한 동시성을 부여하지는 않습니다. 자동 조정은 제한을 증가시키기만 합니다. 기존 할당량과 계약상 최소 용량은 보존됩니다. 더 높은 계정 제한이 즉시 사용 가능한 머신을 보장하지는 않습니다.
 
-Runners 대시보드의 **Concurrency** 섹션은 매시간 허용된 최대 vCPU 및 메모리 사용량을 표시하며, 각 시간 시작 시 알려진 제한에 대한 계단식 선을 보여줍니다. 빨간색 막대는 해당 과거 임계값에 도달했음을 나타내며, 이것만으로 작업이 대기했음을 증명하지는 않습니다. 한 시간 동안 증가하면 피크가 버킷 시작 선보다 높아질 수 있습니다. 현재 제한은 각 차트 옆에 표시됩니다. 기록 추적이 시작되기 전 기간에는 가정된 과거 값 대신 제한 선이 표시되지 않습니다.
+러너 대시보드의 **동시성** 섹션은 매시간 허용된 최대 vCPU 및 메모리 사용량을 표시하며, 각 시간 시작 시 알려진 제한에 대한 계단식 선을 보여줍니다. 빨간색 막대는 해당 과거 임계값에 도달했음을 나타내며, 이것만으로 작업이 대기했음을 증명하지는 않습니다. 시간 중 증가로 인해 최대치가 버킷 시작 선 위에 있을 수 있습니다. 현재 제한은 각 차트 옆에 표시됩니다. 기록 추적이 시작되기 전 기간에는 가정된 과거 값 대신 제한 선이 표시되지 않습니다.
 
-워크플로우가 안전 상한선에서 계속 대기열에 쌓인다면 필요한 용량을 검토할 수 있도록 계정 핸들, 플랫폼 및 예상 병렬 작업량을 포함하여 [저희에게 연락](mailto:contact@tuist.dev)해 주세요.
+워크플로우가 안전 상한선에서 계속 대기한다면, 필요한 용량을 검토할 수 있도록 계정 핸들, 플랫폼 및 예상 병렬 작업량을 포함하여 [문의하세요](mailto:contact@tuist.dev).
 
 ## 네트워크 액세스 {#network-access}
 
-작업은 공공 인터넷으로 아웃바운드 연결을 열 수 있습니다. 사설 주소 범위(`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)는 차단되며, 러너는 인바운드 연결을 허용하지 않습니다.
+작업은 공개 인터넷으로 아웃바운드 연결을 열 수 있습니다. 사설 주소 범위(`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)는 차단되며, 러너는 인바운드 연결을 허용하지 않습니다.
 
 | 플랫폼 | 아웃바운드 포트 |
 | --- | --- |
-| Linux | TCP 22(SSH), 80(HTTP) 및 443(HTTPS), plus DNS |
+| Linux | TCP 22(SSH), 80(HTTP), 443(HTTPS) 및 DNS |
 | macOS | 모든 포트 |
 
-SSH는 `git@` 의존성, SSH 서브모듈, 배포 키 및 `ssh` 또는 `scp` 배포를 포함합니다. Linux 워크플로우에 다른 아웃바운드 포트가 필요하면 [저희에게 연락](mailto:contact@tuist.dev)해 주세요.
+SSH는 `git@` 의존성, SSH 서브모듈, 배포 키 및 `ssh` 또는 `scp` 배포를 포함합니다. Linux 워크플로우에 다른 아웃바운드 포트가 필요한 경우 [문의하세요](mailto:contact@tuist.dev).
 
 <.home_cards>
   <.home_card
     title="GitHub Actions"
-    details="GitHub를 연결하고 runs-on을 Tuist 프로필로 지정하여 플릿에서 첫 번째 작업을 실행하세요."
+    details="GitHub를 연결하고, runs-on을 Tuist 프로필로 지정하여 플릿에서 첫 번째 작업을 실행하세요."
     link="/guides/features/runners/ci-providers/github-actions"
 />
   <.home_card
     title="Buildkite"
-    details="클러스터를 연결하고 Tuist 프로필 이름을 따서 큐를 명명한 후 단계에서 타겟팅하세요."
+    details="클러스터를 연결하고, Tuist 프로필 이름을 따서 큐를 명명한 후 단계에서 타겟팅하세요."
     link="/guides/features/runners/ci-providers/buildkite"
 />
   <.home_card
@@ -122,40 +116,42 @@ SSH는 `git@` 의존성, SSH 서브모듈, 배포 키 및 `ssh` 또는 `scp` 배
 />
   <.home_card
     title="API"
-    details="자신의 git 포지 또는 오케스트레이터에서 한 번의 요청으로 작업을 실행하고 웹후크로 추적하세요."
+    details="자신의 git 포지 또는 오케스트레이터에서 하나의 요청으로 작업을 실행하고 웹후크로 추적하세요."
     link="/guides/features/runners/ci-providers/api"
 />
   <.home_card
     title="프로필"
-    details="작업에서 참조하는 이름이 지정된 머신 프로필로 플랫폼, 크기 및 Xcode 버전을 선택하세요."
+    details="작업에서 참조하는 이름 지정된 머신 프로필로 플랫폼, 크기 및 Xcode 버전을 선택하세요."
     link="/guides/features/runners/profiles"
 />
   <.home_card
     title="이미지"
-    details="macOS 및 Linux 러너에 사전 설치된 내용을 확인하세요: Xcode, 시뮬레이터, Metal 툴체인, Docker, Android SDK 등."
+    details="macOS 및 Linux 러너에 사전 설치된 항목(Xcode, 시뮬레이터, Metal 툴체인, Docker, Android SDK 등)을 확인하세요."
     link="/guides/features/runners/images"
 />
   <.home_card
     title="캐시 볼륨"
-    details="작업 간에 Xcode, 모듈 및 Gradle 캐시와 기타 디렉터리를 유지하며, 각 실행마다 전용 쓰기 가능 복사본을 제공합니다."
+    details="각 실행마다 개인용 쓰기 가능 복사본을 제공하여 작업 간에 Xcode, 모듈 및 Gradle 캐시와 기타 디렉터리를 유지하세요."
     link="/guides/features/runners/cache-volumes"
 />
 </.home_cards>
 
-## Once 그래프 액션 {#once-graph-actions}
+## Struo 그래프 작업 {#struo-graph-actions}
 
-계정에 원격 실행이 활성화되어 있고 서버가 호환되는 작업자 기능을 광고할 때 Once는 Tuist의 Linux 작업자에서 적격 그래프 명령 액션을 실행할 수 있습니다. 이는 위의 CI 제공자 작업과 별개인 액션 수준 실행입니다. 설정, 이미지 요구 사항 및 호환성 검사는 <.localized_link href="/guides/features/runners/once">Once 원격 실행</.localized_link>을 참조하세요.
+<a id="once-graph-actions"></a>
 
-## Tuist Runners를 사용하는 이유 {#why-tuist-runners}
+계정에 원격 실행이 활성화되어 있고 서버가 호환되는 워커 기능을 광고할 때, Struo는 Tuist의 Linux 워커에서 적격 그래프 명령 작업을 실행할 수 있습니다. 이는 위의 CI 제공자 작업과 별개인 작업 수준 실행입니다. 설정, 이미지 요구 사항 및 호환성 검사는 <.localized_link href="/guides/features/runners/struo">Struo 원격 실행</.localized_link>을 참조하세요.
 
-대부분의 CI 러너 제공업체는 더 강력한 머신과 영구 캐시(일반적으로 CI 실행에 다시 마운트되는 공유 볼륨)를 제공하여 작업을 빠르게 만듭니다. 도움이 되지만 볼륨은 단순한 디스크일 뿐이며 이전 CI 실행이 남긴 모든 것을 포함합니다. 빌드가 실행되는 위치 근처에 최신 아티팩트만 유지하도록 복제되지 않으며 코드가 빌드되는 다른 장소에는 도달하지 않습니다.
+## Tuist 러너를 사용하는 이유 {#why-tuist-runners}
 
-빌드는 더 이상 한 곳에서 발생하지 않습니다. 동일한 코드는 개발자 노트북, CI 전반, 그리고 점차 코딩 에이전트 및 기타 자동화 환경에서 컴파일됩니다. Tuist Runners는 어떤 빌드 시스템을 사용하든 이러한 모든 환경이 이미 읽고 쓰는 동일한 <.localized_link href="/guides/features/cache">캐시</.localized_link>를 공유한다는 점에서 다릅니다. 팀원이 노트북에서 워밍업한 아티팩트, 에이전트가 생성한 아티팩트 또는 이전 빌드가 남겨둔 아티팩트는 러너에서 히트로 처리되며 그 반대도 마찬가지입니다. 별도로 워밍업해야 하는 CI 캐시가 없으며 속도 향상은 CI에만 국한되지 않습니다.
+대부분의 CI 러너 제공업체는 더 강력한 머신과 영구 캐시(일반적으로 CI 실행에 다시 마운트되는 공유 볼륨)를 제공하여 작업을 빠르게 만듭니다. 도움이 되지만 볼륨은 단순히 디스크일 뿐이며 이전 CI 실행이 남긴 모든 것을 포함합니다. 빌드가 실행되는 위치에 가장 최신 아티팩트만 가깝게 유지하도록 복제되지 않으며, 코드가 빌드되는 다른 위치에는 도달하지 못합니다.
 
-게다가 캐시는 러너와 동일한 사설 네트워크에 함께 배치되므로 캐시 읽기 및 쓰기가 공공 인터넷을 통과하는 대신 내부에 유지되고 컴퓨팅 리소스와 가까운 상태에서 수행됩니다.
+빌드는 더 이상 한 곳에서 발생하지 않습니다. 동일한 코드는 개발자 노트북, CI 전반, 그리고 점점 더 코딩 에이전트 및 기타 자동화 환경에서 컴파일됩니다. Tuist 러너는 사용하는 빌드 시스템과 관계없이 모든 환경이 이미 읽고 쓰는 동일한 <.localized_link href="/guides/features/cache">캐시</.localized_link>를 공유하기 때문에 다릅니다. 팀원이 노트북에서 예열한 아티팩트, 에이전트가 생성한 아티팩트 또는 이전 빌드가 남긴 아티팩트는 러너에서 히트되며, 그 반대도 마찬가지입니다. 별도로 예열해야 하는 CI 캐시가 없으며 속도 향상은 CI에 국한되지 않습니다.
+
+게다가 캐시는 러너와 동일한 사설 네트워크에 함께 배치되므로 캐시 읽기 및 쓰기가 공개 인터넷을 통과하는 대신 내부에 유지되고 컴퓨팅 리소스와 가까워집니다.
 
 종합하면:
 
-- **모든 환경에서 공유.** 러너는 개발자 머신, CI 및 코딩 에이전트와 동일한 캐시를 읽고 쓰므로 어디서든 수행된 작업이 모든 곳의 캐시를 워밍업합니다.
-- **컴퓨팅 리소스와 함께 배치.** 캐시 트래픽은 공공 인그레스를 통하지 않고 러너 옆의 내부 네트워크에 유지됩니다.
-- **별도 추가가 아닌 단일 시스템.** 캐싱, <.localized_link href="/guides/features/selective-testing">선택적 테스팅</.localized_link>, <.localized_link href="/guides/features/test-sharding">테스트 샤딩</.localized_link> 및 <.localized_link href="/guides/features/build-insights">빌드 인사이트</.localized_link>가 모두 동일한 프로젝트와 계정을 대상으로 실행되므로 러너는 별도의 빌드 데이터 실로가 아닙니다.
+- **모든 환경에서 공유.** 러너는 개발자 머신, CI 및 코딩 에이전트와 동일한 캐시를 읽고 쓰므로 어디서든 수행된 작업이 모든 곳의 캐시를 예열합니다.
+- **컴퓨팅 리소스와 함께 배치.** 캐시 트래픽은 공개 인그레스를 통하지 않고 러너 옆의 내부 네트워크에 유지됩니다.
+- **별도 추가가 아닌 단일 시스템.** 캐싱, <.localized_link href="/guides/features/selective-testing">선택적 테스팅</.localized_link>, <.localized_link href="/guides/features/test-sharding">테스트 샤딩</.localized_link> 및 <.localized_link href="/guides/features/build-insights">빌드 인사이트</.localized_link>가 모두 동일한 프로젝트와 계정을 대상으로 실되므로 러너는 별도의 빌드 데이터 실로가 아닙니다.

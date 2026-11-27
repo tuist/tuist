@@ -2,31 +2,31 @@
 {
   "title": "tuist.toml",
   "titleTemplate": ":title · Referanslar · Tuist",
-  "description": "tuist.toml yapılandırma dosyası biçimi referansı."
+  "description": "tuist.toml yapılandırma dosyası biçimi için referans."
 }
 ---
 
 # tuist.toml {#tuist-toml}
 
-`tuist.toml`, derleme sisteminden bağımsız bir yapılandırma dosyasıdır ve `Tuist.swift` dosyasının evrimleşmiş halidir. `Tuist.swift` dosyasının aksine Swift gerektirmez, bu da onu herhangi bir platformda ve derleme sisteminde kullanılabilir kılar. Swift’in bulunmadığı ortamlar (örneğin Linux tabanlı CI çalıştırıcıları) veya tam bir `Tuist.swift` bildirimine ihtiyaç duymadan yalnızca sunucuyla ilgili ayarları yapılandırmak istediğiniz durumlar için idealdir.
+`tuist.toml`, derleme sistemi bağımsız bir yapılandırma dosyasıdır ve `Tuist.swift` dosyasının evrimidir. `Tuist.swift` dosyasından farklı olarak Swift gerektirmez; bu sayede herhangi bir platformda ve derleme sisteminde kullanılabilir. Swift'in bulunmadığı ortamlar (örneğin Linux tabanlı CI çalıştırıcıları) veya tam bir `Tuist.swift` manifestosuna gerek kalmadan yalnızca sunucuyla ilgili ayarları yapılandırmanız gereken durumlar için idealdir.
 
-Tuist, `tuist.toml` dosyasını mevcut çalışma dizininden başlayarak dizin hiyerarşisini yukarı doğru tarayarak arar ve ilk eşleşmede durur. Bu, dosyayı projenizin kök dizinine yerleştirip Tuist komutlarını herhangi bir alt dizinden çalıştırabileceğiniz anlamına gelir.
+Tuist, `tuist.toml` dosyasını mevcut çalışma dizininden yukarı doğru dizin hiyerarşisini tarayarak arar ve ilk eşleşmede durur. Bu, dosyayı projenizin kök dizinine yerleştirip Tuist komutlarını herhangi bir alt dizinden çalıştırabileceğiniz anlamına gelir.
 
 ## Desteklenen anahtarlar {#supported-keys}
 
 | Anahtar | Tür | Zorunlu | Varsayılan | Açıklama |
 | --- | --- | --- | --- | --- |
 | `project` | `String` | Evet | — | Projenizin tam tanıtıcısı (ör. `"tuist/tuist"`). |
-| `url` | `String` | Hayır | `https://tuist.dev` | Tuist sunucusunun URL’si. |
+| `url` | `String` | Hayır | `https://tuist.dev` | Tuist sunucusunun URL'si. |
 
 ### Ağ {#network}
 
-`[network]` tablosu, Tuist’in giden HTTP bağlantılarını nasıl kurduğunu yapılandırır.
+`[network]` tablosu, Tuist'in giden HTTP bağlantılarını nasıl kurduğunu yapılandırır.
 
 | Anahtar | Tür | Zorunlu | Varsayılan | Açıklama |
 | --- | --- | --- | --- | --- |
-| `proxy` | `Boolean` | Hayır | `true` | `true` olduğunda, Tuist varsa `HTTPS_PROXY`/`HTTP_PROXY` ile tanımlanan proxy’yi kullanır. <.localized_link href="/guides/integrations/http-proxy">HTTP proxy kılavuzuna</.localized_link> bakın. |
-| `ca_certificate` | `String` | Hayır | — | Sistem kök deposunun üzerine güvenilecek PEM veya DER CA sertifikası paketinin yolu; örneğin özel bir CA kullanan kendi barındırdığınız bir sunucu için. `TUIST_CA_CERTIFICATE` ortam değişkeni önceliklidir. <.localized_link href="/cli/debugging#trusting-a-custom-ca-certificate">Özel bir CA sertifikasına güvenme</.localized_link> bölümüne bakın. |
+| `proxy` | `Boolean` | Hayır | `true` | `true` olduğunda, Tuist varsa `HTTPS_PROXY`/`HTTP_PROXY` ile tanımlanan proxy'yi kullanır. <.localized_link href="/guides/integrations/http-proxy">HTTP proxy kılavuzuna</.localized_link> bakın. |
+| `ca_certificate` | `String` | Hayır | — | Sistem kök sertifika deposunun üzerine güvenilecek PEM veya DER CA sertifikası paketinin yolu; örneğin özel bir CA kullanan kendi barındırdığınız bir sunucu için. `TUIST_CA_CERTIFICATE` ortam değişkeni önceliklidir. <.localized_link href="/cli/debugging#trusting-a-custom-ca-certificate">Özel bir CA sertifikasına güvenme</.localized_link> bölümüne bakın. |
 
 ## Örnek {#example}
 

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "582fdb2d4f282a2b8e0750df5b23418a8b9ba3d7ef5b2523ebf689e5f17e6744",
+  "hash": "c6e92074c8e501d3cb3043397ac9f0f1132f52f9378fff6329da719171a61550",
   "hash_tree": {
     "root": {
       "children": [
@@ -100,7 +100,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -113,13 +113,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -148,11 +142,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -229,21 +223,21 @@
             }
           ],
           "details": {},
-          "hash": "df60d77086f8c258a94170ac32a9c1240e71b69fac9b50efb18c2e5fd2bb55ff",
+          "hash": "f6d52636ecaaeb970b57f56c92776087d5fcb67a0cce77b32c8ce8f1fe8be662",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "582fdb2d4f282a2b8e0750df5b23418a8b9ba3d7ef5b2523ebf689e5f17e6744",
+      "hash": "c6e92074c8e501d3cb3043397ac9f0f1132f52f9378fff6329da719171a61550",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/plugins.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "81cee285bbf3f8afc197394ee94d170b127f1f4eaf94de42ed2488cfae0f59a5",
+  "output_hash": "984dfd725d3ea7f68919fb2806bbbc4002f2ce2e1f833abd9990610d06c72e85",
   "output_path": "server/priv/docs/zh_Hant/guides/features/projects/plugins.md",
   "protection_state": "recorded",
   "provider": "",
@@ -263,8 +257,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8d4e08dcf051ab2b7e244b180b46d91e841207e7",
+  "source_commit_sha": "4d1eae76e8509d2e47d055b634370600fb9fc22f",
   "source_path": "server/priv/docs/en/guides/features/projects/plugins.md",
-  "translated_at": "2026-11-18T22:21:24.412671Z",
-  "translation_session_id": "01a1f0be-0914-7938-a78a-2b2186aa9559"
+  "translated_at": "2026-11-19T13:48:25.212606Z",
+  "translation_session_id": "01a1f40e-a426-7f4d-a86a-63d5d1dc2fa3"
 }

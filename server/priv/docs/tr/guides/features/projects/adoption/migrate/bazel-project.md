@@ -1,18 +1,18 @@
 ---
 {
-  "title": "Bazel projesini taşıma",
-  "titleTemplate": ":title · Taşıma · Benimseme · Projeler · Özellikler · Kılavuzlar · Tuist",
-  "description": "Projelerinizi Bazel'den Tuist'e nasıl taşıyacağınızı öğrenin."
+  "title": "Bazel projesini geçiş yap",
+  "titleTemplate": ":title · Geçiş · Benimseme · Projeler · Özellikler · Kılavuzlar · Tuist",
+  "description": "Projelerinizi Bazel'den Tuist'e nasıl geçireceğinizi öğrenin."
 }
 ---
 # Bir Bazel projesini taşıma {#migrate-a-bazel-project}
 
-[Bazel](https://bazel.build), Google'ın 2015 yılında açık kaynak hale getirdiği bir derleme sistemidir. Her ölçekteki yazılımı hızlı ve güvenilir bir şekilde derlemenize ve test etmenize olanak tanıyan güçlü bir araçtır. [Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/), [Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae) veya [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel) gibi bazı büyük kuruluşlar bunu kullanır; ancak, teknolojiyi öğrenmek gibi başlangıçta ve Xcode güncellemelerini takip etmek gibi sürekli yatırım gerektirir. Bu durum, bunu çapraz bir konu olarak ele alan bazı kuruluşlar için işe yarasa da, ürün geliştirmeye odaklanmak isteyen diğerleri için en uygun çözüm olmayabilir. Örneğin, iOS platform ekibi Bazel'i tanıtan ve ardından bu çabayı yöneten mühendisler şirketten ayrılınca onu bırakmak zorunda kalan kuruluşlar gördük. Apple'ın Xcode ile derleme sistemi arasındaki sıkı bağlantı konusundaki duruşu, Bazel projelerinin zaman içinde bakımını zorlaştıran başka bir faktördür.
+[Bazel](https://bazel.build), Google'ın 2015 yılında açık kaynaklı hale getirdiği bir derleme sistemidir. Her ölçekteki yazılımı hızlı ve güvenilir bir şekilde derlemenize ve test etmenize olanak tanıyan güçlü bir araçtır. [Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/), [Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae) veya [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel) gibi bazı büyük kuruluşlar bunu kullanır; ancak, bunu tanıtmak ve sürdürmek için başlangıç (yani teknolojiyi öğrenme) ve devam eden (yani Xcode güncellemelerini takip etme) yatırım gerektirir. Bu yaklaşımı çapraz bir konu olarak ele alan bazı kuruluşlar için işe yarasa da, ürün geliştirmeye odaklanmak isteyen diğerleri için en uygun çözüm olmayabilir. Örneğin, iOS platform ekibi Bazel'i tanıtan ancak çabayı yöneten mühendisler şirketten ayrıldıktan sonra onu bırakmak zorunda kalan kuruluşlar gördük. Apple'ın Xcode ile derleme sistemi arasındaki sıkı bağımlılığa ilişkin tutumu, Bazel projelerinin zaman içinde bakımını zorlaştıran bir başka faktördür.
 
 > [!TIP]
-> **Tuist'in benzersizliği zarafetinde yatar**
+> **Tuist'in benzersizliği inceliğinde yatar**
 >
-> Xcode ve Xcode projeleriyle savaşmak yerine Tuist onu kucaklar. Aynı kavramlar (örneğin hedefler, şemalar, derleme ayarları), tanıdık bir dil (yani Swift) ve projelerin bakımını ve ölçeklendirilmesini herkesin işi haline getiren, sadece iOS platform ekibinin değil, basit ve keyifli bir deneyim sunar.
+> Tuist, Xcode ve Xcode projeleriyle savaşmak yerine onları benimser. Aynı kavramlar (örneğin hedefler, şemalar, derleme ayarları), tanıdık bir dil (yani Swift) ve projelerin bakımını ve ölçeklendirmesini herkesin işi haline getiren, sadece iOS platform ekibinin değil, basit ve keyifli bir deneyim sunar.
 
 
 ## Kurallar {#rules}
@@ -45,7 +45,7 @@ let project = Project(
 <!-- -->
 :::
 
-İşte başka bir örnek, ancak Bazel ve Tuist'te birim testlerinin nasıl tanımlandığını karşılaştırıyor:
+İşte Bazel ve Tuist'te birim testlerinin nasıl tanımlandığını karşılaştıran bir başka örnek:
 
 ::: code-group
 ```txt [BUILD (Bazel)]
@@ -90,4 +90,4 @@ tuist generate # Generate an Xcode project
 
 ## Proje oluşturma {#project-generation}
 
-Topluluk, Bazel ile tanımlanmış projelerden Xcode projeleri oluşturmak için [rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj) adlı bir dizi kural sağlar. Bazel'de `BUILD` dosyanıza bazı yapılandırmalar eklemeniz gerekirken, Tuist hiçbir yapılandırma gerektirmez. Projenizin kök dizininde `tuist generate` çalıştırabilirsiniz ve Tuist sizin için bir Xcode projesi oluşturacaktır.
+Topluluk, Bazel ile tanımlanmış projelerden Xcode projeleri oluşturmak için [rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj) adlı bir dizi kural sağlar. `BUILD` dosyanıza bazı yapılandırmalar eklemeniz gereken Bazel'in aksine, Tuist hiçbir yapılandırma gerektirmez. Projenizin kök dizininde `tuist generate` komutunu çalıştırabilirsiniz ve Tuist sizin için bir Xcode projesi oluşturacaktır.

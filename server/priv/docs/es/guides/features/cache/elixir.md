@@ -6,26 +6,26 @@ description: Activa la caché de dependencias para tu proyecto de Elixir y sigue
 
 # Caché de Elixir
 
-Tuist reutiliza las dependencias compiladas de forma local y en las ejecuciones de CI. Actívala una vez y sigue usando `mix compile` y `mix test`.
+Tuist reutiliza las dependencias compiladas de forma local y en las compilaciones de CI. Actívalo una vez y sigue usando `mix compile` y `mix test`.
 
 ## Configuración
 
-Sigue la guía <.localized_link href="/guides/get-started/elixir-project#set-up-tuist">Primeros pasos con Elixir</.localized_link> una sola vez. La configuración compartida habilita la caché de dependencias junto con el análisis de compilaciones y tests; no se necesita ninguna configuración adicional de caché.
+Sigue <.localized_link href="/guides/get-started/elixir-project#set-up-tuist">Primeros pasos con Elixir</.localized_link> una vez. La configuración compartida habilita la caché de dependencias junto con los análisis de compilación y tests; no se necesita ninguna configuración adicional de caché.
 
-`cache: true` selecciona automáticamente las dependencias Hex y Git compatibles; no hace falta listarlas. La compilación nativa/personalizada y las dependencias locales continúan funcionando a través de Mix con normalidad. Los archivos fuente de tu aplicación no se almacenan en caché.
+`cache: true` selecciona automáticamente las dependencias Hex y Git compatibles; no necesitas enumerarlas. La compilación nativa/personalizada y las dependencias locales continúan a través de Mix con normalidad. Los archivos fuente de tu aplicación no se almacenan en caché.
 
-## Compila como siempre
+## Compila como de costumbre
 
 ```sh
 mix compile
 mix test
 ```
 
-Cuando una dependencia necesita compilarse, Tuist consulta primero la caché local y luego la caché remota compartida. En caso de fallo, la compilación se realiza con normalidad y el resultado se guarda para futuras compilaciones. Las dependencias seleccionadas y compatibles que Mix considera actualizadas cuentan como aciertos locales cuando sus artefactos compilados están presentes y son válidos; no es necesario consultar la caché. Si la autenticación o la caché no están disponibles, Mix sigue compilando con normalidad.
+Cuando una dependencia necesita compilación, Tuist comprueba la caché local y luego la caché remota compartida. Un fallo compila con normalidad y almacena el resultado para futuras compilaciones. Las dependencias seleccionadas y compatibles que Mix considera actualizadas cuentan como aciertos locales cuando sus salidas compiladas están presentes y son válidas; no es necesario consultar la caché. Si la autenticación o la caché no están disponibles, Mix sigue compilando con normalidad.
 
-## Consulta los aciertos de caché
+## Consulta tus aciertos de caché
 
-Abre **Mix Cache** en el panel de tu proyecto para ver las tasas de acierto, las transferencias y las compilaciones recientes. Selecciona la pestaña **Mix cache** de una compilación para ver qué tareas tuvieron aciertos o fallos. **CAS Outputs** muestra las descargas y subidas remotas reales; los aciertos locales no generan registros de transferencia remota. Reutilizar salidas ya actualizadas contribuye a la tasa de aciertos, pero no genera bytes de transferencia, latencia de restauración ni tiempo estimado ahorrado.
+Abre **Mix Cache** en el panel de tu proyecto para ver las tasas de acierto, las transferencias y las compilaciones recientes. Selecciona la pestaña **Mix cache** de una compilación para ver qué tareas han sido aciertos o fallos. **CAS Outputs** muestra las descargas y subidas remotas reales; los aciertos locales no crean registros de transferencia remota. Reutilizar salidas ya actualizadas contribuye a la tasa de aciertos, pero no genera bytes de transferencia, latencia de restauración ni tiempo estimado ahorrado.
 
 Para probar una restauración, limpia la salida compilada de una dependencia compatible y vuelve a compilar:
 
@@ -34,7 +34,7 @@ mix deps.clean nimble_options --build
 mix compile
 ```
 
-Sustituye `nimble_options` por una dependencia que use tu proyecto y que ya haya poblado la caché. Mantén el mismo entorno de Mix y la misma configuración del compilador.
+Reemplaza `nimble_options` por una dependencia que use tu proyecto y que ya haya poblado la caché. Mantén el mismo entorno de Mix y la misma configuración del compilador.
 
 ## Personaliza solo cuando sea necesario
 
@@ -55,4 +55,4 @@ tuist: [
 > [!IMPORTANT]
 > La compilación puede ejecutar código Elixir arbitrario. Declara entradas adicionales y excluye dependencias cuyo código dependiente del tiempo o de la red, o cuyos efectos secundarios, deban ejecutarse en cada compilación. Los artefactos en caché pueden incluir secretos, y los escritores de caché son productores de código de confianza: no proporciones credenciales de escritura en caché a trabajos no confiables.
 
-Para la selección de dependencias, la reutilización entre diferentes rutas de checkout, la resolución de problemas y los detalles de implementación, consulta la <.localized_link href="/guides/features/cache/elixir-advanced">configuración avanzada de la caché de Elixir</.localized_link>.
+Para la selección de dependencias, la reutilización entre diferentes rutas de checkout, la solución de problemas y los detalles de implementación, consulta <.localized_link href="/guides/features/cache/elixir-advanced">configuración avanzada de la caché de Elixir</.localized_link>.

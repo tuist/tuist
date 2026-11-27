@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "0559f3762d57b69291697b88097f25cb54ee6f24e5e2aabe007b9599a6f3aee3",
+  "hash": "c001d4f76fe9434f654849dd62b9ed3f1319b34d398400986d9f1794de9b165a",
   "hash_tree": {
     "root": {
       "children": [
@@ -31,6 +31,9 @@
                 "### Project reports {#project-reports}": {
                   "content_hash": "b4517f1b9b2e112fc784f087a7628740fd04f9a6fef3a939ac1d1126084c4820"
                 },
+                "### Slow test alerts {#slow-test-alerts}": {
+                  "content_hash": "7723c5fe3babbb389e46656b510e56f18f918ef1cf001fa137be040408fa1d8c"
+                },
                 "Preamble": {
                   "content_hash": "f157d86bcab2206a0e5d079e886c408c3bf31df8f4b63f8b4e4dd74e93d07733"
                 }
@@ -38,11 +41,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "5520390756477025591ca7ab9b5aa09fd03258b15aa63d514b55f70f6865ee11",
+          "hash": "12ce3ea48fa8e3337eeb03b46d7eeedf6daecf863ce4bd0bbb048fbc8ff90d49",
           "kind": "source",
           "label": "server/priv/docs/en/guides/integrations/slack.md",
           "metadata": {
-            "content_hash": "e5d011812986028c21c10e8b6e63a8dfbc34f1a1ff49f7fa65f8ce69b87f5390"
+            "content_hash": "f991a1f887b71388afa04a3d9d199dfe03292b5ba21d2be91bde1765732ac855"
           }
         },
         {
@@ -103,7 +106,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -116,13 +119,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -151,11 +148,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -205,6 +202,12 @@
                   "children": [],
                   "details": {
                     "content_hash": {
+                      "entry:3a2da093921d236b394ec82ea1bb3d2ac8661d0f1f72a4a43b9294c2b8385a86": {
+                        "case_sensitive": false,
+                        "definition_hash": "40c4252d4ac1a3d1b49524e801a84ad398fbf4ccac84e04a8b42a82ab8a023e9",
+                        "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
+                        "translation_hash": "c61d77b3d299b85e6ad0e49bf581ad011d76ce86d6bd2d05222fa874aa50b85f"
+                      },
                       "entry:f6977d4134bbe756e3aef4854d9ae407992551711ab5839ab61f114d6812132c": {
                         "case_sensitive": false,
                         "definition_hash": "9aac3cff7abfbe0b8aeea38965ad9095c891253fe2e76e7e584ee6ba8218a4c7",
@@ -219,16 +222,16 @@
                       }
                     }
                   },
-                  "hash": "1f57c09bb5cff70e4ed383d3b46ca58776fb96fa41703e7b9e5185dfc43d598e",
+                  "hash": "cbab6057589cd329b8aa143b7f19bd452c0a2fbbcf2a32c243f01a890a93acfc",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "6c6b86e9854a2c6072a6b0d90a74ca215ff3ee005002c584ca8c437c2cc120af"
+                    "content_hash": "e37ca4e8a68f8a61c3116895a7443da21e41d1e1dbcc6f790aa7d6c180f4dab4"
                   }
                 }
               ],
               "details": {},
-              "hash": "2732001d7f771e47fe3063d2111756084d3325f679cb13dec761392b7cfb0695",
+              "hash": "34fc8c84c81b297f304d9e8a1469a794438e58f8e92797d62cc83636bfbfbfe4",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -238,21 +241,21 @@
             }
           ],
           "details": {},
-          "hash": "0e9f10579fcf24d099039bf1f4e7f5a6e4b8fb6dcdb7a93dde94ff76b402dbdf",
+          "hash": "af8451472219c318011a685d3cccd68e1e308387cc35d9d0e72d6e9df7f57195",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "0559f3762d57b69291697b88097f25cb54ee6f24e5e2aabe007b9599a6f3aee3",
+      "hash": "c001d4f76fe9434f654849dd62b9ed3f1319b34d398400986d9f1794de9b165a",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/slack.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "862f5c8a6edd9f4fc6e268d049a0d637d47c262b7c4e44a0900e7ddab97ec1fc",
+  "output_hash": "a3db376e09d427da425b447c93fca8af3c93aa306a3b592f855037a42b772450",
   "output_path": "server/priv/docs/zh_Hant/guides/integrations/slack.md",
   "protection_state": "recorded",
   "provider": "",
@@ -261,9 +264,10 @@
     "glossary": {
       "applied": [
         "repo:cache-hit",
-        "repo:test-case"
+        "repo:test-case",
+        "repo:tests"
       ],
-      "content_hash": "6c6b86e9854a2c6072a6b0d90a74ca215ff3ee005002c584ca8c437c2cc120af",
+      "content_hash": "e37ca4e8a68f8a61c3116895a7443da21e41d1e1dbcc6f790aa7d6c180f4dab4",
       "shadowed": [],
       "version": null
     },
@@ -273,8 +277,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "2a3b5068a734c13ff5acd10a9873fd219016dc42",
+  "source_commit_sha": "8d074295e6a945303d477c61bec2a5b44fe6b9dd",
   "source_path": "server/priv/docs/en/guides/integrations/slack.md",
-  "translated_at": "2026-11-19T00:49:11.796532Z",
-  "translation_session_id": "01a1f11e-0ed8-7d81-867f-2ee4f5133c32"
+  "translated_at": "2026-11-25T16:23:38.268534Z",
+  "translation_session_id": "01a21382-ccb5-7e9b-b10e-fe7a8e844c84"
 }

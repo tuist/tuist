@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "f93b042f6e6c0b5e2402b7bd11bd1d43c30dfa7f7d830038370c594031335ef4",
+  "hash": "59b4daa09f504ba09a434be041e852f7f5dd78b4674337ddb7f58dc2ff9d3376",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# GitLab CI {#gitlab-ci}": {
-                  "content_hash": "c69d87000620d2d7a0d32e3a75404000dde0f7170b2a3f2544cc1ed03babbd48"
+                  "content_hash": "9164d836311865d0ede3e4a769f1ab2bee87484322db8cfb453e0c85934a8059"
                 },
                 "## Cache volumes {#cache-volumes}": {
                   "content_hash": "d79c4855d52fbc6ed9e95a45871bc7780b86cb460a7122c7e8016a3b5604b29d"
@@ -32,11 +32,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "c7427b5e6fe9f877a36789e3728be8e7a3505b7a6c87f50e959bfa6b8092f557",
+          "hash": "26c19c7ac87dda57fef35d45e0b0ecb917c3139dcb5d43ce540c50dbdca2e5ee",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/ci-providers/gitlab-ci.md",
           "metadata": {
-            "content_hash": "1ae934a50e2c09cdefab2681d12f7a75ba95171d4ff25740e656a713fbd3265f"
+            "content_hash": "328f318e8498c93e8fb2f88c31984d16b0e65bfdfcfaa7ea237f80f1e25f1d03"
           }
         },
         {
@@ -97,7 +97,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -110,13 +110,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -145,11 +139,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -229,21 +223,21 @@
             }
           ],
           "details": {},
-          "hash": "07ac6aa97315f1ab3e6e6dc5f81ac9b70eaeb46099cbedfbc6ecb786b6fcc99b",
+          "hash": "761b7176d3580727b9adbac9d23e8a22d634dc54256f81b02f228fa91e0ea753",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "f93b042f6e6c0b5e2402b7bd11bd1d43c30dfa7f7d830038370c594031335ef4",
+      "hash": "59b4daa09f504ba09a434be041e852f7f5dd78b4674337ddb7f58dc2ff9d3376",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/ci-providers/gitlab-ci.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "94ba5b8946c716d5ca8f50d0ee0eb208d9cc00c9a83bf18f810f3f8e36aee28c",
+  "output_hash": "c7e375e5ef1e83e4e37b5d3754029cc2e51b16370cc669166fec3ef88d2e6e42",
   "output_path": "server/priv/docs/es/guides/features/runners/ci-providers/gitlab-ci.md",
   "protection_state": "recorded",
   "provider": "",
@@ -263,8 +257,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1c5f2719555ef6a364756c8b4816d6bfaa654288",
+  "source_commit_sha": "b62ff4e879e015529ea84f82b4f937c60e8de0c3",
   "source_path": "server/priv/docs/en/guides/features/runners/ci-providers/gitlab-ci.md",
-  "translated_at": "2026-11-18T22:46:24.365867Z",
-  "translation_session_id": "01a1f0d5-0649-7925-a79d-a6aef802c1ae"
+  "translated_at": "2026-11-24T17:10:30.854079Z",
+  "translation_session_id": "01a20e88-4520-7012-8b80-cb91209eb3ce"
 }

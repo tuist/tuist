@@ -7,15 +7,15 @@
 ---
 # 预览 {#previews}
 
-Tuist 预览让团队成员无需在本地重新构建即可试用移动应用、桌面应用和命令行工具。将构建发布到你的 Tuist 项目，然后分享其预览链接。
+Tuist Previews 让团队成员无需在本地重新构建即可试用移动应用、桌面应用和命令行工具。将构建发布到你的 Tuist 项目，然后分享其预览链接。
 
 ## 可预览的内容 {#what-you-can-preview}
 
-- **移动应用：** Android APK 以及 Apple 应用程序包或 IPA。支持的设备、模拟器和签名要求取决于发布工作流。
+- **移动应用：** Android APK 以及 Apple 应用程序包或 IPA。受支持的设备、模拟器和签名要求取决于发布工作流。
 - **桌面应用：** macOS 应用程序包。
-- **命令行工具：** macOS 或 Linux 可执行文件，可单独提供或与依赖项捆绑在一起。
+- **命令行工具：** macOS 或 Linux 可执行文件，可单独提供或与依赖项一起打包。
 
-请参阅<.localized_link href="/guides/features/previews/types">支持的类型</.localized_link>以了解打包和兼容性要求。工件类型决定预览可以在哪里运行；它并不指定由哪个构建系统生成。
+请参阅<.localized_link href="/guides/features/previews/types">支持的类型</.localized_link>以了解打包和兼容性要求。制品类型决定预览可以在何处运行；它并不规定由哪个构建系统生成。
 
 ## 发布预览 {#publish-a-preview}
 
@@ -38,17 +38,17 @@ Tuist 预览让团队成员无需在本地重新构建即可试用移动应用�
     link="/guides/features/previews/bazel"
   />
   <.home_card
-    title="Once"
-    details="使用 Once 的原生工件提供者发布符合条件的 Android、Apple 模拟器和 macOS 应用程序。"
-    link="/guides/features/previews/once"
+    title="Struo"
+    details="使用 Struo 的原生制品提供商发布符合条件的 Android、Apple 模拟器和 macOS 应用程序。"
+    link="/guides/features/previews/struo"
   />
 </.home_cards>
 
-如果你已有受支持的构建，请使用 <.localized_link href="/cli/share">`tuist share`</.localized_link> 发布它，而无需集成构建系统。打包和签名要求仍然适用。
+如果你已有受支持的构建，请使用 <.localized_link href="/cli/share">`tuist share`</.localized_link> 发布它，而无需与构建系统集成。打包和签名要求仍然适用。
 
 ## 运行预览 {#run-a-preview}
 
-接收者不需要生成该预览的构建系统。选择访问兼容构建的方式：
+接收者不需要生成预览的构建系统。选择访问兼容构建的方式：
 
 <.home_cards>
   <.home_card
@@ -70,11 +70,11 @@ Tuist 预览让团队成员无需在本地重新构建即可试用移动应用�
 
 ## 可见性 {#visibility}
 
-预览使用项目的默认可见性设置。私有预览需要身份验证和项目访问权限。仅当构建可以与任何人共享时，才在项目设置中将预览设为公开。公开可见性不会绕过平台签名或设备安装要求。
+预览使用项目的默认可见性。私有预览需要身份验证和项目访问权限。仅当构建可以与任何人共享时，才在项目设置中将预览设为公开。公开可见性不会绕过平台签名或设备安装要求。
 
 ## 轨道 {#tracks}
 
-轨道将预览组织为命名组，例如用于内部测试人员的 `beta` 或用于自动化构建的 `nightly`。在工作流的发布命令中指定轨道；轨道会在首次使用时延迟创建。使用它们按用途对预览进行分组，并在 Tuist 仪表板中过滤预览。
+轨道将预览组织为命名组，例如用于内部测试人员的 `beta` 或用于自动构建的 `nightly`。在工作流的发布命令中指定轨道；轨道会在首次使用时惰性创建。使用它们按目的对预览进行分组，并在 Tuist 仪表板中过滤预览。
 
 ## README 徽章 {#readme-badge}
 

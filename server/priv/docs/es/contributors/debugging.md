@@ -1,8 +1,8 @@
 ---
 {
   "title": "Depuración",
-  "titleTemplate": ":title · Colaboradores · Tuist",
-  "description": "Usa agentes de programación y ejecuciones locales para depurar problemas en Tuist."
+  "titleTemplate": ":title · Contribuyentes · Tuist",
+  "description": "Utiliza agentes de programación y ejecuciones locales para depurar problemas en Tuist."
 }
 ---
 # Depuración {#debugging}
@@ -13,7 +13,7 @@ Si encuentras documentación faltante o incompleta mientras depuras, actualiza l
 
 ## Capturar volcados de hilos en CI {#thread-dump-ci}
 
-Cuando la CLI se cuelga intermitentemente, puedes capturar un volcado de hilos sin detener el proceso. Habilita el manejador de señales y envía `SIGUSR1` al proceso `tuist` en ejecución.
+Cuando la CLI se bloquea intermitentemente, puedes capturar un volcado de hilos sin detener el proceso. Habilita el manejador de señales y envía `SIGUSR1` al proceso `tuist` en ejecución.
 
 ```bash
 export TUIST_THREAD_DUMP_SIGNAL=1
@@ -31,17 +31,17 @@ Si `TUIST_THREAD_DUMP_SAMPLE` no está configurado, el manejador imprime la pila
 
 Los agentes de programación son útiles para:
 
-- Escanear la base de código para identificar dónde se implementa un comportamiento.
+- Escanear la base de código para encontrar dónde se implementa un comportamiento.
 - Reproducir problemas localmente e iterar rápidamente.
 - Rastrear cómo fluyen las entradas a través de Tuist para encontrar la causa raíz.
 
 Comparte la reproducción más pequeña posible y dirige al agente al componente específico (CLI, servidor, caché, documentación o manual). Cuanto más enfocado sea el alcance, más rápido y preciso será el proceso de depuración.
 
-### Solicitudes frecuentemente necesarias (FNP) {#frequently-needed-prompts}
+### Indicaciones frecuentemente necesarias (FNP) {#frequently-needed-prompts}
 
-#### Generación inesperada del proyecto {#unexpected-project-generation}
+#### Generación de proyecto inesperada {#unexpected-project-generation}
 
-La generación del proyecto me está dando algo que no espero. Ejecuta la CLI de Tuist contra mi proyecto en `/path/to/project` para entender por qué ocurre esto. Rastrea la tubería del generador e indica las rutas de código responsables de la salida.
+La generación del proyecto me está dando algo que no espero. Ejecuta la CLI de Tuist contra mi proyecto en `/path/to/project` para entender por qué está ocurriendo esto. Rastrea la tubería del generador e indica las rutas de código responsables del resultado.
 
 #### Error reproducible en proyectos generados {#reproducible-bug-in-generated-projects}
 

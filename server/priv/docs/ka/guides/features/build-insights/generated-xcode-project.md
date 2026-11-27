@@ -1,14 +1,14 @@
 ---
 {
-  "title": "გენერირებული Xcode პროექტი",
+  "title": "Xcode-ის გენერირებული პროექტი",
   "titleTemplate": ":title · ბილდის ანალიტიკა · ფუნქციები · სახელმძღვანელოები · Tuist",
-  "description": "Tuist-ით გენერირებული Xcode პროექტის ბილდის ანალიტიკის თვალყურის დევნება Tuist-ის დაფაზე."
+  "description": "Tuist-ის დაფაზე თვალყური ადევნეთ Tuist-ით გენერირებული Xcode-ის პროექტის ბილდის ანალიტიკას."
 }
 ---
 # გენერირებული Xcode პროექტი {#generated-xcode-project-build-insights}
 
 > [!NOTE]
-> ავტომატურად გენერირებული სქემები ავტომატურად შეიცავს `tuist inspect build` post-action-ს.
+> ავტომატურად გენერირებული სქემები ავტომატურად შეიცავენ `tuist inspect build` post-action-ს.
 >
 > თუ არ გსურთ ბილდის ინსაიტების თვალყურის დევნა გენერირებულ სქემებში, გათიშეთ ის [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist)-ის გამოყენებით.
 
@@ -43,7 +43,7 @@ let project = Project(
 )
 ```
 
-თუ არ იყენებთ Mise-ს, უნდა დარწმუნდეთ, რომ `tuist` ხელმისაწვდომია სქემის გარემოში, რადგან Xcode-ის post-actions არ იღებს თქვენი shell-ის `PATH`-ს. [Homebrew](https://brew.sh/)-ით ინსტალაციებისთვის:
+თუ არ იყენებთ Mise-ს, უნდა დარწმუნდეთ, რომ `tuist` ხელმისაწვდომია სქემის გარემოში, რადგან Xcode-ის post-actions არ იღებენ თქვენი shell-ის `PATH`-ს მემკვიდრეობით. [Homebrew](https://brew.sh/)-ის ინსტალაციებისთვის:
 
 ```swift
 buildAction: .buildAction(

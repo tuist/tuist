@@ -7,12 +7,12 @@
 ---
 # バンドルインサイト {#bundle-insights}
 
-アプリに機能を追加するにつれて、バンドルサイズは増大し続けます。その増加の一部は避けられませんが、多くの場合は回避可能です。重複アセット、未使用シンボル、プラットフォーム固有の無駄が積み重なるためです。Tuist Bundle Insights は **Apple** と **Android** の両方のバンドルに対応しており、アプリサイズの小型化を支援するツールとインサイトを提供し、時間経過に伴う傾向を追跡します。
+アプリに機能を追加するにつれて、バンドルサイズは増大し続けます。その増加の一部は避けられませんが、多くの場合は回避可能です。重複アセット、未使用シンボル、プラットフォーム固有の無駄が積み重なるためです。Tuist Bundle Insights は **Apple** と **Android** の両方のバンドルに対応しており、アプリサイズを小さく保つためのツールとインサイトを提供し、経時的な傾向を追跡します。
 
 <.home_cards>
   <.home_card
     title="Apple"
-    details="iOS、macOS、watchOS、tvOS アプリ向けの .ipa、.xcarchive、.app バンドルを分析します。"
+    details="iOS、macOS、watchOS、tvOS アプリ向けの .ipa、.xcarchive、および .app バンドルを分析します。"
     link="/guides/features/bundle-insights/apple"
     supported_for="apple"
 />

@@ -15,7 +15,7 @@ msgstr "Language: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/sandboxes_live.ex:887
 #, elixir-autogen, elixir-format
 msgid "Active"
-msgstr "Aktywny"
+msgstr "Aktywne"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:165
 #: lib/tuist_web/live/sandboxes_live.html.heex:54
@@ -115,7 +115,7 @@ msgstr "Wznawianie"
 #: lib/tuist_web/live/sandbox_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "Resuming would exceed this account's vCPU or memory limit."
-msgstr "Wznowienie przekroczyłoby limit vCPU lub pamięci tego konta."
+msgstr "Wznowienie przekroczyłoby limit vCPU lub pamięci dla tego konta."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:41
 #, elixir-autogen, elixir-format
@@ -137,12 +137,12 @@ msgstr "ID piaskownicy"
 msgid "Sandbox deleted."
 msgstr "Piaskownica usunięta."
 
-#: lib/tuist_web/components/dashboard_navigation.ex:42
+#: lib/tuist_web/components/dashboard_navigation.ex:43
 #: lib/tuist_web/live/sandbox_live.ex:41
 #: lib/tuist_web/live/sandboxes_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Sandboxes"
-msgstr "Sandboxy"
+msgstr "Piaskownice"
 
 #: lib/tuist_web/live/sandbox_live.ex:112
 #: lib/tuist_web/live/sandbox_live.ex:145
@@ -165,7 +165,7 @@ msgstr "Status"
 #: lib/tuist_web/live/sandbox_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "The machine running it reported an error."
-msgstr "Maszyna, na której działa, zgłosiła błąd."
+msgstr "Maszyna, na której to działało, zgłosiła błąd."
 
 #: lib/tuist_web/live/sandbox_live.ex:143
 #, elixir-autogen, elixir-format
@@ -175,27 +175,27 @@ msgstr "Maszyna obsługująca ten sandbox jest niedostępna. Spróbuj ponownie."
 #: lib/tuist_web/live/sandbox_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "The sandbox changed state in the meantime. Please retry."
-msgstr "Stan piaskownicy zmienił się w międzyczasie. Spróbuj ponownie."
+msgstr "Sandbox zmienił stan w międzyczasie. Spróbuj ponownie."
 
 #: lib/tuist_web/live/sandbox_live.ex:85
 #, elixir-autogen, elixir-format
 msgid "The sandbox is busy with an agent task and was not paused."
-msgstr "Piaskownica jest zajęta zadaniem agenta i nie została wstrzymana."
+msgstr "Sandbox jest zajęty zadaniem agenta i nie został wstrzymany."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
-msgstr "Piaskownica zostaje zatrzymana, a jej dysk usunięty. Praca, która nie została wypchnięta, zostanie utracona."
+msgstr "Sandbox zostaje zatrzymany, a jego dysk usunięty. Praca, która nie została wypchnięta, zostanie utracona."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "This sandbox failed"
-msgstr "Ta piaskownica nie powiodła się"
+msgstr "Ten sandbox zakończył się błędem"
 
 #: lib/tuist_web/live/sandbox_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "This sandbox was deleted."
-msgstr "Ta piaskownica została usunięta."
+msgstr "Ten sandbox został usunięty."
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:146
 #: lib/tuist_web/live/sandbox_live.html.heex:109
@@ -210,13 +210,13 @@ msgstr "vCPU"
 #: lib/tuist_web/live/sandboxes_live.ex:893
 #, elixir-autogen, elixir-format
 msgid "Archived"
-msgstr "Zarchiwizowano"
+msgstr "Zarchiwizowane"
 
 #: lib/tuist_web/live/sandboxes_live.ex:161
 #: lib/tuist_web/live/sandboxes_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "%{count} of %{limit} in use now"
-msgstr "%{count} z %{limit} w użyciu"
+msgstr "%{count} z %{limit} obecnie w użyciu"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:77
 #, elixir-autogen, elixir-format
@@ -246,7 +246,7 @@ msgstr "Niestandardowy"
 #: lib/tuist_web/live/sandboxes_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "How long a sandbox runs before it is paused, archived, deleted or fails."
-msgstr "Czas działania sandboxa przed jego wstrzymaniem, archiwizacją, usunięciem lub awarią."
+msgstr "Czas działania sandboxa przed jego wstrzymaniem, zarchiwizowaniem, usunięciem lub awarią."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -286,12 +286,12 @@ msgstr "Szczytowa liczba vCPU"
 #: lib/tuist_web/live/sandboxes_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Sandboxes agents started in the selected window."
-msgstr "Agenty sandboxów uruchomione w wybranym okresie."
+msgstr "Liczba agentów w piaskownicach uruchomionych w wybranym oknie."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Sandboxes created"
-msgstr "Utworzone sandboxy"
+msgstr "Utworzone piaskownice"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:105
 #, elixir-autogen, elixir-format
@@ -341,7 +341,7 @@ msgstr "Czas potrzebny Tuist na uruchomienie sandboxa, niezależnie od tego, czy
 #: lib/tuist_web/live/sandboxes_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
-msgstr "Czas wykonania .agents/setup Twojego projektu w Amp Orb uruchomionym z szablonu. Orby uruchamiane ze snapshotu projektu pomijają ten krok, więc tutaj widać efekty Twojej własnej konfiguracji."
+msgstr "Czas potrzebny na wykonanie .agents/setup w projekcie w Amp Orb uruchomionym z szablonu. Orby uruchamiane ze snapshotu projektu pomijają ten krok, więc tutaj widać czas poświęcony na własną konfigurację."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -351,7 +351,7 @@ msgstr "Śr. czas konfiguracji"
 #: lib/tuist_web/live/sandboxes_live.html.heex:198
 #, elixir-autogen, elixir-format
 msgid "Avg. Time to start"
-msgstr "Śr. czas uruchomienia"
+msgstr "Śr. czas uruchamiania"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:157
 #, elixir-autogen, elixir-format
@@ -361,27 +361,27 @@ msgstr "p50 konfiguracji"
 #: lib/tuist_web/live/sandboxes_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "p50 Time to start"
-msgstr "p50 czasu uruchomienia"
+msgstr "Czas uruchamiania p50"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "p90 Setup"
-msgstr "p90 konfiguracji"
+msgstr "Konfiguracja p90"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "p90 Time to start"
-msgstr "p90 czasu uruchomienia"
+msgstr "Czas uruchamiania p90"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "p99 Setup"
-msgstr "p99 Czas konfiguracji"
+msgstr "Konfiguracja p99"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "p99 Time to start"
-msgstr "p99 Czas uruchomienia"
+msgstr "Czas uruchamiania p99"
 
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:80
 #, elixir-autogen, elixir-format
@@ -406,9 +406,9 @@ msgstr "Ostatnie piaskownice"
 #: lib/tuist_web/live/sandboxes_live.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "View more"
-msgstr "Zobacz więcej"
+msgstr "Wyświetl więcej"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:45
+#: lib/tuist_web/components/dashboard_navigation.ex:46
 #: lib/tuist_web/live/sandbox_instances_live.ex:27
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:3
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:12
@@ -420,7 +420,7 @@ msgstr "Instancje"
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Every sandbox in the account."
-msgstr "Każdy sandbox w koncie."
+msgstr "Wszystkie piaskownice na koncie."
 
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:32
 #, elixir-autogen, elixir-format
@@ -430,7 +430,7 @@ msgstr "Filtruj"
 #: lib/tuist_web/live/sandboxes_live.ex:870
 #, elixir-autogen, elixir-format
 msgid "No sandboxes found"
-msgstr "Nie znaleziono sandboxów"
+msgstr "Nie znaleziono piaskownic"
 
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:39
 #, elixir-autogen, elixir-format
@@ -440,22 +440,22 @@ msgstr "Sortuj według:"
 #: lib/tuist_web/live/sandboxes_live.ex:871
 #, elixir-autogen, elixir-format
 msgid "Try a different search or filter."
-msgstr "Spróbuj innego wyszukiwania lub filtra."
+msgstr "Spróbuj zmienić wyszukiwanie lub filtr."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Sandbox details"
-msgstr "Szczegóły piaskownicy"
+msgstr "Szczegóły sandboxa"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Archive"
-msgstr "Archiwum"
+msgstr "Archiwizuj"
 
 #: lib/tuist_web/live/sandbox_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "Archiving started. The sandbox shows as archived once its disks are uploaded."
-msgstr "Rozpoczęto archiwizację. Piaskownica zostanie oznaczona jako zarchiwizowana po przesłaniu jej dysków."
+msgstr "Rozpoczęto archiwizację. Sandbox zostanie oznaczony jako zarchiwizowany po przesłaniu jego dysków."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:56
 #, elixir-autogen, elixir-format
@@ -471,7 +471,7 @@ msgstr "Uruchom swój pierwszy sandbox z terminala, wykonując polecenie:"
 #: lib/tuist_web/live/sandboxes_live.ex:836
 #, elixir-autogen, elixir-format
 msgid "Created by"
-msgstr "Utworzony przez"
+msgstr "Utworzono przez"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:172
 #: lib/tuist_web/live/sandboxes_live.ex:826
@@ -482,4 +482,4 @@ msgstr "Instancja"
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "Search by instance..."
-msgstr "Szukaj po instancji..."
+msgstr "Wyszukaj po instancji..."

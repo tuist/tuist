@@ -7,12 +7,12 @@
 ---
 # Shell 自動補全 {#shell-completions}
 
-如果你已將 Tuist **全域安裝**（例如透過 Homebrew），你可以為 Zsh、Bash 和 Fish 安裝 Shell 自動補全，以自動完成指令與選項。
+如果你已**全域安裝** Tuist（例如透過 Homebrew），你可以為 Zsh、Bash 和 Fish 安裝 Shell 自動補全，以自動補齊指令與選項。
 
 > [!NOTE]
 > **什麼是全域安裝**
 >
-> 全域安裝是指安裝位置位於你 Shell 的 `$PATH` 環境變數中。這表示你可以在終端機的任何目錄執行 `tuist`。這是 Homebrew 的預設安裝方式。
+> 全域安裝是指安裝位置位於你的 Shell `$PATH` 環境變數中。這表示你可以在終端機的任何目錄執行 `tuist`。這是 Homebrew 的預設安裝方式。
 
 
 ## Zsh {#zsh}
@@ -31,7 +31,7 @@ autoload -U compinit
 compinit
 ```
 
-接著，在 `~/.zsh/completion` 建立一個目錄，並將補全腳本複製到新目錄中，同樣存為名為 `_tuist` 的檔案。
+接著，在 `~/.zsh/completion` 建立一個目錄，並將補全腳本複製到該新目錄，同樣存成名為 `_tuist` 的檔案。
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
@@ -45,14 +45,14 @@ tuist --generate-completion-script > ~/.zsh/completion/_tuist
 tuist --generate-completion-script bash > "$(brew --prefix)/etc/bash_completion.d/_tuist"
 ```
 
-若沒有 bash-completion，你需要直接載入補全腳本。將其寫入例如 `~/.bash_completions/` 的目錄：
+若沒有 bash-completion，你需要直接 source 補全腳本。將其寫入例如 `~/.bash_completions/` 的目錄：
 
 ```bash
 mkdir -p ~/.bash_completions
 tuist --generate-completion-script bash > ~/.bash_completions/tuist.bash
 ```
 
-然後將以下這行加入 `~/.bash_profile` 或 `~/.bashrc`：
+然後將以下這一行加入 `~/.bash_profile` 或 `~/.bashrc`：
 
 ```bash
 source ~/.bash_completions/tuist.bash

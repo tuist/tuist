@@ -1,8 +1,8 @@
-### 启用 {#enabling-stress-testing}
+### 启用它 {#enabling-stress-testing}
 
 该功能默认关闭。请设置模式：
 
 - **`report`**：针对每个不稳定测试用例发出警告。运行仍按其自身结果退出。
-- **`enforce`**：不稳定测试用例会致使运行失败，并返回与测试失败相同的退出码。
+- **`enforce`**：不稳定测试用例会导致运行失败，退出代码与失败的测试相同。
 
-先使用 `report` 几周，以了解 `enforce` 会拦截哪些内容。
+先使用 `report` 几周，看看 `enforce` 会拦截哪些情况。

@@ -7,4 +7,4 @@
 ---
 # 範例
 
-本節提供 <.localized_link href="/guides/features/projects">生成嘅項目</.localized_link> 範例，我哋用佢哋做 [範例](https://github.com/tuist/tuist/tree/main/examples/xcode) 來執行驗收測試。當你建立新嘅生成項目，或者將現有 Xcode 項目遷移為由 Tuist 生成時，呢啲範例可能會對你有幫助。
+本節提供 <.localized_link href="/guides/features/projects">生成項目</.localized_link> 的範例，我們將其用作 [範例](https://github.com/tuist/tuist/tree/main/examples/xcode) 來執行驗收測試。當建立新的生成項目，或將現有的 Xcode 項目遷移至由 Tuist 生成時，你可能會發現這些範例很有用。

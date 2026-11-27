@@ -9,15 +9,15 @@
 
 Kaynak: [github.com/tuist/tuist/tree/main/server/priv/docs](https://github.com/tuist/tuist/tree/main/server/priv/docs)
 
-## Amacı nedir {#what-it-is-for}
+## Ne işe yarar {#what-it-is-for}
 
-Dokümantasyon sitesi, Tuist'in ürün ve katkıda bulunan dokümantasyonunu barındırır. Phoenix uygulaması olan Tuist sunucusunun bir parçasıdır ve `server/priv/docs/en` altındaki Markdown sayfalarını `/docs` adresinde render eder.
+Dokümantasyon sitesi, Tuist'in ürün ve katkıda bulunan dokümantasyonunu barındırır. Phoenix uygulaması olan Tuist sunucusunun bir parçasıdır ve Markdown sayfalarını `server/priv/docs/en` altında `/docs` adresinde render eder.
 
 ## Nasıl katkıda bulunulur {#how-to-contribute}
 
-`server/priv/docs/en` altındaki İngilizce sayfaları düzenleyin. Çeviriler ayrı olarak yönetildiğinden diğer yerel dizinleri düzenlemeyin. Yan menü `server/lib/tuist/docs_sidebar.ex` içinde tanımlanmıştır; okuyucuların bulabilmesi için yeni sayfaları buraya ekleyin.
+`server/priv/docs/en` altındaki İngilizce sayfaları düzenleyin. Çeviriler ayrı olarak yönetilir, bu nedenle diğer yerel dizinleri düzenlemeyin. Yan menü `server/lib/tuist/docs_sidebar.ex` içinde tanımlanır; okuyucuların bulabilmesi için yeni sayfaları buraya ekleyin.
 
-Birden fazla sayfa aynı metni paylaştığında, örneğin derleme sistemleri arasındaki aynı bölümde, bu metni adları `_` ile başlayan bir dosyaya koyun ve kararsız testler sayfalarında olduğu gibi, dosyayı işaret eden bir `@snippet:` HTML yorumu ile dahil edin. Adı `_` ile başlayan dosyalar tek başına sayfa olarak yayımlanmaz.
+Birden fazla sayfa aynı metni paylaştığında, örneğin derleme sistemleri genelinde aynı bölüm olduğunda, bu metni adı `_` ile başlayan ve bu sayfaların yanındaki bir dosyaya koyun ve kararsız testler sayfalarının yaptığı gibi, dosyayı işaret eden bir `@snippet:` HTML yorumu ile dahil edin. Adı `_` ile başlayan dosyalar tek başına sayfa olarak yayınlanmaz.
 
 ### Yerel kurulum {#set-up-locally}
 
@@ -33,6 +33,6 @@ Ardından [http://localhost:8080/en/docs](http://localhost:8080/en/docs) adresin
 
 ### Oluşturulan içerik {#generated-content}
 
-CLI referansı, en son CLI sürümünün komut spesifikasyonundan oluşturulur, bu nedenle yerel olarak derlenmesine gerek yoktur.
+CLI referansı, en son CLI sürümünün komut özelliklerinden oluşturulur, bu nedenle yerel olarak derlenmesine gerek yoktur.
 
 ProjectDescription API referansı, [projectdescription.tuist.dev](https://projectdescription.tuist.dev) adresinde ayrı bir DocC sitesi olarak barındırılır. Yerel olarak derlemek için depo kökünden `mise run docs:project-description` komutunu çalıştırın.

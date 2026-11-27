@@ -967,43 +967,4 @@ func recoverState(
 			// Pod.Status.StartTime is when the API server first saw the
 			// Pod, not when we started the clone — observing
 			// `tart_kubelet_vm_boot_duration_seconds` against it would
-			// fold kubelet downtime into the histogram and read as a
-			// boot-time spike across every recovered VM. Suppress the
-			// observation for recovered entries.
-			StartTS:      *startTS,
-			BootObserved: true,
-			StatusDir:    podagent.StatusDirForPod(tartClient, pod, vmName),
-		}
-		store.Put(pod.Namespace, pod.Name, entry)
-		matched++
-	}
-	setupLog.Info("recovered VM state", "node", nodeName, "tart_vms", len(vms), "matched_pods", matched)
-	return nil
-}
-
-// clientcmdConfig is an alias so the signature of recoverState reads
-// without dragging the rest-config dep into the main signature line.
-type clientcmdConfig = rest.Config
-
-// imageMirrorList implements flag.Value for repeated --image-mirror.
-type imageMirrorList []podagent.ImageMirror
-
-func (l *imageMirrorList) String() string {
-	if l == nil {
-		return ""
-	}
-	parts := make([]string, 0, len(*l))
-	for _, m := range *l {
-		parts = append(parts, m.String())
-	}
-	return joinComma(parts)
-}
-
-func (l *imageMirrorList) Set(value string) error {
-	m, err := podagent.ParseImageMirror(value)
-	if err != nil {
-		return err
-	}
-	*l = append(*l, m)
-	return nil
-}
+			// fold kubelet downtime into 

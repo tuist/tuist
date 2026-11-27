@@ -7,4 +7,4 @@
 ---
 # Oluşturulan Proje Örnekleri
 
-Bu bölümde, kabul testlerini çalıştırmak için [örnek](https://github.com/tuist/tuist/tree/main/examples/xcode) olarak kullandığımız <.localized_link href="/guides/features/projects">oluşturulan proje</.localized_link> örneklerini bulacaksınız. Yeni bir oluşturulmuş proje yaratırken veya mevcut bir Xcode projesini Tuist ile oluşturulacak şekilde taşırken bu örnekler size faydalı olabilir.
+Bu bölümde, kabul testlerini çalıştırmak için [örnek](https://github.com/tuist/tuist/tree/main/examples/xcode) olarak kullandığımız <.localized_link href="/guides/features/projects">oluşturulmuş projelerin</.localized_link> örneklerini bulacaksınız. Yeni bir oluşturulmuş proje oluştururken veya mevcut bir Xcode projesini Tuist ile oluşturulacak şekilde taşıırken bu örnekler size yardımcı olabilir.

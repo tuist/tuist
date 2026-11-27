@@ -5,9 +5,9 @@
   "description": "Узнайте, как создать свой первый проект Xcode, сгенерированный с помощью Tuist, и добавить в него зависимости"
 }
 ---
-# Создание сгенерированного проекта {#create-a-generated-project}
+# Создайте сгенерированный проект {#create-a-generated-project}
 
-Выполните `tuist init` в пустой директории или в директории существующего проекта:
+Запустите `tuist init` в пустой директории или в директории существующего проекта:
 
 ::: code-group
 
@@ -21,17 +21,17 @@ tuist init
 <!-- -->
 :::
 
-Команда проведет вас через шаги по <.localized_link href="/guides/features/projects">созданию сгенерированного проекта</.localized_link> или интеграции существующего проекта или рабочей области Xcode. Она поможет подключить вашу среду к удаленному серверу, предоставив доступ к таким возможностям, как <.localized_link href="/guides/features/selective-testing">выборочное тестирование</.localized_link>, <.localized_link href="/guides/features/previews">превью</.localized_link> и <.localized_link href="/guides/features/package-registries/swift">реестр</.localized_link>.
+Команда проведет вас по шагам для <.localized_link href="/guides/features/projects">создания сгенерированного проекта</.localized_link> или интеграции существующего проекта или рабочего пространства Xcode. Она поможет подключить вашу среду к удаленному серверу, предоставив доступ к таким возможностям, как <.localized_link href="/guides/features/selective-testing">выборочное тестирование</.localized_link>, <.localized_link href="/guides/features/previews">предварительный просмотр</.localized_link> и <.localized_link href="/guides/features/package-registries/swift">реестр</.localized_link>.
 
 > [!NOTE]
 > **Миграция существующего проекта**
 >
-> Если вы хотите мигрировать существующий проект на сгенерированные проекты, чтобы улучшить опыт разработки и воспользоваться нашим <.localized_link href="/guides/features/cache">кешем</.localized_link>, ознакомьтесь с нашим <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">руководством по миграции</.localized_link>.
+> Если вы хотите перенести существующий проект на сгенерированные проекты, чтобы улучшить опыт разработки и воспользоваться нашим <.localized_link href="/guides/features/cache">кэшем</.localized_link>, ознакомьтесь с нашим <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">руководством по миграции</.localized_link>.
 
 
 ## Добавление зависимостей {#add-dependencies}
 
-Проекты часто зависят от сторонних библиотек для предоставления дополнительного функционала. Для этого выполните следующую команду, чтобы обеспечить наилучший опыт редактирования вашего проекта:
+Проекты часто зависят от сторонних библиотек для предоставления дополнительного функционала. Для этого выполните следующую команду, чтобы получить наилучший опыт редактирования вашего проекта:
 
 ```bash
 tuist edit
@@ -65,7 +65,7 @@ let package = Package(
 )
 ```
 
-Затем отредактируйте таргет приложения в вашем проекте, чтобы объявить `Kingfisher` как зависимость:
+Затем отредактируйте цель приложения в вашем проекте, чтобы объявить `Kingfisher` как зависимость:
 
 ```swift
 import ProjectDescription
@@ -105,17 +105,17 @@ let project = Project(
 )
 ```
 
-Затем выполните `tuist install`, чтобы разрешить и загрузить зависимости с помощью [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
+Затем запустите `tuist install`, чтобы разрешить и загрузить зависимости, используя [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
 
 > [!NOTE]
 > **SwiftPM как средство разрешения зависимостей**
 >
-> Рекомендуемый Tuist подход к зависимостям использует Swift Package Manager (SPM) только для разрешения зависимостей. Затем Tuist преобразует их в проекты и таргеты Xcode для максимальной гибкости настройки и контроля.
+> Рекомендуемый Tuist подход к зависимостям использует Swift Package Manager (SPM) только для разрешения зависимостей. Затем Tuist преобразует их в проекты и цели Xcode для максимальной гибкости настройки и контроля.
 
 
 ## Визуализация проекта {#visualize-the-project}
 
-Вы можете визуализировать структуру проекта, выполнив:
+Вы можете визуализировать структуру проекта, запустив:
 
 ```bash
 tuist graph
@@ -127,7 +127,7 @@ tuist graph
 
 ## Использование зависимости {#use-the-dependency}
 
-Выполните `tuist generate`, чтобы открыть проект в Xcode, и внесите следующие изменения в файл `ContentView.swift`:
+Запустите `tuist generate`, чтобы открыть проект в Xcode, и внесите следующие изменения в файл `ContentView.swift`:
 
 ```swift
 import SwiftUI

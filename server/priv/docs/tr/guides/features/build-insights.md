@@ -1,23 +1,23 @@
 ---
 {
-  "title": "Derleme İçgörüler",
+  "title": "Derleme İçgörüleri",
   "titleTemplate": ":title · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist Derleme İçgörüler ile Xcode, Gradle, Bazel, Elixir, Rust ve Once projelerinin derleme performansını takip edin."
+  "description": "Xcode, Gradle, Bazel, Elixir, Rust ve Struo projelerinin derleme performansını Tuist Derleme İçgörüleri ile takip edin."
 }
 ---
-# Derleme İçgörüleri {#build-insights}
+# Derleme Analizleri {#build-insights}
 
-Yerel ve CI derleme performansını izlemek için Derleme İçgörülerini kullanın. Şu anda Xcode, Gradle, Bazel, Elixir, Rust ve Once'ı destekler. Yavaş derlemeler ve artan CI maliyetleri hakkında adım adım inceleme için [Yavaş derlemeler](https://tuist.dev/solutions/slow-builds) ve [CI maliyetleri](https://tuist.dev/solutions/ci-costs) sayfalarına bakın.
+Yerel ve CI derleme performansını izlemek için Derleme Analizlerini kullanın. Şu anda Xcode, Gradle, Bazel, Elixir, Rust ve Struo'yu desteklemektedir. Yavaş derlemeler ve artan CI maliyetlerinin adım adım incelenmesi için [Yavaş derlemeler](https://tuist.dev/solutions/slow-builds) ve [CI maliyetleri](https://tuist.dev/solutions/ci-costs) bölümlerine bakın.
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="Tuist panosunda Xcode şema sonrası eylem sürelerini, derleme ayarlarını ve derleme meta verilerini takip edin."
+    details="Tuist kontrol panelinde Xcode şema son eylem sürelerini, derleme ayarlarını ve derleme meta verilerini takip edin."
     link="/guides/features/build-insights/xcode"
 />
   <.home_card
     title="Oluşturulan projeler"
-    details="Özel şemalara sahip Tuist tarafından oluşturulan projelerde derleme içgörülerini takip edin."
+    details="Özel şemalarla Tuist tarafından oluşturulan projelerde derleme analizlerini takip edin."
     link="/guides/features/build-insights/generated-xcode-project"
 />
   <.home_card
@@ -41,8 +41,8 @@ Yerel ve CI derleme performansını izlemek için Derleme İçgörülerini kulla
     link="/guides/features/build-insights/rust"
 />
   <.home_card
-    title="Once"
-    details="Çalıştırmaları canlı olarak izleyin ve grafik eylemlerini, süreleri, hataları ve önbellek kararlarını inceleyin."
-    link="/guides/features/build-insights/once"
+    title="Struo"
+    details="Çalıştırmaları canlı olarak izleyin ve graf eylemlerini, süreleri, hataları ve önbellek kararlarını inceleyin."
+    link="/guides/features/build-insights/struo"
 />
 </.home_cards>

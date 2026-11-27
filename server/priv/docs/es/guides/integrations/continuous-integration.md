@@ -7,17 +7,19 @@
 ---
 # Integración continua (CI) {#continuous-integration-ci}
 
-Para ejecutar comandos de Tuist en tus flujos de trabajo de [integración continua](https://en.wikipedia.org/wiki/Continuous_integration), debes instalarlo en tu entorno de CI. 
+Para ejecutar comandos de Tuist en tus flujos de trabajo de [integración continua](https://en.wikipedia.org/wiki/Continuous_integration), deberás instalarlo en tu entorno de CI. 
 
 La autenticación es opcional, pero necesaria si quieres usar funcionalidades del servidor como la <.localized_link href="/guides/features/cache">caché</.localized_link>. Para acortar las ejecuciones de CI y reducir su coste una vez instalado Tuist, consulta [Compilaciones lentas](https://tuist.dev/solutions/slow-builds) y [Costes de CI](https://tuist.dev/solutions/ci-costs).
 
-Las siguientes secciones ofrecen ejemplos de cómo hacerlo en distintas plataformas de CI. Once se conecta a través de su propio proveedor nativo de Tuist; no necesita la CLI de Tuist. Consulta [Once](#once) para ese flujo de trabajo.
+Las siguientes secciones ofrecen ejemplos de cómo hacerlo en distintas plataformas de CI. Struo se conecta a través de su propio proveedor nativo de Tuist; no necesita la CLI de Tuist. Consulta [Struo](#struo) para ese flujo de trabajo.
 
-## Once {#once}
+## Struo {#struo}
 
-Confirma el proveedor y la vinculación de caché desde <.localized_link href="/guides/get-started/once-project">Primeros pasos con Once</.localized_link>. Instala Once en el job siguiendo las [instrucciones de instalación de Once](https://buildonce.dev/docs/guide/getting-started) y autentícate antes de ejecutar trabajos que puedan usar la caché.
+<a id="once"></a>
 
-GitHub Actions, CircleCI y Bitrise admiten el inicio de sesión sin interfaz de OpenID Connect de Once. Conecta el repositorio a tu proyecto de Tuist como se describe en <.localized_link href="/guides/server/authentication#oidc-tokens">Autenticación OIDC</.localized_link>. En GitHub Actions, concede el permiso de token de identidad:
+Confirma el proveedor y la vinculación de caché desde <.localized_link href="/guides/get-started/struo-project">Primeros pasos con Struo</.localized_link>. Instala Struo en el job siguiendo las [instrucciones de instalación de Struo](https://struo.run/docs/guide/getting-started) y autentícate antes de ejecutar trabajos que puedan usar la caché.
+
+GitHub Actions, CircleCI y Bitrise admiten el inicio de sesión sin interfaz de OpenID Connect de Struo. Conecta el repositorio a tu proyecto de Tuist como se describe en <.localized_link href="/guides/server/authentication#oidc-tokens">Autenticación OIDC</.localized_link>. En GitHub Actions, concede el permiso de token de identidad:
 
 ```yaml
 permissions:
@@ -30,17 +32,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: jdx/mise-action@v2
-      # Pin Once in your repository's mise.toml.
-      - run: once auth login --provider tuist --no-browser
-      - run: once build MyTarget
-      - run: once test
+      # Pin Struo in your repository's mise.toml.
+      - run: struo auth login --provider tuist --no-browser
+      - run: struo build MyTarget
+      - run: struo test
 ```
 
-Elige un sistema operativo con las toolchains que requieran tus targets. Sustituye `MyTarget` por tu target y fija Once mediante tu flujo actual de instalación de herramientas. La sesión resultante se reutiliza para acceder a la caché, generar informes y publicar artefactos durante el job.
+Elige un sistema operativo con las toolchains que requieran tus targets. Sustituye `MyTarget` por tu target y fija la versión de Struo mediante tu flujo actual de instalación de herramientas. La sesión resultante se reutiliza para acceder a la caché, generar informes y publicar artefactos durante el job.
 
-En otros proveedores, asigna `TUIST_TOKEN` a un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link> autorizado para las operaciones que necesites. Guárdalo en el almacén de secretos de CI, nunca en `once.toml` ni en el código fuente del flujo de trabajo. No se requiere ningún paso de inicio de sesión interactivo al usar ese token.
+En otros proveedores, asigna a `TUIST_TOKEN` un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link> autorizado para las operaciones que necesites. Guárdalo en el almacén de secretos de CI, nunca en `struo.toml` ni en el código fuente del flujo de trabajo. No se requiere ningún paso de inicio de sesión interactivo al usar ese token.
 
-Para conjuntos de varios workers, sigue <.localized_link href="/guides/features/test-sharding/once">Fragmentación de tests con Once</.localized_link>. Para publicar aplicaciones, añade un paso explícito de <.localized_link href="/guides/features/previews/once">Publicación de previsualizaciones con Once</.localized_link>. Las compilaciones ordinarias no publican previsualizaciones de forma implícita.
+Para suites con varios workers, sigue la guía de <.localized_link href="/guides/features/test-sharding/struo">Sharding de tests con Struo</.localized_link>. Para publicar aplicaciones, añade un paso explícito de <.localized_link href="/guides/features/previews/struo">publicación de previews con Struo</.localized_link>. Las compilaciones ordinarias no publican previews de forma implícita.
 
 ## Ejemplos {#examples}
 
@@ -369,15 +371,15 @@ tuist setup cache
 > [!NOTE]
 > **Autenticación**
 >
-> Crea un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link>, añádelo como variable llamada `TUIST_TOKEN` en un [grupo de variables de entorno](https://docs.appcircle.io/build/build-environment-variables) y selecciona ese grupo en tu configuración de compilación. Marca la variable como secreta con el icono del candado.
+> Crea un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link>, añádelo como variable llamada `TUIST_TOKEN` a un [grupo de variables de entorno](https://docs.appcircle.io/build/build-environment-variables) y selecciona ese grupo en tu configuración de compilación. Marca la variable como secreta con el icono del candado.
 
 ## Formato de salida de xcodebuild {#xcodebuild-output-formatting}
 
-`tuist build`, `tuist test`, `tuist xcodebuild build` y `tuist xcodebuild test` formatean la salida de `xcodebuild` con el formateador de [xcbeautify](https://github.com/cpisciotta/xcbeautify), por lo que no necesitas canalizar estos comandos a través de xcbeautify tú mismo. En GitHub Actions, detectado mediante la variable de entorno `GITHUB_ACTIONS`, Tuist usa el renderizador de GitHub Actions de xcbeautify, que muestra advertencias del compilador, errores y fallos de tests como anotaciones en el resumen de la ejecución y en la pull request. En cualquier otro caso usa el renderizador de terminal, con colores a menos que la salida se canalice o `NO_COLOR` esté definido.
+`tuist build`, `tuist test`, `tuist xcodebuild build` y `tuist xcodebuild test` formatean la salida de `xcodebuild` con el formateador de [xcbeautify](https://github.com/cpisciotta/xcbeautify), por lo que no necesitas canalizar estos comandos a través de xcbeautify tú mismo. En GitHub Actions, detectado mediante la variable de entorno `GITHUB_ACTIONS`, Tuist usa el renderizador de GitHub Actions de xcbeautify, que muestra advertencias del compilador, errores y fallos de tests como anotaciones en el resumen de la ejecución y en la pull request. En cualquier otro caso usa el renderizador de terminal, con color a menos que la salida se canalice o `NO_COLOR` esté definido.
 
 Pasa `--verbose` para imprimir la salida sin formato de `xcodebuild`, por ejemplo cuando una compilación falla sin un error claro.
 
-Si un job llama a `xcodebuild` directamente en lugar de a través de Tuist, canalízalo tú mismo a través de xcbeautify y define `pipefail` para que una compilación fallida siga haciendo fallar el paso:
+Si un job llama a `xcodebuild` directamente en lugar de a través de Tuist, canalízalo tú mismo a través de xcbeautify y establece `pipefail` para que una compilación fallida siga haciendo fallar el paso:
 
 ```bash
 set -o pipefail
@@ -386,7 +388,7 @@ xcodebuild test -scheme App | xcbeautify --renderer github-actions
 
 ## Informe de ejecución {#run-report}
 
-Cuando Tuist sube una ejecución, las URLs del dashboard correspondientes se imprimen en los logs. Para obtenerlas sin analizar los logs —por ejemplo, para publicar el enlace al informe de tests en Slack cuando un job falla, o para alimentar tus propias herramientas con los datos de una ejecución— pasa `--run-report-path` (o define `TUIST_RUN_REPORT_PATH`) a `tuist test`, `tuist xcodebuild test` o `tuist xcodebuild build`. Tuist escribe un informe JSON en esa ruta una vez que la ejecución se ha subido:
+Cuando Tuist sube una ejecución, las URLs del panel para esa ejecución se imprimen en los registros. Para obtenerlas sin analizar los registros —por ejemplo, para publicar el enlace al informe de tests en Slack cuando un job falla, o para alimentar una ejecución en tus propias herramientas— pasa `--run-report-path` (o establece `TUIST_RUN_REPORT_PATH`) a `tuist test`, `tuist xcodebuild test` o `tuist xcodebuild build`. Tuist escribe un informe JSON en esa ruta una vez que la ejecución se ha subido:
 
 ```json
 {
@@ -415,22 +417,22 @@ Cuando Tuist sube una ejecución, las URLs del dashboard correspondientes se imp
 
 | Campo | Tipo | Descripción |
 | - | - | - |
-| `runId` | cadena | Identificador único de la ejecución. |
+| `runId` | cadena | El identificador único de la ejecución. |
 | `status` | cadena | `"success"` o `"failure"`. |
-| `runURL` | cadena | URL del dashboard para la ejecución. Siempre presente. |
-| `testRunURL` | cadena? | URL del dashboard para la ejecución de tests, presente cuando el comando ejecutó tests. |
-| `buildRunURL` | cadena? | URL del dashboard para la ejecución de compilación, presente cuando el comando compiló. |
-| `testRuns` | array | Resultados de tests por esquema: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`, `ranTestModules` y `skippedTestModules`. Los recuentos de tests son casos de test, y `skippedTests` cuenta los que el paquete de resultados indica como omitidos. `skippedTestModules` cuenta los módulos de test que los <.localized_link href="/guides/features/selective-testing">tests selectivos</.localized_link> omitieron, y se omite cuando los tests selectivos no se aplicaron o la ejecución es un fragmento de tests. |
+| `runURL` | cadena | La URL del panel para la ejecución. Siempre presente. |
+| `testRunURL` | cadena? | La URL del panel para la ejecución de tests, presente cuando el comando ejecutó tests. |
+| `buildRunURL` | cadena? | La URL del panel para la ejecución de compilación, presente cuando el comando compiló. |
+| `testRuns` | array | Resultados de tests por esquema: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`, `ranTestModules` y `skippedTestModules`. Los recuentos de tests son casos de test, y `skippedTests` cuenta los que el paquete de resultados informa como omitidos. `skippedTestModules` cuenta los módulos de test que <.localized_link href="/guides/features/selective-testing">tests selectivos</.localized_link> omitió, y se omite cuando los tests selectivos no se aplicaron o la ejecución es un fragmento de test. |
 | `buildRuns` | array | Resultados de compilación por esquema: `scheme`, `succeeded`, `durationInSeconds`. |
 
-`testRunURL` y `buildRunURL` son independientes: un comando que compila y ejecuta tests escribe ambos, algo que los logs no pueden hacer, ya que solo imprimen una URL por ejecución.
+`testRunURL` y `buildRunURL` son independientes: un comando que tanto compila como ejecuta tests escribe ambas, algo que los registros no pueden hacer —solo imprimen una URL por ejecución.
 
 > [!NOTE]
 > **Cuándo se escribe el informe**
 >
-> El informe se escribe solo para las ejecuciones que se suben al servidor, lo cual requiere autenticación y ocurre automáticamente en CI. La ruta se limpia al inicio de cada ejecución, de modo que una ejecución que no genera informe no deja ningún residuo en lugar de uno obsoleto de una ejecución anterior.
+> El informe se escribe solo para las ejecuciones que se suben al servidor, lo cual requiere autenticación y ocurre automáticamente en CI. La ruta se limpia al inicio de cada ejecución, por lo que una ejecución que no produce informe no deja nada detrás en lugar de dejar uno obsoleto de una ejecución anterior.
 
-En GitLab CI, un uso habitual es exponer una URL a jobs posteriores mediante un [informe `dotenv`](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv):
+En GitLab CI, un uso común es exponer una URL a jobs posteriores a través de un informe [`dotenv`](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv):
 
 ```yaml
 test:

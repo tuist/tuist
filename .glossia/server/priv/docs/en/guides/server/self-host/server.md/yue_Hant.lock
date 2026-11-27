@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "21c588b87b46de46ec0a53def92aab072ce052b5fac3c453a1baebae91e192f0",
+  "hash": "c169eb4e38a2449e0e1e60163870635d4c218a893c4dc144737ded6c147160f9",
   "hash_tree": {
     "root": {
       "children": [
@@ -77,7 +77,7 @@
                   "content_hash": "dd02e57aa27a68c38bd0a77cb7929953eea5b4cc80483032e4bb34e41efd1fb1"
                 },
                 "### Base environment configuration {#base-environment-configuration}": {
-                  "content_hash": "13807da80e742e5d3814e9a17ca6811deb8eeca84eef039f607d988ed5442f7e"
+                  "content_hash": "c1a7d7e9e3afc6347e3e9acd73ef26ff2b8186bc5752957dc25ba51e99847939"
                 },
                 "### ClickHouse database {#clickhouse-database}": {
                   "content_hash": "2891c6b7bbf57e56eeb5e861a62158bcfbfaa957930a391eb2247ef313d44b1d"
@@ -169,6 +169,9 @@
                 "#### ClickHouse replication topology {#clickhouse-replication-topology}": {
                   "content_hash": "a57e7bf8a26dc8d084ad2b4b624b9d536d6d83eb2885cbba9b8704e67997057e"
                 },
+                "#### Client addresses behind a reverse proxy {#client-addresses-behind-a-reverse-proxy}": {
+                  "content_hash": "fe8d74e0f37dda15681c45b1f8920a105060f0207e21d41b6824eeec567a9a64"
+                },
                 "#### Connection metrics": {
                   "content_hash": "905c9d1b080dfb32383b140dd1e24f7f4e71707f3f9beebe6ece12975dcd587c"
                 },
@@ -254,11 +257,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "918cd77d2e9b5b85c36492b29c1c8a75c044e968a47e969b921b7fc426132222",
+          "hash": "a3740588b6369e7241a52d00a43b98686a619adaecd5c8a3f6f6fa31616106ee",
           "kind": "source",
           "label": "server/priv/docs/en/guides/server/self-host/server.md",
           "metadata": {
-            "content_hash": "4741d2a7a6d75466390414cc5a0d31fbd670418208bd3dfe59c0a6431755a668"
+            "content_hash": "689a57776accabca1c1cc44e345b360830ed90a30d5bd4ffc8fc1fbbc9023033"
           }
         },
         {
@@ -319,7 +322,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -332,13 +335,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -367,11 +364,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -454,21 +451,21 @@
             }
           ],
           "details": {},
-          "hash": "85fd5374a926a02c886340d00a7f320f99266ccf43056c6109eeca087e64fcd4",
+          "hash": "82339914697d634830aaaf2444d3a988dac912977e6d8b1ea4c6068ded455486",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "21c588b87b46de46ec0a53def92aab072ce052b5fac3c453a1baebae91e192f0",
+      "hash": "c169eb4e38a2449e0e1e60163870635d4c218a893c4dc144737ded6c147160f9",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/server/self-host/server.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "2de14bcded22f2fca9d6980df933128038e271a203356c1795227ae62dae2c5b",
+  "output_hash": "3ec0050082de274b2f3055073919f94b81632b484c16af2b89ff7a44e2cb6366",
   "output_path": "server/priv/docs/yue_Hant/guides/server/self-host/server.md",
   "protection_state": "recorded",
   "provider": "",
@@ -489,8 +486,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "2a3b5068a734c13ff5acd10a9873fd219016dc42",
+  "source_commit_sha": "89e2e75bab1901b4922c74516b8dab0c66af3687",
   "source_path": "server/priv/docs/en/guides/server/self-host/server.md",
-  "translated_at": "2026-11-19T01:27:17.865818Z",
-  "translation_session_id": "01a1f11e-0ed8-7d81-867f-2ee4f5133c32"
+  "translated_at": "2026-11-27T09:18:01.664853Z",
+  "translation_session_id": "01a21c4a-6ad7-7813-abc3-5b84afedb04f"
 }

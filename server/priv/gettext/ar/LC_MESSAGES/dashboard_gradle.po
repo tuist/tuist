@@ -97,7 +97,7 @@ msgstr "تحويلات مخرجات البناء"
 #: lib/tuist_web/live/gradle_build_live.html.heex:672
 #, elixir-autogen, elixir-format
 msgid "Artifact transforms recorded for this build."
-msgstr "تم تسجيل تحويلات المخرجات لهذا البناء."
+msgstr "تحويلات المخرجات المسجلة لهذا البناء."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:329
 #: lib/tuist_web/live/gradle_cache_live.html.heex:399
@@ -118,7 +118,7 @@ msgstr "متوسط وقت البناء"
 #: lib/tuist_web/live/gradle_build_live.html.heex:1046
 #, elixir-autogen, elixir-format
 msgid "Average download throughput in megabits per second."
-msgstr "متوسط معدل التنزيل بالميجابت في الثانية."
+msgstr "متوسط معدل نقل البيانات أثناء التنزيل بالميجابت في الثانية."
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:153
 #, elixir-autogen, elixir-format
@@ -138,7 +138,7 @@ msgstr "متوسط الوقت اللازم لتشغيل الاختبارات خ�
 #: lib/tuist_web/live/gradle_build_live.html.heex:1064
 #, elixir-autogen, elixir-format
 msgid "Average upload throughput in megabits per second."
-msgstr "متوسط معدل الرفع بالميجابت في الثانية."
+msgstr "متوسط معدل نقل البيانات أثناء الرفع بالميجابت في الثانية."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:165
 #: lib/tuist_web/live/mix_builds_live.html.heex:156
@@ -221,7 +221,7 @@ msgstr "عمليات البناء"
 #: lib/tuist_web/live/gradle_build_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "Built at"
-msgstr "تاريخ البناء"
+msgstr "تاريخ الإنشاء"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:141
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:130
@@ -230,7 +230,7 @@ msgstr "تاريخ البناء"
 #: lib/tuist_web/live/mix_builds_live.html.heex:705
 #, elixir-autogen, elixir-format
 msgid "Built by"
-msgstr "بُني بواسطة"
+msgstr "تم الإنشاء بواسطة"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:31
 #: lib/tuist_web/live/gradle_build_runs_live.ex:269
@@ -249,13 +249,13 @@ msgstr "بُني بواسطة"
 #: lib/tuist_web/live/mix_overview_live.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "CI"
-msgstr "التكامل المستمر"
+msgstr "التكامل المستمر (CI)"
 
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:154
 #: lib/tuist_web/live/gradle_cache_live.html.heex:632
 #, elixir-autogen, elixir-format
 msgid "Cache Hit Rate"
-msgstr "معدل الإصابات في ذاكرة التخزين المؤقت"
+msgstr "معدل العثور في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:847
 #, elixir-autogen, elixir-format
@@ -272,7 +272,7 @@ msgstr "تنزيلات ذاكرة التخزين المؤقت"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
-msgstr "تمثل تنزيلات ذاكرة التخزين المؤقت الحجم الإجمالي لمخرجات الذاكرة المخزنة التي تم تنزيلها من التخزين البعيد خلال الفترة المحددة."
+msgstr "تمثل تنزيلات ذاكرة التخزين المؤقت الحجم الإجمالي لمخرجات ذاكرة التخزين المؤقت التي تم تنزيلها من التخزين البعيد خلال الفترة المحددة."
 
 #: lib/tuist_web/live/gradle_cache_live.ex:210
 #: lib/tuist_web/live/gradle_cache_live.html.heex:145
@@ -289,7 +289,7 @@ msgstr "معدل العثور في ذاكرة التخزين المؤقت"
 #: lib/tuist_web/live/gradle_overview_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache rather than being executed."
-msgstr "يمثل معدل العثور في ذاكرة التخزين المؤقت نسبة المهام القابلة للتخزين المؤقت التي تم حلها من الذاكرة بدلاً من تنفيذها."
+msgstr "يمثل معدل العثور في ذاكرة التخزين المؤقت النسبة المئوية للمهام القابلة للتخزين المؤقت التي تم حلها من الذاكرة بدلاً من تنفيذها."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1212
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:107
@@ -307,7 +307,7 @@ msgstr "تحميلات ذاكرة التخزين المؤقت"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
-msgstr "تمثل تحميلات ذاكرة التخزين المؤقت الحجم الإجمالي لمخرجات الذاكرة المخزنة التي تم رفعها إلى التخزين البعيد خلال الفترة المحددة."
+msgstr "تمثل تحميلات ذاكرة التخزين المؤقت الحجم الإجمالي لمخرجات ذاكرة التخزين المؤقت التي تم رفعها إلى التخزين البعيد خلال الفترة المحددة."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:908
 #, elixir-autogen, elixir-format
@@ -353,7 +353,7 @@ msgstr "إلغاء"
 #: lib/tuist_web/live/mix_builds_live.html.heex:701
 #, elixir-autogen, elixir-format
 msgid "Cancelled"
-msgstr "ملغى"
+msgstr "مُلغى"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:167
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:70
@@ -364,7 +364,7 @@ msgstr "التزام"
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
-msgstr "معرف الالتزام (SHA)"
+msgstr "SHA الالتزام"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:378
 #, elixir-autogen, elixir-format
@@ -398,7 +398,7 @@ msgstr "وقت التكوين"
 #: lib/tuist_web/live/gradle_build_live.html.heex:582
 #, elixir-autogen, elixir-format
 msgid "Configured unit"
-msgstr "الوحدة المُهيّأة"
+msgstr "الوحدة المُهيأة"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:62
 #: lib/tuist_web/live/gradle_cache_live.html.heex:93
@@ -410,12 +410,12 @@ msgstr "الوحدة المُهيّأة"
 #: lib/tuist_web/live/mix_overview_live.html.heex:425
 #, elixir-autogen, elixir-format
 msgid "Custom"
-msgstr "مخصّص"
+msgstr "مخصص"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1044
 #, elixir-autogen, elixir-format
 msgid "Download throughput"
-msgstr "معدل نقل التنزيل"
+msgstr "معدل تنزيل البيانات"
 
 #: lib/tuist_web/live/gradle_build_live.ex:577
 #: lib/tuist_web/live/gradle_build_live.ex:617
@@ -496,7 +496,7 @@ msgstr "عمليات البناء الفاشلة"
 #: lib/tuist_web/live/mix_overview_live.html.heex:288
 #, elixir-autogen, elixir-format
 msgid "Failed runs"
-msgstr "التشغيلات الفاشلة"
+msgstr "التنفيذات الفاشلة"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:294
 #: lib/tuist_web/live/gradle_build_live.html.heex:544
@@ -654,7 +654,7 @@ msgstr "محلي"
 #: lib/tuist_web/live/gradle_task_execution_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Local hit"
-msgstr "العثور في ذاكرة التخزين المؤقت محلياً"
+msgstr "عثور محلي في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/gradle_build_live.ex:771
 #: lib/tuist_web/live/gradle_build_live.html.heex:1020
@@ -687,7 +687,7 @@ msgstr "لا توجد مهام قابلة للتخزين المؤقت"
 #: lib/tuist_web/live/gradle_build_live.html.heex:645
 #, elixir-autogen, elixir-format
 msgid "No configuration operations"
-msgstr "لا توجد عمليات تهيئة"
+msgstr "لا توجد عمليات تكوين"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:391
 #: lib/tuist_web/live/gradle_build_live.html.heex:421
@@ -725,12 +725,12 @@ msgstr "لا توجد عمليات بناء حديثة بعد"
 #: lib/tuist_web/live/gradle_build_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "No remote entry"
-msgstr "لا يوجد إدخال عن بُعد"
+msgstr "لا يوجد إدخال بعيد"
 
 #: lib/tuist_web/live/gradle_build_live.ex:802
 #, elixir-autogen, elixir-format
 msgid "No remote entry, then stored"
-msgstr "لا يوجد إدخال عن بُعد، ثم تم التخزين"
+msgstr "لا يوجد إدخال بعيد، ثم تم تخزينه"
 
 #: lib/tuist_web/helpers/gradle_task.ex:20
 #: lib/tuist_web/live/gradle_build_live.ex:730
@@ -768,7 +768,7 @@ msgstr "نظرة عامة"
 #: lib/tuist_web/live/gradle_build_live.ex:814
 #, elixir-autogen, elixir-format
 msgid "Partially invalid"
-msgstr "جزئيًا غير صالح"
+msgstr "صالح جزئيًا"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:120
 #: lib/tuist_web/live/gradle_build_runs_live.ex:231
@@ -777,7 +777,7 @@ msgstr "جزئيًا غير صالح"
 #: lib/tuist_web/live/mix_builds_live.html.heex:691
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "نجح"
+msgstr "ناجح"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:524
 #: lib/tuist_web/live/mix_overview_live.html.heex:463
@@ -850,7 +850,7 @@ msgstr "عن بُعد"
 #: lib/tuist_web/live/gradle_build_live.ex:725
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
-msgstr "تم العثور عن بُعد"
+msgstr "العثور عن بُعد في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:178
 #: lib/tuist_web/live/gradle_build_runs_live.ex:257
@@ -862,7 +862,7 @@ msgstr "المهام المطلوبة"
 #: lib/tuist_web/live/gradle_build_live.ex:811
 #, elixir-autogen, elixir-format
 msgid "Reused"
-msgstr "مُعاد استخدامه"
+msgstr "مُعاد الاستخدام"
 
 #: lib/tuist_web/live/gradle_build_live.ex:563
 #: lib/tuist_web/live/gradle_build_live.html.heex:599
@@ -889,7 +889,7 @@ msgstr "البحث في المشروع..."
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Search..."
-msgstr "البحث..."
+msgstr "بحث..."
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -913,7 +913,7 @@ msgstr "الحجم"
 #: lib/tuist_web/live/gradle_build_live.ex:729
 #, elixir-autogen, elixir-format
 msgid "Skipped"
-msgstr "تم التخطي"
+msgstr "متجاهل"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:250
 #: lib/tuist_web/live/gradle_build_live.html.heex:507
@@ -948,7 +948,7 @@ msgstr "الحالة"
 #: lib/tuist_web/live/gradle_build_live.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "Status of Gradle's configuration cache for this build."
-msgstr "حالة ذاكرة التخزين المؤقت لتكوين Gradle لهذا البناء."
+msgstr "حالة ذاكرة التخزين المؤقت لإعدادات Gradle لهذا البناء."
 
 #: lib/tuist_web/live/gradle_build_live.ex:616
 #: lib/tuist_web/live/gradle_build_live.ex:698
@@ -962,7 +962,7 @@ msgstr "الموضوع"
 #: lib/tuist_web/live/mix_builds_live.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "Successful builds"
-msgstr "عمليات البناء الناجحة"
+msgstr "البناءات الناجحة"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:328
 #, elixir-autogen, elixir-format
@@ -981,12 +981,12 @@ msgstr "مهمة"
 #: lib/tuist_web/live/gradle_build_live.html.heex:853
 #, elixir-autogen, elixir-format
 msgid "Task hits"
-msgstr "مرات العثور على المهمة في ذاكرة التخزين المؤقت"
+msgstr "عثور المهام في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:864
 #, elixir-autogen, elixir-format
 msgid "Task misses"
-msgstr "مرات عدم العثور على المهمة في ذاكرة التخزين المؤقت"
+msgstr "فقدان المهام من ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:219
 #: lib/tuist_web/live/gradle_tasks_live.ex:45
@@ -1011,7 +1011,7 @@ msgstr "الاختبارات"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:454
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "تم الوصول إلى حد 10,000 إدخال، البيانات مُضمَّنة فقط حتى %{date}. جرِّب التصفية لتضييق نطاق مجموعة البيانات."
+msgstr "تم الوصول إلى حد 10,000 إدخال، وتُدرَج البيانات حتى %{date} فقط. جرّب التصفية لتضييق نطاق مجموعة البيانات."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:177
 #: lib/tuist_web/live/mix_builds_live.html.heex:168
@@ -1044,22 +1044,22 @@ msgstr "إجمالي عدد عمليات بناء Gradle."
 #: lib/tuist_web/live/gradle_build_live.html.heex:1219
 #, elixir-autogen, elixir-format
 msgid "This build has no cacheable task data."
-msgstr "لا توجد بيانات مهام قابلة للتخزين المؤقت لعملية البناء هذه."
+msgstr "لا توجد بيانات للمهام القابلة للتخزين المؤقت لعملية البناء هذه."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:358
 #, elixir-autogen, elixir-format
 msgid "This build has no task data."
-msgstr "لا توجد بيانات مهام لعملية البناء هذه."
+msgstr "لا توجد بيانات للمهام لعملية البناء هذه."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Time Gradle spent configuring this build."
-msgstr "الوقت الذي قضاه Gradle في إعداد عملية البناء هذه."
+msgstr "الوقت الذي قضاه Gradle في تهيئة عملية البناء هذه."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Time spent loading a reused configuration cache entry."
-msgstr "الوقت المستغرق لتحميل إدخال مخزن مؤقت لإعادة استخدام الإعداد."
+msgstr "الوقت المستغرق لتحميل إدخال مخبّأ لإعادة استخدام التكوين."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:109
 #: lib/tuist_web/live/mix_builds_live.html.heex:98
@@ -1075,12 +1075,12 @@ msgstr "إجمالي حجم مخرجات ذاكرة التخزين المؤقت 
 #: lib/tuist_web/live/gradle_build_live.html.heex:897
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded to remote cache."
-msgstr "إجمالي حجم مخرجات ذاكرة التخزين المؤقت التي تم رفعها إلى ذاكرة التخزين المؤقت البعيدة."
+msgstr "إجمالي حجم مخرجات ذاكرة التخزين المؤقت التي تم تحميلها إلى ذاكرة التخزين المؤقت البعيدة."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:680
 #, elixir-autogen, elixir-format
 msgid "Total time spent in recorded artifact transforms."
-msgstr "إجمالي الوقت المستغرق في تحويلات المخرجات المسجلة."
+msgstr "إجمالي الوقت المستغرق في تحويلات المخرجات المسجّلة."
 
 #: lib/tuist_web/live/gradle_build_live.ex:614
 #: lib/tuist_web/live/gradle_build_live.ex:682
@@ -1104,12 +1104,12 @@ msgstr "التحويلات"
 #: lib/tuist_web/live/gradle_build_live.html.heex:826
 #, elixir-autogen, elixir-format
 msgid "Try adjusting your search or filters."
-msgstr "جرّب تعديل بحثك أو عوامل التصفية."
+msgstr "جرّب تعديل بحثك أو فلاترك."
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Tuist documentation"
-msgstr "وثائق Tuist"
+msgstr "توثيق Tuist"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:499
 #: lib/tuist_web/live/mix_builds_live.html.heex:465
@@ -1156,7 +1156,7 @@ msgstr "عرض المزيد"
 #: lib/tuist_web/live/gradle_build_live.html.heex:1209
 #, elixir-autogen, elixir-format
 msgid "Why it missed"
-msgstr "سبب عدم العثور في ذاكرة التخزين المؤقت"
+msgstr "سبب عدم التطابق"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
@@ -1236,7 +1236,7 @@ msgstr "منذ الشهر الماضي"
 #: lib/tuist_web/live/gradle_tasks_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "منذ الفترة الماضية"
+msgstr "منذ الفترة السابقة"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:35
 #: lib/tuist_web/live/gradle_builds_live.ex:189
@@ -1272,12 +1272,12 @@ msgstr "منذ الأمس"
 #: lib/tuist_web/live/gradle_build_live.html.heex:1213
 #, elixir-autogen, elixir-format
 msgid "—"
-msgstr "—"
+msgstr "-"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Analytics could not be loaded"
-msgstr "لم يتمكّن من تحميل التحليلات"
+msgstr "لم يتمكّن التحليلات من التحميل"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:513
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:345
@@ -1290,7 +1290,7 @@ msgstr "الوقت التراكمي"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:300
 #, elixir-autogen, elixir-format
 msgid "Executions"
-msgstr "عمليات التنفيذ"
+msgstr "التنفيذات"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:93
 #, elixir-autogen, elixir-format
@@ -1320,22 +1320,22 @@ msgstr "البحث حسب المسار"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Showing the 10,000 entities with the most execution time. Narrow the filters to see more."
-msgstr "عرض الكيانات الـ 10,000 ذات أطول وقت تنفيذ. ضيّق نطاق الفلاتر لعرض المزيد."
+msgstr "عرض الكيانات الـ 10,000 ذات أطول زمن تنفيذ. ضيّق الفلاتر لعرض المزيد."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:356
 #, elixir-autogen, elixir-format
 msgid "Tasks that ran instead of reusing outputs."
-msgstr "المهام التي تم تشغيلها بدلاً من إعادة استخدام المخرجات."
+msgstr "المهام التي نُفِّذت بدلاً من إعادة استخدام المخرجات."
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:279
 #, elixir-autogen, elixir-format
 msgid "Try a different date range or adjust the filters."
-msgstr "جرّب نطاقاً تاريخياً مختلفاً أو اضبط الفلاتر."
+msgstr "جرّب نطاقاً تاريخياً مختلفاً أو عدّل الفلاتر."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "Distinct tasks observed in matching builds. Each chart point counts distinct tasks in that interval."
-msgstr "مهام مميزة رُصدت في عمليات البناء المطابقة. تحسب كل نقطة في الرسم البياني عدد المهام المميزة خلال تلك الفترة."
+msgstr "مهام مميزة رُصدت في البنيات المطابقة. كل نقطة في الرسم البياني تحسب المهام المميزة في تلك الفترة."
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:198
 #, elixir-autogen, elixir-format
@@ -1346,7 +1346,7 @@ msgstr "لا توجد بيانات في هذه الفترة"
 #: lib/tuist_web/live/gradle_tasks_live.ex:523
 #, elixir-autogen, elixir-format
 msgid "Not cacheable"
-msgstr "غير قابل للتخزين المؤقت"
+msgstr "غير قابلة للتخزين المؤقت"
 
 #: lib/tuist_web/live/gradle_task_execution_live.ex:57
 #: lib/tuist_web/live/gradle_tasks_live.ex:524
@@ -1362,23 +1362,23 @@ msgstr "المدة الزمنية عند النسبة المئوية الخمس�
 #: lib/tuist_web/live/gradle_tasks_live.ex:518
 #, elixir-autogen, elixir-format
 msgid "p90 duration"
-msgstr "المدة عند النسبة المئوية 90"
+msgstr "المدة الزمنية عند النسبة المئوية 90"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:519
 #, elixir-autogen, elixir-format
 msgid "p99 duration"
-msgstr "المدة عند النسبة المئوية 99"
+msgstr "المدة الزمنية عند النسبة المئوية 99"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:515
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:308
 #, elixir-autogen, elixir-format
 msgid "Misses"
-msgstr "عدم العثور في ذاكرة التخزين المؤقت"
+msgstr "فقدان الذاكرة المؤقتة"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "Task duration percentile across executions in the selected period."
-msgstr "النسبة المئوية لمدة المهمة عبر عمليات التنفيذ خلال الفترة المحددة."
+msgstr "النسبة المئوية لمدة المهمة عبر عمليات التنفيذ في الفترة المحددة."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:379
 #, elixir-autogen, elixir-format
@@ -1398,7 +1398,7 @@ msgstr "مدة المهمة عند النسبة المئوية 99"
 #: lib/tuist_web/live/gradle_tasks_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Average task duration across executions in the selected period."
-msgstr "متوسط مدة المهمة عبر عمليات التنفيذ خلال الفترة المحددة."
+msgstr "متوسط مدة المهمة عبر عمليات التنفيذ في الفترة المحددة."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:377
 #, elixir-autogen, elixir-format
@@ -1418,7 +1418,7 @@ msgstr "عمليات تنفيذ المهمة"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:478
 #, elixir-autogen, elixir-format
 msgid "Try updating your search"
-msgstr "حاول تحديث بحثك"
+msgstr "جرّب تحديث بحثك"
 
 #: lib/tuist_web/helpers/gradle_task.ex:17
 #, elixir-autogen, elixir-format
@@ -1433,22 +1433,22 @@ msgstr "%{change} نقطة مئوية"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate does not apply to this task."
-msgstr "معدل العثور في ذاكرة التخزين المؤقت لا ينطبق على هذه المهمة."
+msgstr "لا ينطبق معدل العثور في ذاكرة التخزين المؤقت على هذه المهمة."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Remote cache hits divided by hits and confirmed misses. Local cache hits and up-to-date tasks are excluded."
-msgstr "عدد مرات العثور في ذاكرة التخزين المؤقت البعيدة مقسومًا على مجموع مرات العثور وفقدان الذاكرة المؤكد. يتم استبعاد حالات العثور في ذاكرة التخزين المؤقت المحلية والمهام المحدثة."
+msgstr "العثور في ذاكرة التخزين المؤقت البعيدة مقسومًا على مجموع حالات العثور وحالات الفشل المؤكدة. لا تُحتسب حالات العثور في ذاكرة التخزين المؤقت المحلية والمهام المحدثة."
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "These builds did not report enough cache information to calculate a hit rate."
-msgstr "لم تُبلغ هذه البناءات معلومات كافية عن ذاكرة التخزين المؤقت لحساب معدل العثور."
+msgstr "لم تُبلغ عمليات البناء هذه معلومات كافية عن ذاكرة التخزين المؤقت لحساب معدل العثور فيها."
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "Artifact size"
-msgstr "حجم المخرج"
+msgstr "حجم المخرجات"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:79
 #, elixir-autogen, elixir-format
@@ -1474,12 +1474,12 @@ msgstr "تفاصيل التنفيذ"
 #: lib/tuist_web/live/gradle_task_execution_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Hit"
-msgstr "عثور"
+msgstr "تم العثور عليه"
 
 #: lib/tuist_web/live/gradle_task_execution_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Miss"
-msgstr "عدم العثور"
+msgstr "لم يتم العثور عليه"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:97
 #, elixir-autogen, elixir-format
@@ -1521,23 +1521,23 @@ msgstr "العثور في ذاكرة التخزين المؤقت"
 #: lib/tuist_web/live/mix_builds_live.html.heex:100
 #, elixir-autogen, elixir-format
 msgid "The total number of mix compile runs."
-msgstr "إجمالي عدد عمليات تجميع Mix."
+msgstr "إجمالي عدد عمليات تشغيل ترجمة mix."
 
 #: lib/tuist_web/components/build_health.ex:49
 #: lib/tuist_web/live/gradle_build_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Not reported"
-msgstr "غير مُبلَّغ عنه"
+msgstr "غير مُبلَّغ عنها"
 
 #: lib/tuist_web/components/build_health.ex:34
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved. Only builds with a reported estimate are included."
-msgstr "الوقت المقدَّر لتنفيذ المهام الذي تم توفيره بفضل العثور في ذاكرة التخزين المؤقت. يمكن أن تتداخل المهام المتوازية، لذا فهذا لا يمثل الوقت المنقضي الفعلي الذي تم توفيره أثناء البناء. تُضمَّن فقط عمليات البناء التي لديها تقدير مُبلَّغ عنه."
+msgstr "الوقت التقديري المُوفَّر لتنفيذ المهام بفضل العثور في ذاكرة التخزين المؤقت. يمكن للمهام المتوازية أن تتداخل، لذا لا يمثل هذا الوقت المنقضي المُوفَّر أثناء البناء. تُدرَج فقط عمليات البناء التي تحتوي على تقدير مُبلَّغ عنه."
 
 #: lib/tuist_web/components/build_health.ex:133
 #, elixir-autogen, elixir-format
 msgid "No task time estimates reported for this period."
-msgstr "لا توجد تقديرات لوقت المهام مُبلَّغ عنها لهذه الفترة."
+msgstr "لا توجد تقديرات لوقت المهام مُبلَّغة عن هذه الفترة."
 
 #: lib/tuist_web/components/build_health.ex:31
 #: lib/tuist_web/components/build_health.ex:112
@@ -1549,7 +1549,7 @@ msgstr "إجمالي وقت المهام المُوفَّر"
 #: lib/tuist_web/live/gradle_build_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved."
-msgstr "الوقت المقدَّر لتنفيذ المهام الذي تم توفيره بفضل العثور في ذاكرة التخزين المؤقت. يمكن أن تتداخل المهام المتوازية، لذا فهذا لا يمثل الوقت المنقضي الفعلي الذي تم توفيره أثناء البناء."
+msgstr "الوقت التقديري المُوفَّر لتنفيذ المهام بفضل العثور في ذاكرة التخزين المؤقت. يمكن للمهام المتوازية أن تتداخل، لذا لا يمثل هذا الوقت المنقضي المُوفَّر أثناء البناء."
 
 #: lib/tuist_web/components/build_health.ex:66
 #, elixir-autogen, elixir-format

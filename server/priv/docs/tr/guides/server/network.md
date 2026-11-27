@@ -11,7 +11,7 @@ Bu sayfa, Tuist'i altyapınızla entegre ederken gerekebilecek ağ ile ilgili ya
 
 ## Giden IP adresleri {#outbound-ip-addresses}
 
-Altyapınız gelen trafiği IP adresine göre kısıtlıyorsa, Tuist tarafından kullanılan IP aralıklarını izin listesine eklemeniz gerekebilir. Bu durum, Tuist'in güvenlik duvarı veya VPN arkasındaki hizmetlerle (örneğin kendi kendine barındırılan Git sağlayıcıları veya yapıt depolama) iletişim kurması gerektiğinde veya GitHub kuruluşunuz [IP izin listeleri](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) kullandığında yaygındır.
+Altyapınız gelen trafiği IP adresine göre kısıtlıyorsa, Tuist tarafından kullanılan IP aralıklarını izin listesine eklemeniz gerekebilir. Bu durum, Tuist'in güvenlik duvarı veya VPN arkasındaki hizmetlerle (kendi barındırdığınız Git sağlayıcıları veya yapıt depolama gibi) iletişim kurması gerektiğinde veya GitHub kuruluşunuzun [IP izin listelerini](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) kullandığında yaygındır.
 
 Tuist entegrasyonları için sunucu adreslerini ve iş akışlarınızın kullandığı her platform için çalıştırıcı adreslerini izin listesine ekleyin.
 
@@ -26,9 +26,9 @@ Tuist hizmetlerinden ve entegrasyonlarından gelen bağlantılar için her iki a
 
 Tuist, altyapınıza yalnızca HTTPS üzerinden bağlanır; bu nedenle bu adreslerden yalnızca HTTPS trafiğine (TCP port 443 veya HTTPS uç noktanızın dinlediği port) izin vermeniz yeterlidir. Tuist'in SSH erişimine ihtiyacı yoktur.
 
-### Tuist Runners {#tuist-runners}
+### Tuist Çalıştırıcıları {#tuist-runners}
 
-<.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> üzerinde çalışan işler aşağıdaki giden adresleri kullanır. Bir işin, örneğin IP izin listesine sahip bir GitHub kuruluşundan bir depo çekmek gibi, trafiği IP adresine göre kısıtlayan altyapıya erişmesi gerekiyorsa, iş akışlarınızın çalıştığı her platform için adresleri veya aralıkları izin listesine ekleyin.
+<.localized_link href="/guides/features/runners">Tuist Çalıştırıcıları</.localized_link> üzerinde çalışan işler aşağıdaki giden adresleri kullanır. Bir işin, IP adresine göre trafiği kısıtlayan bir altyapıya erişmesi gerekiyorsa (örneğin, IP izin listesi olan bir GitHub kuruluşundan bir depoyu çekmek için), iş akışlarınızın çalıştığı her platform için adresleri veya aralıkları izin listesine ekleyin.
 
 #### macOS {#tuist-runners-macos}
 

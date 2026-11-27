@@ -6,12 +6,12 @@ Puedes adjuntar metadatos a las compilaciones mediante variables de entorno para
 
 | Variable | Formato | Descripción |
 |----------|--------|-------------|
-| `TUIST_BUILD_TAGS` | Separados por comas | Varias etiquetas en una sola variable. |
+| `TUIST_BUILD_TAGS` | Separado por comas | Varias etiquetas en una sola variable. |
 | `TUIST_BUILD_VALUE_*` | Valor único | Par clave-valor donde el sufijo es la clave. |
 
 ### Ejemplos
 
-Establece estos valores en tu CI o en tu shell antes de invocar tu compilación:
+Establece estos valores en tu CI o en tu shell antes de invocar la compilación:
 
 ```sh
 export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"

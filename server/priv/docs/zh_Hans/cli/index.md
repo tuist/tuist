@@ -7,9 +7,9 @@
 ---
 # CLI {#cli}
 
-Tuist CLI 是与 Tuist 交互的接口之一，如果你使用<.localized_link href="/guides/features/projects">生成项目</.localized_link>，它也是最常用的接口。它提供了用于生成项目、缓存二进制文件、运行测试、共享预览等命令。
+Tuist CLI 是与 Tuist 交互的接口之一，如果你使用<.localized_link href="/guides/features/projects">生成的项目</.localized_link>，它是最常用的接口。它提供了用于生成项目、缓存二进制文件、运行测试、共享预览等命令。
 
-## 入门指南 {#getting-started}
+## 快速入门 {#getting-started}
 
 如果你尚未安装 Tuist，请按照<.localized_link href="/guides/install-tuist">安装指南</.localized_link>开始使用。
 

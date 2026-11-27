@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "4b498c1550c44df456967cd6f4b6111990f39055e9bc6ed3e8876f44bd32eb2a",
+  "hash": "d4e7539d18895d2dd23cc67aa336521380890aab600d29649758aad391ad0c23",
   "hash_tree": {
     "root": {
       "children": [
@@ -29,10 +29,10 @@
                   "content_hash": "06eef71c229bc0a5e527b6e4c89db2a8c40b9368eb37c1652f1e9f629e3ec257"
                 },
                 "### Complete and incomplete commits {#commit-status}": {
-                  "content_hash": "1581a981a9af47e8a192ed278b176d849a2766ce2224920f80b09f8d9b96c169"
+                  "content_hash": "15c5177269783a1f0cd5379373d3d7dd777505010168e990387f053aa76e3327"
                 },
                 "### Complete each commit on CI {#complete-each-commit}": {
-                  "content_hash": "ba3eccefcc4af72e22a4274cfbfce8f9fe828283bdbeafcc54dcf5bdbe433a11"
+                  "content_hash": "be52fb5c90c21477c921df48922abc354a1b244ac7f7a7615a6514202f0505ad"
                 },
                 "### Sharded runs {#sharded-runs}": {
                   "content_hash": "38c4595c1d62d81cf28054c66d2b26fb6b7a6628887a8d7a968ea095d489bda9"
@@ -41,7 +41,10 @@
                   "content_hash": "e25cc471e1700d798fc27982b912146c536e5339f247de66dc58fd61ccc73f34"
                 },
                 "### Turn coverage on {#turn-coverage-on}": {
-                  "content_hash": "fb344ab8efe9207351f2e402e2e8c74e9ac2fb818ccbf69637c9b7ab37b8e6e5"
+                  "content_hash": "ad189a9ea2a4547119b6f7eb87368b91cc3e6dbe6bf7798a5bc75e092ebee8ec"
+                },
+                "### Uncommitted changes {#uncommitted-changes}": {
+                  "content_hash": "6974d1b0078e0f643d79d57eeeb4e85fbe54d17df59e49f1f2cf5857a528ecd4"
                 },
                 "### What Tuist measures {#what-tuist-measures}": {
                   "content_hash": "047e2e6a85ee332f4fd74c3f36f3c9c6faafa2bdd194e385edbb80f6f62df213"
@@ -53,11 +56,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "00e9e9bcd17570f119153e70347ae16767ecdcf2dc213233d26eeb22eb05c2e2",
+          "hash": "8e7004cd9543cb6547b4b20e753b6e336ce2e24c2cdc831e6a78dea29ef14fa7",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-code-coverage/rust.md",
           "metadata": {
-            "content_hash": "245e1731cdad91bbec18f8330c3eec17bd9df4bdce785bf08b78a79c88f70740"
+            "content_hash": "3acce01c8a399223ac4e47b7ae20aef7fe21a6f39af809ca5196cc1263e1b316"
           }
         },
         {
@@ -118,7 +121,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -131,13 +134,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -166,11 +163,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -253,21 +250,21 @@
             }
           ],
           "details": {},
-          "hash": "bb871d4ba07f607d010d17a71ca5482f0c7dbac2126064b6093c5491c9a0fb6c",
+          "hash": "b099d31b5cb45531c0a6c00e0303960836523f54e1130a8b40324e52412d713e",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "4b498c1550c44df456967cd6f4b6111990f39055e9bc6ed3e8876f44bd32eb2a",
+      "hash": "d4e7539d18895d2dd23cc67aa336521380890aab600d29649758aad391ad0c23",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage/rust.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "1e03c78876e5f7e92ee2c78d087f81d8e466ed6e8882ccfa8492710cfa3b6c53",
+  "output_hash": "4c8bbb90a3a037d414ce48719b351db97b667466966261512c27a3c7f8c124b5",
   "output_path": "server/priv/docs/ka/guides/features/test-code-coverage/rust.md",
   "protection_state": "recorded",
   "provider": "",
@@ -288,8 +285,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "b5d17d43352ec9d4ea0d7947a61d6541f493b2cd",
+  "source_commit_sha": "f7a130066e7c84375b6beeb8b41a06499daeecdb",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage/rust.md",
-  "translated_at": "2026-11-19T01:57:37.115476Z",
-  "translation_session_id": "01a1f180-f957-70ca-9cdd-c7271ab871ce"
+  "translated_at": "2026-11-25T13:18:02.579142Z",
+  "translation_session_id": "01a212d7-ff3d-7bca-9928-be88c2589034"
 }

@@ -11,8 +11,8 @@
 msgid ""
 msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/docs_live.ex:181
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1096
+#: lib/tuist_web/live/docs_live.ex:186
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1123
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr "გვერდი ვერ მოიძებნა"
@@ -22,7 +22,7 @@ msgstr "გვერდი ვერ მოიძებნა"
 #: lib/tuist_web/controllers/build_controller.ex:60
 #: lib/tuist_web/controllers/build_controller.ex:113
 #: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:21
-#: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:25
+#: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:31
 #, elixir-autogen, elixir-format
 msgid "Build not found"
 msgstr "ბილდი ვერ მოიძებნა"

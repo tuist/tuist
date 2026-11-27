@@ -1,4 +1,4 @@
-Kayıt defteri tanımlayıcısı her zaman `{organization}.{repository}` biçimindedir. Örneğin, `swift-composable-architecture` paketi için kayıt defterini kullanmak üzere aşağıdakileri yapın:
+Kayıt defteri tanımlayıcısı her zaman `{organization}.{repository}` biçimindedir. Örneğin, `swift-composable-architecture` paketinin kayıt defterini kullanmak için aşağıdakileri yapın:
 
 ```diff
 dependencies: [

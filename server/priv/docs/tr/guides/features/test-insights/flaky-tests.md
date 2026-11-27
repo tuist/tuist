@@ -1,23 +1,23 @@
 ---
 {
   "title": "Kararsız Testler",
-  "titleTemplate": ":title · Test İçgörüler · Özellikler · Kılavuzlar · Tuist",
-  "description": "CI hatlarınızda kararsız testleri otomatik olarak algılayın ve izleyin."
+  "titleTemplate": ":title · Test İçgörüleri · Özellikler · Kılavuzlar · Tuist",
+  "description": "CI hatlarınızda kararsız testleri otomatik olarak tespit edin ve izleyin."
 }
 ---
 # Kararsız Testler {#flaky-tests}
 
-Kararsız testler, aynı kodla birden fazla kez çalıştırıldığında farklı sonuçlar (başarılı veya başarısız) üreten testlerdir. Test paketinize olan güveni zedeler ve geliştiricilerin sahte hataları araştırması için zaman kaybına neden olur. Tuist, kararsız testleri otomatik olarak algılar ve bunları zaman içinde takip etmenize yardımcı olur. Bir ekip olarak bunları nasıl araştıracağınız ve kontrol altına alacağınız hakkında bilgi için [Kararsız testler](https://tuist.dev/solutions/flaky-tests) sayfasına bakın. Yaygın nedenler ve kararsızlığın nasıl ölçüleceği konusunda araçtan bağımsız bir açıklama için <.localized_link href="/references/concepts/flaky-test">Kararsız test nedir?</.localized_link> sayfasına bakın.
+Kararsız testler, aynı kodla birden çok kez çalıştırıldığında farklı sonuçlar (başarılı veya başarısız) üreten testlerdir. Test paketinize olan güveni zedeler ve geliştiricilerin sahte hataları araştırması için zaman kaybına neden olur. Tuist, kararsız testleri otomatik olarak algılar ve bunları zaman içinde takip etmenize yardımcı olur. Bir ekip olarak bunları nasıl araştıracağınızı ve sınırlayacağınız hakkında bilgi edinmek için [Kararsız testler](https://tuist.dev/solutions/flaky-tests) sayfasına bakın. Yaygın nedenlerin ve kararsızlığın nasıl ölçüleceğinin araçtan bağımsız bir açıklaması için <.localized_link href="/references/concepts/flaky-test">Kararsız test nedir?</.localized_link> sayfasına bakın.
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="tuist xcodebuild test aracılığıyla Xcode projelerindeki kararsız testleri algılayın, yönetin ve karantinaya alın."
+    details="tuist xcodebuild test komutuyla Xcode projelerindeki kararsız testleri algılayın, yönetin ve karantinaya alın."
     link="/guides/features/test-insights/flaky-tests/xcode"
 />
   <.home_card
     title="Oluşturulan projeler"
-    details="tuist test aracılığıyla Tuist tarafından oluşturulan projelerdeki kararsız testleri algılayın, yönetin ve karantinaya alın."
+    details="tuist test komutuyla Tuist tarafından oluşturulan projelerdeki kararsız testleri algılayın, yönetin ve karantinaya alın."
     link="/guides/features/test-insights/flaky-tests/generated-xcode-project"
 />
   <.home_card
@@ -27,12 +27,12 @@ Kararsız testler, aynı kodla birden fazla kez çalıştırıldığında farkl�
 />
   <.home_card
     title="Bazel"
-    details="tuist bazel test aracılığıyla kararsız Bazel test senaryolarını algılayın, sessize alın ve atlayın."
+    details="tuist bazel test komutu aracılığıyla kararsız Bazel test durumlarını algılayın, sessize alın ve atlayın."
     link="/guides/features/test-insights/flaky-tests/bazel"
 />
   <.home_card
     title="Elixir"
-    details="Test yeniden denemeleri ile Elixir projelerindeki kararsız testleri algılayın ve yönetin."
+    details="Test yeniden denemeleriyle Elixir projelerindeki kararsız testleri algılayın ve yönetin."
     link="/guides/features/test-insights/flaky-tests/elixir"
 />
   <.home_card
@@ -41,8 +41,8 @@ Kararsız testler, aynı kodla birden fazla kez çalıştırıldığında farkl�
     link="/guides/features/test-insights/flaky-tests/rust"
 />
   <.home_card
-    title="Once"
+    title="Struo"
     details="Bildirilen yeniden deneme girişimleri ve CI geçmişi üzerinden tutarsız test sonuçlarını inceleyin."
-    link="/guides/features/test-insights/flaky-tests/once"
+    link="/guides/features/test-insights/flaky-tests/struo"
 />
 </.home_cards>

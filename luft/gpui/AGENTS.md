@@ -158,8 +158,4 @@ gpui's `runtime_shaders` feature so the Metal toolchain is not required.
 
 - Development builds keep the updater public key and package-kind files empty.
   Release staging stamps them before Struo builds; keep them declared source
-  inputs. Never embed a private key or use PR-writable caches for signed releases.
-- Keep the Cargo package standalone (its own `[workspace]`), so the monorepo's
-  other Cargo projects are never resolved here.
-- Do not switch to building with plain Cargo to work around Struo failures; fix
-  the Struo graph instead.
+  inputs. Never embe

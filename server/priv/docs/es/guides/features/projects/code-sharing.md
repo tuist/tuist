@@ -1,23 +1,23 @@
 ---
 {
-  "title": "Compartición de código",
+  "title": "Compartir código",
   "titleTemplate": ":title · Proyectos · Funcionalidades · Guías · Tuist",
   "description": "Aprende a compartir código entre archivos de manifiesto para reducir duplicaciones y garantizar la coherencia"
 }
 ---
 # Compartir código {#code-sharing}
 
-Una de las incomodidades de Xcode al usarlo con proyectos grandes es que no permite reutilizar elementos del proyecto aparte de la configuración de compilación mediante archivos `.xcconfig`. Poder reutilizar definiciones de proyecto es útil por las siguientes razones:
+Uno de los inconvenientes de Xcode al usarlo con proyectos grandes es que no permite reutilizar elementos de los proyectos, salvo la configuración de compilación a través de archivos `.xcconfig`. Poder reutilizar las definiciones del proyecto resulta útil por las siguientes razones:
 
 - Facilita el **mantenimiento** porque los cambios se pueden aplicar en un solo lugar y todos los proyectos reciben los cambios automáticamente.
 - Permite definir **convenciones** a las que pueden ajustarse los nuevos proyectos.
-- Los proyectos son más **consistentes** y, por lo tanto, la probabilidad de compilaciones rotas debido a inconsistencias es significativamente menor.
+- Los proyectos son más **consistentes** y, por lo tanto, la probabilidad de que las compilaciones fallen debido a inconsistencias es significativamente menor.
 - Agregar nuevos proyectos se convierte en una tarea sencilla porque podemos reutilizar la lógica existente.
 
 Reutilizar código entre archivos de manifiesto es posible en Tuist gracias al concepto de **project description helpers**.
 
 > [!TIP]
-> **Un activo exclusivo de Tuist**
+> **Una ventaja exclusiva de Tuist**
 >
 > A muchas organizaciones les gusta Tuist porque ven en los project description helpers una plataforma para que los equipos de plataforma codifiquen sus propias convenciones y desarrollen su propio lenguaje para describir sus proyectos. Por ejemplo, los generadores de proyectos basados en YAML tienen que crear su propia solución de plantillas propietaria basada en YAML o forzar a las organizaciones a construir sus herramientas sobre ella.
 
@@ -36,12 +36,12 @@ import ProjectDescriptionHelpers
 
 `ProjectDescriptionHelpers` están disponibles en los siguientes manifiestos:
 - `Project.swift`
-- `Package.swift` (solo detrás de la bandera de compilador `#TUIST`)
+- `Package.swift` (solo tras la bandera de compilación `#TUIST`)
 - `Workspace.swift`
 
 ## Ejemplo {#example}
 
-Los fragmentos siguientes contienen un ejemplo de cómo extendemos el modelo `Project` para añadir constructores estáticos y cómo los usamos desde un archivo `Project.swift`:
+Los fragmentos siguientes muestran un ejemplo de cómo ampliamos el modelo `Project` para añadir constructores estáticos y cómo los usamos desde un archivo `Project.swift`:
 
 ::: code-group
 ```swift [Tuist/Project+Templates.swift]
@@ -90,4 +90,4 @@ let project = Project.featureFramework(name: "MyFeature")
 > [!TIP]
 > **Una herramienta para establecer convenciones**
 >
-> Observa cómo a través de la función estamos definiendo convenciones sobre el nombre de los targets, el identificador de bundle y la estructura de carpetas.
+> Fíjate cómo, a través de la función, estamos definiendo convenciones sobre el nombre de los targets, el identificador de bundle y la estructura de carpetas.

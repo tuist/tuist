@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "6180ffee95e6b95c5b86c7f49f93fa85f7e6dec314846c000c1e83a3dd7d34c5",
+  "hash": "bfdbb17cdf0f41095450294a039478e61ac6fe4e32d0378fab1594ee700f19dc",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# API {#api}": {
-                  "content_hash": "ee4758d5d96024c44a9fa140363e71b8f140f70c3539e48b7978d6ceb1646628"
+                  "content_hash": "8ae77e7f0b93ebbfd8fe5f3a8b6ef8349b54ca4162af708d9d69bb8a35cad5bf"
                 },
                 "## Caching and trust {#trust}": {
                   "content_hash": "c251e6350966c681aa9119e42460fa6f4b32976de34fb9b8452fcf7c002eeb3a"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "2de8a7c6667b21700dbd11ba1cb29c9707dab3e695356d65f0baeac216c137d9",
+          "hash": "648159e3e7bfc3f7236cbc5d2165d5b220867251a0bd1236d3a05a1cbd1c1aa2",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/ci-providers/api.md",
           "metadata": {
-            "content_hash": "ba261abcca8ea7a68758082b821e2dc117cebd2f437a1b8dcd0ce985866a7957"
+            "content_hash": "1871128513476240a4e2fa3a7c6c695fc0413b811d72fff35fb7bd1a8a57622e"
           }
         },
         {
@@ -103,7 +103,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -116,13 +116,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -151,11 +145,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -232,21 +226,21 @@
             }
           ],
           "details": {},
-          "hash": "81cc576c718a2815eb86e77ccc816e2ff36051405d24ccbe5fe06c2b30763409",
+          "hash": "1ec4234877a132b1584aa64feb7983fc76007b038fcac47a8dad1d308a779746",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "6180ffee95e6b95c5b86c7f49f93fa85f7e6dec314846c000c1e83a3dd7d34c5",
+      "hash": "bfdbb17cdf0f41095450294a039478e61ac6fe4e32d0378fab1594ee700f19dc",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/ci-providers/api.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "7c9d2b9fbe1915431e9a44c6f17ee66f7995cbf4ddf689f67159164165ca1e1e",
+  "output_hash": "417f9d81acb0c144f84448c85fba8be2adee7cb553d57cd144d58181dbeb30ba",
   "output_path": "server/priv/docs/ja/guides/features/runners/ci-providers/api.md",
   "protection_state": "recorded",
   "provider": "",
@@ -266,8 +260,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8d4e08dcf051ab2b7e244b180b46d91e841207e7",
+  "source_commit_sha": "b8555c38b38b06097bb039927ff09f5e43d2768b",
   "source_path": "server/priv/docs/en/guides/features/runners/ci-providers/api.md",
-  "translated_at": "2026-11-18T22:22:26.665276Z",
-  "translation_session_id": "01a1f0be-0914-7938-a78a-2b2186aa9559"
+  "translated_at": "2026-11-24T16:47:03.199093Z",
+  "translation_session_id": "01a20e70-9654-7b34-acb1-e4dffd01b038"
 }

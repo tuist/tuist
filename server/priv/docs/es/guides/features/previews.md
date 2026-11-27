@@ -2,20 +2,20 @@
 {
   "title": "Previews",
   "titleTemplate": ":title · Funcionalidades · Guías · Tuist",
-  "description": "Comparte aplicaciones móviles, de escritorio y herramientas de línea de comandos con Tuist Previews para que tus compañeros puedan probar una compilación sin tener que compilarla localmente."
+  "description": "Comparte apps móviles, apps de escritorio y herramientas de línea de comandos con Tuist Previews para que tus compañeros puedan probar una compilación sin tener que compilarla localmente."
 }
 ---
 # Previews {#previews}
 
-Tuist Previews permite que tus compañeros prueben aplicaciones móviles, de escritorio y herramientas de línea de comandos sin tener que recompilarlas localmente. Publica una compilación en tu proyecto de Tuist y comparte su enlace de vista previa.
+Tuist Previews permite que tus compañeros prueben aplicaciones móviles, de escritorio y herramientas de línea de comandos sin necesidad de compilarlas localmente. Publica una compilación en tu proyecto de Tuist y comparte el enlace de la vista previa.
 
 ## Qué puedes previsualizar {#what-you-can-preview}
 
-- **Aplicaciones móviles:** APKs de Android y paquetes de aplicación de Apple o IPAs. Los dispositivos compatibles, los simuladores y los requisitos de firma dependen del flujo de publicación.
+- **Aplicaciones móviles:** APKs de Android y paquetes de aplicación de Apple o IPAs. Los dispositivos compatibles, simuladores y requisitos de firma dependen del flujo de publicación.
 - **Aplicaciones de escritorio:** Paquetes de aplicación de macOS.
 - **Herramientas de línea de comandos:** Ejecutables de macOS o Linux, por sí solos o empaquetados con sus dependencias.
 
-Consulta <.localized_link href="/guides/features/previews/types">Tipos compatibles</.localized_link> para conocer los requisitos de empaquetado y compatibilidad. El tipo de artefacto determina dónde se puede ejecutar una vista previa; no dicta qué sistema de compilación la produce.
+Consulta <.localized_link href="/guides/features/previews/types">Tipos compatibles</.localized_link> para ver los requisitos de empaquetado y compatibilidad. El tipo de artefacto determina dónde se puede ejecutar una vista previa; no dicta qué sistema de compilación lo produce.
 
 ## Publicar una vista previa {#publish-a-preview}
 
@@ -24,27 +24,27 @@ Elige tu sistema de compilación para los comandos de configuración y publicaci
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="Comparte aplicaciones desde proyectos de Xcode existentes o proyectos generados por Tuist."
+    details="Comparte aplicaciones desde proyectos Xcode existentes o proyectos generados por Tuist."
     link="/guides/features/previews/xcode"
   />
   <.home_card
     title="Gradle"
-    details="Comparte aplicaciones de Android y herramientas nativas de línea de comandos desde proyectos de Gradle."
+    details="Comparte aplicaciones Android y herramientas nativas de línea de comandos desde proyectos Gradle."
     link="/guides/features/previews/gradle"
   />
   <.home_card
     title="Bazel"
-    details="Comparte aplicaciones de Android, aplicaciones de Apple y herramientas de línea de comandos con reglas complementarias de Bazel."
+    details="Comparte aplicaciones Android, aplicaciones Apple y herramientas de línea de comandos con reglas complementarias de Bazel."
     link="/guides/features/previews/bazel"
   />
   <.home_card
-    title="Once"
-    details="Publica aplicaciones elegibles de Android, simulador de Apple y macOS con el proveedor nativo de artefactos de Once."
-    link="/guides/features/previews/once"
+    title="Struo"
+    details="Publica aplicaciones elegibles de Android, simulador de Apple y macOS con el proveedor nativo de artefactos de Struo."
+    link="/guides/features/previews/struo"
   />
 </.home_cards>
 
-Si ya tienes una compilación compatible, usa <.localized_link href="/cli/share">`tuist share`</.localized_link> para publicarla sin una integración con el sistema de compilación. Siguen aplicándose los requisitos de empaquetado y firma.
+Si ya tienes una compilación compatible, usa <.localized_link href="/cli/share">`tuist share`</.localized_link> para publicarla sin integración con un sistema de compilación. Siguen aplicándose los requisitos de empaquetado y firma.
 
 ## Ejecutar una vista previa {#run-a-preview}
 
@@ -58,7 +58,7 @@ Los destinatarios no necesitan el sistema de compilación que produjo la vista p
   />
   <.home_card
     title="App de macOS"
-    details="Ejecuta vistas previas compatibles de Apple a través de la app de la barra de menús de Tuist."
+    details="Ejecuta vistas previas compatibles de Apple a través de la app de barra de menú de Tuist."
     link="/guides/features/previews/run/macos"
   />
   <.home_card
@@ -70,11 +70,11 @@ Los destinatarios no necesitan el sistema de compilación que produjo la vista p
 
 ## Visibilidad {#visibility}
 
-Las vistas previas utilizan la visibilidad predeterminada del proyecto. Las vistas previas privadas requieren autenticación y acceso al proyecto. Haz públicas las vistas previas en la configuración del proyecto solo cuando la compilación pueda compartirse con cualquiera. La visibilidad pública no omite los requisitos de firma de la plataforma ni de instalación en el dispositivo.
+Las vistas previas usan la visibilidad predeterminada del proyecto. Las vistas previas privadas requieren autenticación y acceso al proyecto. Haz públicas las vistas previas en la configuración del proyecto solo cuando la compilación pueda compartirse con cualquiera. La visibilidad pública no omite los requisitos de firma de la plataforma ni de instalación en el dispositivo.
 
 ## Canales {#tracks}
 
-Los canales organizan las vistas previas en grupos con nombre, como `beta` para testers internos o `nightly` para compilaciones automatizadas. Especifica un canal con el comando de publicación para tu flujo de trabajo; los canales se crean de forma diferida cuando se usan por primera vez. Úsalos para agrupar vistas previas por propósito y filtrarlas en el dashboard de Tuist.
+Los canales organizan las vistas previas en grupos con nombre, como `beta` para testers internos o `nightly` para compilaciones automatizadas. Especifica un canal con el comando de publicación para tu flujo de trabajo; los canales se crean bajo demanda la primera vez que se usan. Úsalos para agrupar vistas previas por propósito y filtrarlas en el panel de Tuist.
 
 ## Insignia para README {#readme-badge}
 
@@ -88,7 +88,7 @@ Reemplaza los identificadores de cuenta y proyecto con los tuyos:
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
-Si el proyecto contiene varias aplicaciones con diferentes identificadores de paquete, añade un parámetro de consulta `bundle-id` para elegir la app:
+Si el proyecto contiene varias aplicaciones con diferentes identificadores de paquete, añade un parámetro de consulta `bundle-id` para elegir la aplicación:
 
 ```markdown
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)

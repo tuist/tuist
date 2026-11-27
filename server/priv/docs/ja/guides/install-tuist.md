@@ -1,21 +1,21 @@
 ---
 {
-  "title": "Tuistのインストール",
+  "title": "Tuist のインストール",
   "titleTemplate": ":title · ガイド · Tuist",
-  "description": "miseまたはHomebrewを使用して、macOSまたはLinuxにTuistのコマンドラインインターフェースをインストールし、チームや継続的インテグレーション向けにバージョンを固定します。"
+  "description": "mise または Homebrew を使用して、macOS または Linux に Tuist コマンドラインインターフェースをインストールし、チームや継続的インテグレーション用にバージョンを固定します。"
 }
 ---
-# Tuist のインストール {#install-tuist}
+# Tuist をインストールする {#install-tuist}
 
-Tuist コマンドラインインターフェースは **macOS** および **Linux** で動作し、Xcode、生成済み、Gradle、Bazel、Rust の各プロジェクトを Tuist のキャッシュ、インサイト、ランナー基盤に接続します。[ソース](https://github.com/tuist/tuist)から Tuist をビルドすることもできますが、有効で検証可能なインストールを保証するため、以下のインストール方法のいずれかをお勧めします。Elixir プロジェクトでは代わりに `tuist_ex` Hex パッケージを使用するため、CLI は不要です。
+Tuist のコマンドラインインターフェースは **macOS** および **Linux** で動作し、Xcode、生成済み、Gradle、Bazel、Rust の各プロジェクトを Tuist のキャッシュ、インサイト、ランナー基盤に接続します。[ソース](https://github.com/tuist/tuist) から Tuist をビルドすることもできますが、有効で検証可能なインストールを保証するため、以下のインストール方法のいずれかを使用することを推奨します。Elixir プロジェクトでは代わりに `tuist_ex` Hex パッケージを使用するため、CLI は不要です。
 
 ## Mise {#recommended-mise}
 
 > [!NOTE]
-> Mise がインストールされていない場合は、まず [はじめにガイド](https://mise.jdx.dev/getting-started.html) に従ってください。Mise は、異なる環境間でツールのバージョンを決定論的に揃える必要があるチームや組織にとって、[Homebrew](https://brew.sh) に代わる推奨オプションです。
+> Mise がインストールされていない場合は、まず [はじめにガイド](https://mise.jdx.dev/getting-started.html) に従ってください。異なる環境間でツールの決定論的なバージョンを保証する必要があるチームや組織の場合、Mise は [Homebrew](https://brew.sh) の代替として推奨されます。
 
 
-単一バージョンをグローバルにインストールして有効化する Homebrew などのツールとは異なり、**Mise はバージョンを固定**します（グローバルまたはプロジェクト単位）。Tuist をインストールして有効化するには、`mise use` を実行してください：
+グローバルに単一バージョンをインストールしてアクティブ化する Homebrew などのツールとは異なり、**Mise はバージョンを固定** します（グローバルまたはプロジェクト単位）。Tuist をインストールしてアクティブ化するには、`mise use` を実行してください：
 
 ```bash
 mise use tuist@x.y.z          # Install and pin tuist-x.y.z in the current project
@@ -27,12 +27,12 @@ mise use -g tuist@system       # Use the system's tuist as the global default
 すでに `mise.toml` で Tuist のバージョンが固定されているプロジェクトをクローンした場合は、`mise install` を実行してインストールしてください。
 
 > [!TIP]
-> `tuist@latest` は最新の **安定版** リリースに解決されます。Tuist はプレリリースのカナリー版およびリリース候補版も公開していますが、これらはオプトインのみであり、`latest` では決して解決されません。信頼できる安定版ラインを固定する方法とプレリリースへのオプトイン方法については、<.localized_link href="/cli/release/channels">リリースチャネル</.localized_link> を参照してください。
+> `tuist@latest` は最新の **安定版** リリースに解決されます。Tuist はプレリリースのカナリービルドおよびリリース候補ビルドも公開していますが、これらはオプトインのみであり、`latest` では決して解決されません。信頼できる安定版ラインを固定する方法とプレリリースにオプトインする方法については、<.localized_link href="/cli/release/channels">リリースチャネル</.localized_link> を参照してください。
 
 <details>
 <summary>Linux サポート</summary>
 
-Linux では、Tuist は Mise 経由でのみ利用可能です。Xcode に依存するコマンド（`tuist generate` など）は Linux では利用できませんが、`tuist inspect bundle` のようなプラットフォーム非依存のコマンドは期待どおりに動作します。
+Linux では、Tuist は Mise 経由でのみ利用可能です。Xcode に依存するコマンド（`tuist generate` など）は Linux では利用できませんが、`tuist inspect bundle` のようなプラットフォーム非依存のコマンドは期待通りに動作します。
 
 </details>
 
@@ -50,7 +50,7 @@ brew install --formula tuist@x.y.z
 > [!TIP]
 > **バイナリの真正性を検証する**
 >
-> 次のコマンドを実行すると、インストールされたバイナリが当社によってビルドされたことを検証できます。このコマンドは、証明書のチーム ID が `U6LC622NKF` であることを確認します：
+> 次のコマンドを実行すると、インストールされたバイナリが当社によってビルドされたものであることを検証できます。このコマンドは、証明書のチーム ID が `U6LC622NKF` であるかどうかを確認します：
 >
 > ```bash
 > curl -fsSL "https://tuist.dev/verify.sh" | bash
@@ -63,4 +63,4 @@ brew install --formula tuist@x.y.z
 ## 次のステップ {#next-steps}
 
 - プロジェクトを Tuist に接続するには、<.localized_link href="/guides/get-started">はじめにガイド</.localized_link> に従ってください。
-- より広範な製品コンテキストについては、[エンジニアリングチームとコーディングエージェント向け Tuist ビルド基盤](https://tuist.dev) をご覧ください。
+- より広範な製品コンテキストについては、[エンジニアリングチームとコーディングエージェント向け Tuist のビルド基盤](https://tuist.dev) をご覧ください。

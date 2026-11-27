@@ -2,48 +2,48 @@
 {
   "title": "網絡",
   "titleTemplate": ":title | Server | Guides | Tuist",
-  "description": "Tuist 的網絡設定，包括出站 IP 位址。"
+  "description": "Tuist 的網絡設定，包括出站 IP 地址。"
 }
 ---
 # 網絡 {#network}
 
-本頁介紹將 Tuist 整合至你的基礎設施時可能需要的網絡相關設定。
+本頁涵蓋將 Tuist 整合至你的基礎設施時可能需要的網絡相關設定。
 
 ## 出站 IP 位址 {#outbound-ip-addresses}
 
-如果你的基礎設施按 IP 位址限制入站流量，你可能需要將 Tuist 使用的 IP 範圍加入白名單。當 Tuist 需要與防火牆或 VPN 後方的服務（例如自託管 Git 提供者或構件儲存）通訊，或者你的 GitHub 組織使用 [IP 白名單](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) 時，這種情況很常見。
+如果你的基礎設施按 IP 位址限制入站流量，你可能需要將 Tuist 使用的 IP 範圍加入允許清單。當 Tuist 需要與位於防火牆或 VPN 後方的服務（例如自託管 Git 提供者或構件儲存）通訊，或當你的 GitHub 組織使用 [IP 允許清單](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) 時，這種情況很常見。
 
-將 Tuist 整合所需的伺服器位址，以及你的工作流程所用各平台的 Runner 位址加入白名單。
+將 Tuist 整合的伺服器位址，以及你工作流程所用各平台的執行器位址加入允許清單。
 
 ### 伺服器 IP 位址 {#server-ip-addresses}
 
-將以下兩個位址加入白名單，以允許來自 Tuist 服務和整合的連線：
+將以下兩個位址加入允許清單，以允許來自 Tuist 服務和整合的連線：
 
-| IP 位址 | CIDR 表示法 |
+| IP 位址 | CIDR 標記法 |
 |---|---|
 | 116.202.0.10 | `116.202.0.10/32` |
 | 116.202.4.195 | `116.202.4.195/32` |
 
-Tuist 只會透過 HTTPS 連線到你的基礎設施，因此你只需允許從這些位址發出的 HTTPS 流量（TCP 埠 443，或你的 HTTPS 端點監聽的埠）。Tuist 不需要 SSH 存取權限。
+Tuist 只會透過 HTTPS 連線到你的基礎設施，因此你只需允許來自這些位址的 HTTPS 流量（TCP 連接埠 443，或你的 HTTPS 端點監聽的連接埠）。Tuist 不需要 SSH 存取權限。
 
 ### Tuist Runners {#tuist-runners}
 
-在 <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> 上執行的工作會使用以下的出站位址。如果工作需要存取按 IP 位址限制流量的基礎設施（例如從設有 IP 白名單的 GitHub 組織檢出儲存庫），請將你的工作流程所運行的每個平台的位址或範圍加入白名單。
+在 <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> 上執行的工作會使用以下的出站位址。如果工作需要存取按 IP 位址限制流量的基礎設施（例如從設有 IP 允許清單的 GitHub 組織檢出儲存庫），請將你工作流程所運行的每個平台的位址或範圍加入允許清單。
 
 #### macOS {#tuist-runners-macos}
 
-將以下範圍加入 macOS Runner 工作的白名單：
+將以下範圍加入允許清單，以用於 macOS 執行器工作：
 
-| IP 版本 | CIDR 表示法 |
+| IP 版本 | CIDR 標記法 |
 |---|---|
 | IPv4 | `95.130.119.0/24` |
 | IPv6 | `2a11:83c0::/29` |
 
 #### Linux {#tuist-runners-linux}
 
-將整個範圍加入 Linux Runner 工作的白名單：
+將整個範圍加入允許清單，以用於 Linux 執行器工作：
 
-| IP 版本 | CIDR 表示法 |
+| IP 版本 | CIDR 標記法 |
 |---|---|
 | IPv4 | `5.135.7.160/27` |
 

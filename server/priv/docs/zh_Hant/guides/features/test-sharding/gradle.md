@@ -7,7 +7,7 @@
 ---
 # Gradle 測試分片 {#gradle-test-sharding}
 
-Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專案的測試任務於先前 CI 執行中記錄的測試套件來規劃，並利用 Tuist 伺服器依據歷史耗時資料建立負載均衡的分片計畫。
+Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專案的測試任務先前 CI 執行中記錄的測試套件來規劃，並利用 Tuist 伺服器依據歷史計時資料建立平衡的分片計畫。
 
 > [!IMPORTANT]
 > **必要條件**
@@ -18,8 +18,8 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 測試分片採用兩階段工作流程：
 
-1. **建置階段：** Tuist 會根據為你專案記錄的測試套件，在伺服器上建立**分片計畫**。伺服器會使用過去 30 天的歷史測試耗時資料，將測試分配至各個分片，使每個分片的執行時間大致相同。建置階段會輸出**分片矩陣**，供你的 CI 系統用來產生平行執行器。
-2. **測試階段：** 每個 CI 執行器會收到一個**分片索引**，並僅執行指派給該分片的測試。最後一個分片也會執行所有未指派給其他分片的測試套件。
+1. **建置階段：** Tuist 會根據為你專案記錄的測試套件，在伺服器上建立**分片計畫**。伺服器會使用過去 30 天的歷史測試計時資料，將測試分配到各個分片，使每個分片耗費的時間大致相同。建置階段會輸出**分片矩陣**，供你的 CI 系統用來產生平行執行器。
+2. **測試階段：** 每個 CI 執行器會收到一個**分片索引**，並只執行指派給該分片的測試。最後一個分片也會執行所有未指派給其他分片的測試套件。
 
 ## 建置階段 {#build-phase}
 
@@ -32,10 +32,10 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 此任務會：
 1. 找出包含待分片測試任務的專案，但不編譯它們
-2. 根據過去 30 天為這些專案記錄的測試套件與耗時資料，在 Tuist 伺服器上建立分片計畫
+2. 根據過去 30 天為這些專案記錄的測試套件與計時資料，在 Tuist 伺服器上建立分片計畫
 3. 為你的 CI 系統輸出分片矩陣
 
-若尚未記錄任何測試套件（例如首次執行），計畫會包含單一的分片，並執行所有測試。
+若尚未記錄任何測試套件（例如首次執行），計畫會包含單一的分片，執行所有測試。
 
 ### 建置選項 {#build-options}
 
@@ -60,21 +60,21 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 ## 測試階段 {#test-phase}
 
-每個分片執行器會使用標準的 `test` 任務執行指派的測試。當設定 `TUIST_SHARD_INDEX` 時，外掛程式會自動從伺服器取得分片指派，並篩選測試執行範圍，僅包含指派的測試套件。沒有測試套件指派給該分片的專案，其測試任務會被略過。
+每個分片執行器會使用標準的 `test` 任務執行其指派的測試。當設定 `TUIST_SHARD_INDEX` 時，外掛程式會自動從伺服器取得分片指派，並篩選測試執行，使其僅包含指派的測試套件。沒有套件指派給該分片的專案，其測試任務會被略過。
 
-最後一個分片會執行所有測試任務，並排除已指派給其他分片的套件，因此尚未有記錄執行的套件（例如新增的套件）仍會執行。
+最後一個分片會執行所有測試任務，並排除指派給其他分片的套件，因此尚未有記錄執行的套件（例如新加入的套件）仍會執行。
 
 ```sh
 TUIST_SHARD_INDEX=0 ./gradlew test
 ```
 
-若在建置階段設定了 `-PtuistShardTestTask`，請在每個分片中執行相同的任務，例如 `./gradlew testDebugUnitTest`。
+若你在建置階段設定了 `-PtuistShardTestTask`，請在每個分片中執行相同的任務，例如 `./gradlew testDebugUnitTest`。
 
 ## 持續整合 {#continuous-integration}
 
 <!-- @snippet: ./_ci-providers -->
 
-每個建置與分片工作都需要在執行 Gradle 前進行驗證。你可以安裝 Tuist CLI 並使用 CI 供應商的 OIDC 身分執行 `tuist auth login`，或將帳號權杖以 `TUIST_TOKEN` 的形式公開。請參閱<.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradle 外掛程式驗證</.localized_link>。以下範例省略了該步驟。
+每個建置與分片工作在執行 Gradle 前都需要進行驗證。你可以安裝 Tuist CLI 並使用 CI 供應商的 OIDC 身分執行 `tuist auth login`，或將帳號權杖以 `TUIST_TOKEN` 的形式公開。請參閱<.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradle 外掛程式驗證</.localized_link>。以下範例省略了該步驟。
 
 ### GitHub Actions {#github-actions}
 
@@ -122,7 +122,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist 會產生 `.tuist-shard-child-pipeline.yml`，你可將其作為[子管線](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines)觸發。定義一個 `.tuist-shard` 範本工作，讓產生的分片工作繼承：
+Tuist 會產生 `.tuist-shard-child-pipeline.yml`，你可將其作為[子管線](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines)觸發。定義一個 `.tuist-shard` 範本工作，讓產生的分片工作擴充它：
 
 ```yaml
 # .gitlab-ci.yml
@@ -159,7 +159,7 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist 會產生包含 [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation) 參數的 `.tuist-shard-continuation.json`：
+Tuist 會產生 `.tuist-shard-continuation.json`，其中包含用於[continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation)的參數：
 
 ```yaml
 # .circleci/config.yml
@@ -238,7 +238,7 @@ steps:
       buildkite-agent pipeline upload .tuist-shard-pipeline.yml
 ```
 
-每個產生的步驟在其環境中都已設定 `TUIST_SHARD_INDEX`。使用共用指令碼將測試命令加入每個分片步驟：
+每個產生的步驟都會在環境中設定 `TUIST_SHARD_INDEX`。使用共用腳本將測試命令加入每個分片步驟：
 
 ```bash
 # .buildkite/shard-step.sh

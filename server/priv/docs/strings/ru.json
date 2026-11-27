@@ -26,7 +26,7 @@
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Кэш Elixir" },
-      "entire": { "text": "Полностью" },
+      "entire": { "text": "Entire" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -36,23 +36,23 @@
       "iphone-app": { "text": "Приложение для iPhone" },
       "macos-app": { "text": "Приложение для macOS" },
       "new-project": { "text": "Новый проект" },
-      "once": { "text": "Один раз" },
-      "once-cache": { "text": "Кэш Once" },
-      "once-project": { "text": "Проект Once" },
-      "once-remote-execution": { "text": "Удалённое выполнение Once" },
-      "origin": { "text": "Источник" },
+      "once": { "text": "Struo" },
+      "once-cache": { "text": "Кэш Struo" },
+      "once-project": { "text": "Проект Struo" },
+      "once-remote-execution": { "text": "Удалённое выполнение Struo" },
+      "origin": { "text": "Origin" },
       "profiles": { "text": "Профили" },
       "project-description": { "text": "Описание проекта" },
       "release": { "text": "Релиз" },
       "release-calendar": { "text": "Календарь релизов" },
       "release-channels": { "text": "Каналы релизов" },
-      "run-previews": { "text": "Запуск превью" },
+      "run-previews": { "text": "Запуск Previews" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Кэш Rust" },
-      "rust-project": { "text": "Проект Rust" },
+      "rust-project": { "text": "Проект на Rust" },
       "sandboxes": { "text": "Песочницы" },
       "scim-provisioning": { "text": "SCIM-провижининг" },
-      "server-api": { "text": "API сервера" },
+      "server-api": { "text": "Server API" },
       "single-sign-on": { "text": "Единый вход (SSO)" },
       "supported-types": { "text": "Поддерживаемые типы" },
       "webhooks": { "text": "Вебхуки" },
@@ -67,7 +67,7 @@
         "text": "Языки 🌍"
       },
       "description": {
-        "text": "Вы можете помочь Tuist добавить поддержку других языков или улучшить рекомендации по локализации для этой страницы."
+        "text": "Вы можете помочь Tuist добавить поддержку других языков или улучшить перевод этой страницы."
       },
       "cta": {
         "text": "Внести вклад"
@@ -78,8 +78,8 @@
     "placeholder": "Поиск",
     "translations": {
       "button": {
-        "button-text": "Поиск в документации",
-        "button-aria-label": "Поиск в документации"
+        "button-text": "Искать в документации",
+        "button-aria-label": "Искать в документации"
       },
       "modal": {
         "search-box": {
@@ -109,7 +109,7 @@
         "no-results-screen": {
           "no-results-text": "Релевантные результаты не найдены",
           "suggested-query-text": "Попробуйте другой запрос",
-          "report-missing-results-text": "Считаете, что этот запрос должен давать результаты?",
+          "report-missing-results-text": "Считаете, что по этому запросу должны быть результаты?",
           "report-missing-results-link-text": "Нажмите, чтобы оставить отзыв"
         }
       }
@@ -279,7 +279,7 @@
           }
         },
         "on-premise": {
-          "text": "Локальное развертывание",
+          "text": "On-premise",
           "items": {
             "install": {
               "text": "Установка"
@@ -487,7 +487,7 @@
                   "text": "Генерируемый проект"
                 },
                 "xcodeproj-integration": {
-                  "text": "Интеграция на основе XcodeProj"
+                  "text": "Интеграция на базе XcodeProj"
                 },
                 "swift-package": {
                   "text": "Пакет Swift"
@@ -498,7 +498,7 @@
               }
             },
             "selective-testing": {
-              "text": "Выборочный запуск",
+              "text": "Выборочное тестирование",
               "items": {
                 "generated-xcode-project": {
                   "text": "Генерируемый проект Xcode"
@@ -507,6 +507,14 @@
             },
             "test-sharding": {
               "text": "Шардирование",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "Генерируемый проект Xcode"
+                }
+              }
+            },
+            "snapshots": {
+              "text": "Снимки",
               "items": {
                 "generated-xcode-project": {
                   "text": "Генерируемый проект Xcode"
@@ -582,7 +590,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git-форжи",
+              "text": "Git-хостинги",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -623,7 +631,7 @@
           "text": "Обмен",
           "items": {
             "previews": {
-              "text": "Превью"
+              "text": "Previews"
             }
           }
         }

@@ -7,7 +7,7 @@
 ---
 # Directorios {#directories}
 
-Tuist organiza sus archivos en varios directorios de tu sistema, siguiendo la [Especificación de directorios base XDG](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html). Esto ofrece una forma limpia y estándar de gestionar los archivos de configuración, caché y estado.
+Tuist organiza sus archivos en varios directorios de tu sistema, siguiendo la [Especificación de Directorio Base XDG](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html). Esto ofrece una forma limpia y estándar de gestionar los archivos de configuración, caché y estado.
 
 ## Variables de entorno compatibles {#supported-environment-variables}
 
@@ -49,7 +49,7 @@ tuist auth login
 - **Manifests**: Archivos de manifiesto en caché
 - **Projects**: Caché de proyectos de automatización generados
 - **EditProjects**: Caché para el comando edit
-- **Runs**: Datos de análisis de ejecuciones de tests y builds
+- **Runs**: Datos analíticos de ejecuciones de tests y builds
 - **Binaries**: Binarios de artefactos de build (no compartibles entre entornos)
 - **SelectiveTests**: Caché de tests selectivos
 
@@ -96,9 +96,9 @@ Al determinar qué directorio usar, Tuist comprueba las variables de entorno en 
 3. **Ubicación predeterminada** (por ejemplo, `~/.config/tuist`)
 
 Esto te permite:
-- Usar las variables XDG estándar para organizar todas tus aplicaciones de forma coherente
-- Sobrescribir con variables específicas de Tuist cuando necesites ubicaciones diferentes para Tuist
-- Confiar en valores predeterminados razonables sin ninguna configuración
+- Usar variables XDG estándar para organizar todas tus aplicaciones de forma coherente
+- Usar variables específicas de Tuist cuando necesites ubicaciones distintas para Tuist
+- Confiar en valores predeterminados razonables sin necesidad de configuración
 
 ## Casos de uso comunes {#common-use-cases}
 

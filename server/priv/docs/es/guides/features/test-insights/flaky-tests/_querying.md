@@ -1,4 +1,4 @@
-## Consulta del estado de inestabilidad y cuarentena {#querying}
+## Consultar el estado de tests inestables y en cuarentena {#querying}
 
 ### CLI {#querying-cli}
 
@@ -13,8 +13,8 @@ tuist test case run list <test_case_id>            # run history with status and
 tuist test case run show <test_case_run_id>        # single run, including failure breakdown
 ```
 
-Todos ellos aceptan `--json` para su uso en scripts.
+Todos estos aceptan `--json` para scripts.
 
 ### API REST {#querying-rest-api}
 
-Los mismos datos están disponibles a través de HTTP. Consulta los [endpoints de casos de test](https://tuist.dev/api/docs#tag/test-cases) en la referencia de la API para obtener la lista completa de rutas, filtros y campos de respuesta. Para cambiar el estado de un caso de test (marcar o desmarcar como inestable, silenciar, omitir), envía `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` con `is_flaky` o `state`. El mismo cambio está disponible como `tuist test case update` y como la herramienta MCP `update_test_case`.
+Los mismos datos están disponibles a través de HTTP. Consulta los [endpoints de casos de test](https://tuist.dev/api/docs#tag/test-cases) en la referencia de la API para ver la lista completa de rutas, filtros y campos de respuesta. Para cambiar el estado de un caso de test (marcar o desmarcar como inestable, silenciar, omitir), envía `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` con `is_flaky` o `state`. El mismo cambio está disponible como `tuist test case update` y como la herramienta MCP `update_test_case`.

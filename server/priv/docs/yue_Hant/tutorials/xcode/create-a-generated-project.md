@@ -1,13 +1,13 @@
 ---
 {
-  "title": "建立生成式專案",
+  "title": "建立生成項目",
   "titleTemplate": ":title · Xcode · 教學 · Tuist",
-  "description": "學習如何建立你第一個由 Tuist 生成的 Xcode 專案，並為其加入依賴"
+  "description": "學習如何建立你第一個由 Tuist 生成的 Xcode 項目，並為其加入依賴"
 }
 ---
-# 建立生成項目 {#create-a-generated-project}
+# 建立生成式專案 {#create-a-generated-project}
 
-喺空白目錄或現有項目目錄入面執行 `tuist init`：
+在空白目錄或現有專案的目錄中執行 `tuist init`：
 
 ::: code-group
 
@@ -21,23 +21,23 @@ tuist init
 <!-- -->
 :::
 
-指令會引導你完成<.localized_link href="/guides/features/projects">建立生成項目</.localized_link>，或者整合現有 Xcode 項目或工作區。佢幫你將設定連接到遠端伺服器，令你可以使用<.localized_link href="/guides/features/selective-testing">選擇性測試</.localized_link>、<.localized_link href="/guides/features/previews">預覽</.localized_link>同埋<.localized_link href="/guides/features/package-registries/swift">註冊表</.localized_link>等功能。
+此指令會引導你完成<.localized_link href="/guides/features/projects">建立生成式專案</.localized_link>，或整合現有 Xcode 專案或工作區的步驟。它協助你將設定連線到遠端伺服器，讓你可使用如<.localized_link href="/guides/features/selective-testing">選擇性測試</.localized_link>、<.localized_link href="/guides/features/previews">預覽</.localized_link>及<.localized_link href="/guides/features/package-registries/swift">套件註冊表</.localized_link>等功能。
 
 > [!NOTE]
-> **遷移現有項目**
+> **遷移現有專案**
 >
-> 如果你想將現有項目遷移到生成項目，以改善開發者體驗並利用我哋嘅<.localized_link href="/guides/features/cache">快取</.localized_link>，請參考我哋嘅<.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">遷移指南</.localized_link>。
+> 如果你想將現有專案遷移至生成式專案，以改善開發者體驗並利用我們的<.localized_link href="/guides/features/cache">快取</.localized_link>功能，請參閱我們的<.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">遷移指南</.localized_link>。
 
 
-## 加入依賴項 {#add-dependencies}
+## 加入相依套件 {#add-dependencies}
 
-項目通常會依賴第三方程式庫嚟提供額外功能。要咁做，請執行以下指令，令你編輯項目時獲得最佳體驗：
+專案通常會依賴第三方程式庫來提供額外功能。要達到最佳編輯體驗，請執行以下指令：
 
 ```bash
 tuist edit
 ```
 
-系統會開啟一個包含你項目檔案嘅 Xcode 項目。編輯 `Tuist/Package.swift` 並加入 Kingfisher：
+系統會開啟包含你專案檔案的 Xcode 專案。編輯 `Tuist/Package.swift` 並加入 Kingfisher：
 
 ```swift
 // swift-tools-version: 5.9
@@ -65,7 +65,7 @@ let package = Package(
 )
 ```
 
-然後編輯項目中嘅應用程式目標，將 `Kingfisher` 聲明為依賴項：
+接著編輯專案中的應用程式目標，將 `Kingfisher` 宣告為相依套件：
 
 ```swift
 import ProjectDescription
@@ -105,29 +105,29 @@ let project = Project(
 )
 ```
 
-然後執行 `tuist install`，使用 [Swift Package Manager](https://www.swift.org/documentation/package-manager/) 解析並拉取依賴項。
+然後執行 `tuist install`，透過 [Swift Package Manager](https://www.swift.org/documentation/package-manager/) 解析並拉取相依套件。
 
 > [!NOTE]
-> **使用 SwiftPM 作為依賴項解析器**
+> **使用 SwiftPM 作為相依套件解析器**
 >
-> Tuist 建議嘅依賴項處理方法只係使用 Swift Package Manager (SPM) 嚟解析依賴項。之後 Tuist 會將佢哋轉換成 Xcode 項目同目標，以提供最大嘅可配置性同控制權。
+> Tuist 建議的相依套件處理方式僅使用 Swift Package Manager (SPM) 來解析相依關係。隨後 Tuist 會將其轉換為 Xcode 專案與目標，以提供最大的可設定性與控制權。
 
 
-## 視覺化項目結構 {#visualize-the-project}
+## 視覺化專案結構 {#visualize-the-project}
 
-你可以透過執行以下指令嚟視覺化項目結構：
+你可以執行以下指令來視覺化專案結構：
 
 ```bash
 tuist graph
 ```
 
-指令會輸出並喺項目目錄中開啟 `graph.png` 檔案：
+此指令會在專案目錄中輸出並開啟 `graph.png` 檔案：
 
-![項目圖](/images/guides/quick-start/graph.png)
+![專案圖表](/images/guides/quick-start/graph.png)
 
-## 使用依賴項 {#use-the-dependency}
+## 使用相依套件 {#use-the-dependency}
 
-執行 `tuist generate` 以喺 Xcode 中開啟項目，並對 `ContentView.swift` 檔案作出以下更改：
+執行 `tuist generate` 以在 Xcode 中開啟專案，並對 `ContentView.swift` 檔案進行以下變更：
 
 ```swift
 import SwiftUI
@@ -149,4 +149,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-從 Xcode 運行應用程式，你應該會見到從 URL 載入嘅圖片。
+從 Xcode 執行應用程式，你應該會看到從 URL 載入的圖片。

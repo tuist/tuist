@@ -1,7 +1,7 @@
 ---
 {
   "title": "CLI",
-  "titleTemplate": ":title · コード · コントリビューター · Tuist",
+  "titleTemplate": ":title · Code · Contributors · Tuist",
   "description": "Tuist CLI に貢献する。"
 }
 ---
@@ -23,7 +23,7 @@ CLI は Tuist の中心です。プロジェクトの生成、自動化ワーク
 ### ローカルでのセットアップ {#set-up-locally}
 
 - リポジトリのクローン: `git clone git@github.com:tuist/tuist.git`
-- Mise を [公式インストールスクリプト](https://mise.jdx.dev/getting-started.html)（Homebrew ではなく）でインストールし、`mise install` を実行
+- Mise を [公式インストールスクリプト](https://mise.jdx.dev/getting-started.html)（Homebrew ではなく）を使用してインストールし、`mise install` を実行
 - Tuist の依存関係をインストール: `tuist install`
 - ワークスペースを生成: `tuist generate`
 
@@ -32,14 +32,14 @@ CLI は Tuist の中心です。プロジェクトの生成、自動化ワーク
 > [!NOTE]
 > **`xed .`**
 >
-> `xed .` を使ってプロジェクトを開こうとすると、パッケージが開き、Tuist が生成したワークスペースは開きません。`Tuist.xcworkspace` を使用してください。
+> `xed .` を使用してプロジェクトを開こうとすると、Tuist が生成したワークスペースではなくパッケージが開きます。`Tuist.xcworkspace` を使用してください。
 
 
-### Tuist を実行 {#run-tuist}
+### Tuist の実行 {#run-tuist}
 
 #### Xcode から {#from-xcode}
 
-`tuist` スキームを編集し、`generate --no-open` のような引数を設定します。作業ディレクトリをプロジェクトルートに設定するか、`--path` を使用してください。
+`tuist` スキームを編集し、`generate --no-open` などの引数を設定します。作業ディレクトリをプロジェクトルートに設定するか（または `--path` を使用）。
 
 > [!WARNING]
 > **ProjectDescription のコンパイル**
@@ -63,7 +63,7 @@ tuist_build_dir="$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -config
 "$tuist_build_dir/tuist" generate --path /path/to/project --no-open
 ```
 
-または Swift Package Manager を使用:
+または Swift Package Manager 経由:
 
 ```bash
 swift build --product ProjectDescription

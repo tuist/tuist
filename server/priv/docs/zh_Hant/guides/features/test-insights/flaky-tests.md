@@ -2,12 +2,12 @@
 {
   "title": "不穩定測試",
   "titleTemplate": ":title · 測試洞察 · 功能 · 指南 · Tuist",
-  "description": "自動偵測並追蹤 CI 流程中的不穩定測試。"
+  "description": "在 CI 流程中自動偵測並追蹤不穩定測試。"
 }
 ---
 # 不穩定測試 {#flaky-tests}
 
-不穩定測試是指使用相同程式碼多次執行時，會產生不同結果（通過或失敗）的測試。它們會侵蝕你對測試套件的信任，並浪費開發人員調查誤報失敗的時間。Tuist 會自動偵測不穩定測試，並協助你隨時間追蹤它們。若要了解團隊如何調查與控制這些測試，請參閱 [不穩定測試](https://tuist.dev/solutions/flaky-tests)。若要了解常見原因以及如何衡量不穩定性的工具無關說明，請參閱 <.localized_link href="/references/concepts/flaky-test">什麼是不穩定測試？</.localized_link>。
+不穩定測試是指在使用相同程式碼多次執行時，會產生不同結果（通過或失敗）的測試。它們會侵蝕你對測試套件的信任，並浪費開發人員調查誤報失敗的時間。Tuist 會自動偵測不穩定測試，並協助你長期追蹤。若要了解團隊如何調查與控制這些測試，請參閱 [不穩定測試](https://tuist.dev/solutions/flaky-tests)。若要了解常見原因以及如何衡量不穩定性的工具無關說明，請參閱 <.localized_link href="/references/concepts/flaky-test">什麼是不穩定測試？</.localized_link>。
 
 <.home_cards>
   <.home_card
@@ -16,8 +16,8 @@
     link="/guides/features/test-insights/flaky-tests/xcode"
 />
   <.home_card
-    title="產生的專案"
-    details="透過 tuist test 偵測、管理並隔離 Tuist 產生之專案中的不穩定測試。"
+    title="Generated projects"
+    details="透過 tuist test 偵測、管理並隔離 Tuist 生成專案中的不穩定測試。"
     link="/guides/features/test-insights/flaky-tests/generated-xcode-project"
 />
   <.home_card
@@ -41,8 +41,8 @@
     link="/guides/features/test-insights/flaky-tests/rust"
 />
   <.home_card
-    title="Once"
+    title="Struo"
     details="透過回報的重試嘗試與 CI 歷史記錄，調查不一致的測試結果。"
-    link="/guides/features/test-insights/flaky-tests/once"
+    link="/guides/features/test-insights/flaky-tests/struo"
 />
 </.home_cards>

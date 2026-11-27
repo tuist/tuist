@@ -1,29 +1,29 @@
 ---
 {
-  "title": "Fragmentación de tests de Gradle",
-  "titleTemplate": ":title · Fragmentación de tests · Funcionalidades · Guías · Tuist",
-  "description": "Distribuye los tests de Gradle entre varios runners de CI con la fragmentación de tests de Tuist."
+  "title": "Sharding de tests de Gradle",
+  "titleTemplate": ":title · Sharding de tests · Funcionalidades · Guías · Tuist",
+  "description": "Distribuye los tests de Gradle entre varios runners de CI con el sharding de tests de Tuist."
 }
 ---
-# Fragmentación de tests de Gradle {#gradle-test-sharding}
+# Fragmentación de tests en Gradle {#gradle-test-sharding}
 
-El plugin de Gradle para Tuist incluye soporte nativo para la fragmentación de tests. Planifica las suites de test que Tuist registró en ejecuciones anteriores de CI de las tareas de test de tus proyectos y utiliza el servidor de Tuist para crear planes de fragmentación equilibrados basados en datos históricos de tiempos.
+El plugin de Gradle para Tuist incluye soporte nativo para la fragmentación de tests. Planifica las suites de test que Tuist registró en ejecuciones anteriores de CI de las tareas de test de tus proyectos y utiliza el servidor de Tuist para crear planes de fragmentos equilibrados basados en datos históricos de tiempos.
 
 > [!IMPORTANT]
 > **Requisitos**
 >
-> - Debes configurar <.localized_link href="/guides/features/test-insights/gradle">Análisis de tests</.localized_link>
+> - <.localized_link href="/guides/features/test-insights/gradle">Análisis de tests</.localized_link> debe estar configurado
 
 ## Cómo funciona {#how-it-works}
 
 La fragmentación de tests sigue un flujo de trabajo de dos fases:
 
-1. **Fase de compilación:** Tuist crea un **plan de fragmentación** en el servidor a partir de las suites de test registradas para tus proyectos. El servidor utiliza datos históricos de tiempos de test de los últimos 30 días para distribuir los tests entre los fragmentos, de modo que cada uno tarde aproximadamente lo mismo. La fase de compilación genera una **matriz de fragmentación** que tu sistema de CI usa para lanzar runners en paralelo.
+1. **Fase de compilación:** Tuist crea un **plan de fragmentos** en el servidor a partir de las suites de test registradas para tus proyectos. El servidor utiliza datos históricos de tiempos de test de los últimos 30 días para distribuir los tests entre los fragmentos, de modo que cada uno tarde aproximadamente lo mismo. La fase de compilación genera una **matriz de fragmentos** que tu sistema de CI utiliza para lanzar runners paralelos.
 2. **Fase de test:** Cada runner de CI recibe un **índice de fragmento** y ejecuta solo los tests asignados a ese fragmento. El último fragmento también ejecuta todas las suites de test que no estén asignadas a otro fragmento.
 
 ## Fase de compilación {#build-phase}
 
-Prepara los fragmentos de test usando la tarea `tuistPrepareTestShards`:
+Prepara los fragmentos de test utilizando la tarea `tuistPrepareTestShards`:
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -32,23 +32,23 @@ Prepara los fragmentos de test usando la tarea `tuistPrepareTestShards`:
 
 Esta tarea:
 1. Encuentra los proyectos que tienen la tarea de test a fragmentar, sin compilarlos
-2. Crea un plan de fragmentación en el servidor de Tuist a partir de las suites de test y los tiempos registrados para esos proyectos en los últimos 30 días
-3. Genera una matriz de fragmentación para tu sistema de CI
+2. Crea un plan de fragmentos en el servidor de Tuist a partir de las suites de test y los tiempos registrados para esos proyectos en los últimos 30 días
+3. Genera una matriz de fragmentos para tu sistema de CI
 
 Cuando aún no hay suites de test registradas, por ejemplo en la primera ejecución, el plan tiene un único fragmento que ejecuta todos los tests.
 
 ### Opciones de compilación {#build-options}
 
-Configura la fragmentación mediante propiedades del proyecto de Gradle:
+Configura la fragmentación mediante propiedades del proyecto Gradle:
 
 | Propiedad | Descripción |
 |----------|-------------|
 | `-PtuistShardMax=<N>` | Número máximo de fragmentos (predeterminado: 2) |
 | `-PtuistShardMin=<N>` | Número mínimo de fragmentos |
 | `-PtuistShardMaxDuration=<MS>` | Duración máxima objetivo por fragmento en milisegundos |
-| `-PtuistShardTestTask=<NAME>` | Tarea de test cuyos tests se fragmentan, por ejemplo `testDebugUnitTest`. Por defecto, se aplica a todas las tareas de test de la compilación |
+| `-PtuistShardTestTask=<NAME>` | Tarea de test cuyos tests se fragmentan, por ejemplo `testDebugUnitTest`. Por defecto, incluye todas las tareas de test de la compilación |
 
-Los proyectos Android con múltiples variantes de compilación tienen una tarea de test unitario por variante. Establece `-PtuistShardTestTask` a la variante que ejecutan tus fragmentos para que solo se planifiquen los proyectos que la tengan:
+Los proyectos Android con múltiples variantes de compilación tienen una tarea de test unitario por variante. Establece `-PtuistShardTestTask` en la variante que ejecutan tus fragmentos para que solo se planifiquen los proyectos que la tengan:
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -60,7 +60,7 @@ La referencia del fragmento se deriva automáticamente de las variables de entor
 
 ## Fase de test {#test-phase}
 
-Cada runner de fragmento ejecuta sus tests asignados usando la tarea estándar `test`. Cuando `TUIST_SHARD_INDEX` está establecida, el plugin obtiene automáticamente la asignación de fragmentos del servidor y filtra la ejecución de tests para incluir solo las suites asignadas. Las tareas de test en proyectos sin suites asignadas al fragmento se omiten.
+Cada runner de fragmento ejecuta sus tests asignados utilizando la tarea estándar `test`. Cuando `TUIST_SHARD_INDEX` está establecida, el plugin obtiene automáticamente la asignación de fragmentos del servidor y filtra la ejecución de tests para incluir solo las suites asignadas. Las tareas de test en proyectos sin suites asignadas al fragmento se omiten.
 
 El último fragmento ejecuta todas las tareas de test y excluye las suites asignadas a los otros fragmentos, de modo que las suites que aún no tienen ejecuciones registradas, como las recién añadidas, siguen ejecutándose.
 
@@ -74,11 +74,11 @@ Si estableces `-PtuistShardTestTask` en la fase de compilación, ejecuta esa mis
 
 <!-- @snippet: ./_ci-providers -->
 
-Cada trabajo de compilación y fragmentación necesita autenticarse antes de ejecutar Gradle. Instala la CLI de Tuist y ejecuta `tuist auth login` con la identidad OIDC de tu proveedor de CI, o expón un token de cuenta como `TUIST_TOKEN`. Consulta <.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Autenticación del plugin de Gradle</.localized_link>. Los ejemplos siguientes omiten ese paso.
+Cada trabajo de compilación y fragmento necesita autenticarse antes de ejecutar Gradle. Instala la CLI de Tuist y ejecuta `tuist auth login` con la identidad OIDC de tu proveedor de CI, o expón un token de cuenta como `TUIST_TOKEN`. Consulta <.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Autenticación del plugin de Gradle</.localized_link>. Los ejemplos siguientes omiten ese paso.
 
 ### GitHub Actions {#github-actions}
 
-Usa una estrategia de matriz para ejecutar los fragmentos en paralelo:
+Utiliza una estrategia de matriz para ejecutar los fragmentos en paralelo:
 
 ```yaml
 name: Tests
@@ -122,7 +122,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist genera un `.tuist-shard-child-pipeline.yml` que activas como un [pipeline hijo](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines). Define un trabajo plantilla `.tuist-shard` que los trabajos de fragmento generados extienden:
+Tuist genera un `.tuist-shard-child-pipeline.yml` que activas como un [pipeline hijo](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines). Define un trabajo plantilla `.tuist-shard` que extiendan los trabajos de fragmento generados:
 
 ```yaml
 # .gitlab-ci.yml
@@ -310,7 +310,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-En Bitrise, Tuist escribe `.tuist-shard-matrix.json` en el `BITRISE_DEPLOY_DIR`, poniéndolo a disposición como artefacto de compilación para las etapas posteriores del pipeline. Usa Bitrise Pipelines con flujos de trabajo paralelos predefinidos:
+En Bitrise, Tuist escribe `.tuist-shard-matrix.json` en `BITRISE_DEPLOY_DIR`, poniéndolo a disposición como artefacto de compilación para las etapas posteriores del pipeline. Usa Bitrise Pipelines con flujos de trabajo paralelos predefinidos:
 
 ```yaml
 # bitrise.yml
@@ -369,4 +369,4 @@ workflows:
 ```
 
 > [!TIP]
-> Bitrise no admite la creación dinámica de trabajos paralelos en tiempo de ejecución. Define un número fijo de flujos de trabajo de fragmentos en tus etapas del pipeline; los flujos de trabajo dentro de una etapa se ejecutan en paralelo automáticamente.
+> Bitrise no admite la creación dinámica de trabajos paralelos en tiempo de ejecución. Define un número fijo de flujos de trabajo de fragmentos en tus etapas de pipeline; los flujos de trabajo dentro de una etapa se ejecutan en paralelo automáticamente.

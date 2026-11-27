@@ -1,21 +1,15 @@
 ---
 {
-  "title": "Runner",
+  "title": "运行器",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "Tuist Runner 是为 GitHub Actions、Buildkite、GitLab CI 和 Bitrise 提供的托管 macOS 和 Linux Runner，缓存与计算资源同地部署，并与你的本地机器共享。"
+  "description": "Tuist 运行器是专为 GitHub Actions、Buildkite、GitLab CI 和 Bitrise 提供的托管 macOS 和 Linux 运行器，其缓存与计算资源共置，并与你的本地机器共享。"
 }
 ---
-# Runners {#runners}
+# 运行器 {#runners}
 
-> [!IMPORTANT]
-> **仅限邀请**
->
-> 在我们扩展容量期间，Tuist Runners 目前仅限邀请使用。[联系我们](mailto:contact@tuist.dev)或在[社区 Slack](https://slack.tuist.dev)中留言，以申请你的账户访问权限。当 Runners 全面开放时，我们将公布定价。
+Tuist 运行器是用于 GitHub Actions、Buildkite、GitLab CI 和 Bitrise 流水线的托管 macOS 与 Linux 运行器。无需在 CI 提供商的托管机器上执行任务，只需将任务指向 Tuist <.localized_link href="/guides/features/runners/profiles">配置文件</.localized_link>，它就会在 Tuist 的运行器集群中执行，并与你的团队已在使用的同一<.localized_link href="/guides/features/cache">缓存</.localized_link>相邻，无需安装运行器代理，也无需维护基础设施。要在更换机器之前了解影响 CI 账单的因素，请参阅[CI 成本](https://tuist.dev/solutions/ci-costs)。
 
-
-Tuist Runners 是为你的 GitHub Actions、Buildkite、GitLab CI 和 Bitrise 流水线提供的托管 macOS 和 Linux 运行器。无需在 CI 提供商的托管机器上运行作业，你只需将作业指向 Tuist <.localized_link href="/guides/features/runners/profiles">配置文件</.localized_link>，它便会在 Tuist 的运行器集群中执行，并与你的团队已使用的相同<.localized_link href="/guides/features/cache">缓存</.localized_link>相邻，无需安装运行器代理，也无需维护基础设施。要在更换机器之前了解是什么驱动了你的 CI 账单，请参阅[CI 成本](https://tuist.dev/solutions/ci-costs)。
-
-采用它们通常只需对作业进行一行更改：
+采用它们通常只需对任务做一行更改：
 
 ::: code-group
 
@@ -42,9 +36,9 @@ Tuist Runners 是为你的 GitHub Actions、Buildkite、GitLab CI 和 Bitrise �
 
 ## Linux 上的 Android 模拟器 {#android-emulators}
 
-默认情况下，Linux 运行器通过 `/dev/kvm` 提供硬件加速虚拟化。使用你常规的 Linux <.localized_link href="/guides/features/runners/profiles">配置文件</.localized_link>（例如 `tuist-linux`）来运行 x86_64 Android 模拟器，包括 Gradle 托管设备。访问设备无需特殊的运行器配置文件、KVM 设置操作、权限更改或 `sudo`。
+默认情况下，Linux 运行器通过 `/dev/kvm` 提供硬件加速虚拟化。使用你常用的 Linux <.localized_link href="/guides/features/runners/profiles">配置文件</.localized_link>（例如 `tuist-linux`）来运行 x86_64 Android 模拟器，包括 Gradle 管理设备。访问设备无需特殊的运行器配置文件、KVM 设置操作、权限更改或 `sudo`。
 
-运行器镜像包含 Android SDK。在启动设备之前，请安装模拟器及其运行时库。对于已定义名为 `pixel6` 的 Gradle 托管设备的项目，GitHub Actions 作业如下所示：
+运行器镜像已包含 Android SDK。在启动设备之前，请安装模拟器及其运行时库。对于已定义名为 `pixel6` 的 Gradle 管理设备的项目，GitHub Actions 任务如下所示：
 
 ```yaml
 jobs:
@@ -72,7 +66,7 @@ jobs:
         run: ./gradlew :app:pixel6DebugAndroidTest
 ```
 
-使用你的 Android Gradle Plugin 所需的 Java 版本，并将测试任务替换为你项目的托管设备任务。配置一个 **x86_64** 系统镜像。选择具有足够内存的运行器规格，以同时满足 Gradle 和模拟器的需求；并发设备共享作业的 CPU 和内存分配。
+使用 Android Gradle Plugin 所需的 Java 版本，并将测试任务替换为项目的管理设备任务。配置 **x86_64** 系统镜像。选择具有足够内存的运行器规格，以同时满足 Gradle 和模拟器的需求；并发设备共享任务的 CPU 和内存分配。
 
 以普通运行器用户身份运行模拟器。此示例中的 `sudo` 仅用于安装操作系统软件包。
 
@@ -80,17 +74,17 @@ jobs:
 
 ## 并发限制 {#concurrency-limits}
 
-每个账户对 macOS 和 Linux 都有独立的 vCPU 和内存并发限制。在 Tuist 接受作业之前，它会检查作业的 <.localized_link href="/guides/features/runners/profiles#machine-shapes">机器规格</.localized_link> 与该平台上当前运行的所有作业。只有当作业的 vCPU 和内存都符合剩余容量时，作业才会开始；否则，它将保持排队状态，直到有可用容量。在一个平台上的工作永远不会消耗另一个平台的容量。
+每个账户对 macOS 和 Linux 都有独立的 vCPU 和内存并发限制。在 Tuist 接受任务之前，它会检查该任务的<.localized_link href="/guides/features/runners/profiles#machine-shapes">机器规格</.localized_link>与该平台上当前运行的所有任务。只有当任务的 vCPU 和内存都适合剩余容量时，任务才会开始；否则它将保持排队状态，直到容量可用。在一个平台上的工作永远不会消耗另一个平台的容量。
 
-Air 账户具有固定的并发限制。对于 Pro 和 Enterprise 账户，Tuist 会根据经常性使用情况以及无法与活动运行器并存的近期排队工作，自动增加余量。自动调整只会增加限制：现有的授权和合同约定的最小容量得以保留。增长是渐进的，并受安全上限的限制，因此突然的激增不会授予无限的并发能力。更高的账户限制并不保证立即可用的机器。
+Air 账户具有固定的并发限制：两个标准 macOS 任务（16 vCPU / 48 GB）以及 Linux 上的 16 vCPU / 64 GB。Pro 和 Enterprise 账户起始于六个标准 macOS 任务（48 vCPU / 144 GB）以及 Linux 上的 64 vCPU / 128 GB，Tuist 会根据重复使用情况以及无法与活跃运行器并排的近期排队工作自动增加余量。当限制较低时（最多十二个标准 macOS 任务，或 Linux 上的 128 vCPU / 512 GB），它可以每小时增长一次以容纳所有排队工作。超过该限制后，它每天最多增长一次，每次最多增长 50%，直至达到安全上限，因此突发流量不会授予无限并发。自动调整只会增加限制：现有的授权和合同约定的最小容量得以保留。更高的账户限制并不保证立即可用的机器。
 
-Runners 仪表板的 **并发** 部分显示了每小时峰值允许的 vCPU 和内存使用情况，并以阶梯线表示每小时开始时已知的限制。红色条形图达到了该历史阈值；它们本身并不能证明作业曾等待。一小时内的增加可能会使其峰值高于时段起始线。当前限制显示在每个图表旁边。历史记录跟踪开始之前的时期没有限制线，而不是假设的历史值。
+运行器仪表板的**并发**部分显示每小时峰值允许的 vCPU 和内存使用情况，并以阶梯线表示每小时开始时已知的限制。红色条形图达到了该历史阈值；它们本身并不能证明任务曾等待。一小时内的增加可能使其峰值高于时段起始线。当前限制显示在每个图表旁边。历史跟踪开始之前的时期没有限制线，而不是假设的历史值。
 
 如果工作流继续在安全上限处排队，请[联系我们](mailto:contact@tuist.dev)并提供你的账户句柄、平台和预期的并行工作负载，以便我们审查所需容量。
 
 ## 网络访问 {#network-access}
 
-作业可以打开到公共互联网的出站连接。私有地址范围（`10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`）被阻止，且运行器不接受任何入站连接。
+任务可以打开到公共互联网的出站连接。私有地址范围（`10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`）被阻止，且运行器不接受入站连接。
 
 | 平台 | 出站端口 |
 | --- | --- |
@@ -102,17 +96,17 @@ SSH 涵盖 `git@` 依赖项、SSH 子模块、部署密钥以及 `ssh` 或 `scp`
 <.home_cards>
   <.home_card
     title="GitHub Actions"
-    details="连接 GitHub，将 runs-on 指向 Tuist 配置文件，并在集群上运行你的第一个作业。"
+    details="连接 GitHub，将 runs-on 指向 Tuist 配置文件，并在集群上运行你的第一个任务。"
     link="/guides/features/runners/ci-providers/github-actions"
 />
   <.home_card
     title="Buildkite"
-    details="连接你的集群，以 Tuist 配置文件命名队列，并从步骤中定位它。"
+    details="连接你的集群，以 Tuist 配置文件命名队列，并从步骤中定位该队列。"
     link="/guides/features/runners/ci-providers/buildkite"
 />
   <.home_card
     title="GitLab CI"
-    details="一次性连接 GitLab，并使用流水线标签为每个作业选择机器。"
+    details="连接 GitLab 一次，并使用流水线标签为每个任务选择机器。"
     link="/guides/features/runners/ci-providers/gitlab-ci"
 />
   <.home_card
@@ -122,12 +116,12 @@ SSH 涵盖 `git@` 依赖项、SSH 子模块、部署密钥以及 `ssh` 或 `scp`
 />
   <.home_card
     title="API"
-    details="通过一个请求从你自己的 git 平台或编排器运行作业，并通过 webhook 跟踪它们。"
+    details="通过一个请求从你自己的 git 平台或编排器运行任务，并通过 webhook 跟踪它们。"
     link="/guides/features/runners/ci-providers/api"
 />
   <.home_card
     title="配置文件"
-    details="通过你在作业中引用的命名机器配置文件，选择平台、大小和 Xcode 版本。"
+    details="通过你在任务中引用的命名机器配置文件，选择平台、大小和 Xcode 版本。"
     link="/guides/features/runners/profiles"
 />
   <.home_card
@@ -137,25 +131,27 @@ SSH 涵盖 `git@` 依赖项、SSH 子模块、部署密钥以及 `ssh` 或 `scp`
 />
   <.home_card
     title="缓存卷"
-    details="在作业之间保留 Xcode、模块和 Gradle 缓存以及任何其他目录，每次运行都拥有独立的私有可写副本。"
+    details="在任务之间保留 Xcode、模块和 Gradle 缓存以及任何其他目录，每次运行都有专用的可写副本。"
     link="/guides/features/runners/cache-volumes"
 />
 </.home_cards>
 
-## Once 图操作 {#once-graph-actions}
+## Struo 图操作 {#struo-graph-actions}
 
-当账户启用远程执行且服务器通告兼容的工作器能力时，Once 可以在 Tuist 的 Linux 工作器上执行符合条件的图命令操作。这是操作级别的执行，与上述 CI 提供商的作业分开。请参阅<.localized_link href="/guides/features/runners/once">Once 远程执行</.localized_link>以了解设置、镜像要求和兼容性检查。
+<a id="once-graph-actions"></a>
 
-## 为什么选择 Tuist Runners {#why-tuist-runners}
+当账户启用远程执行且服务器通告兼容的工作器能力时，Struo 可以在 Tuist 的 Linux 工作器上执行符合条件的图命令操作。这是操作级别的执行，与上述 CI 提供商的任务分开。请参阅<.localized_link href="/guides/features/runners/struo">Struo 远程执行</.localized_link>以了解设置、镜像要求和兼容性检查。
 
-大多数 CI 运行器提供商通过提供更强大的机器和持久缓存来加速作业，通常是一个挂载回 CI 运行的共享卷。这有帮助，但卷只是磁盘：它保留了之前 CI 运行留下的任何内容。它不会复制以保持最新的构件靠近构建运行的位置，也永远无法触及代码构建的其他地方。
+## 为什么选择 Tuist 运行器 {#why-tuist-runners}
 
-构建不再发生在单一地点。相同的代码在开发者的笔记本电脑、CI 环境中编译，并且越来越多地由编码代理和其他自动化环境编译。Tuist Runners 的不同之处在于，它们共享所有那些环境已经读写的那个<.localized_link href="/guides/features/cache">缓存</.localized_link>，无论你使用什么构建系统。队友在笔记本电脑上预热的构件、代理生成的构件或早期构建留下的构件都能在运行器上命中，反之亦然。无需单独预热 CI 缓存，加速也不仅限于 CI。
+大多数 CI 运行器提供商通过提供更强大的机器和持久缓存来加速任务，通常是将共享卷挂载回你的 CI 运行中。这确实有帮助，但卷只是一个磁盘：它携带的是之前 CI 运行留下的任何内容。它不会进行复制以仅将最新的构件保持在构建运行位置附近，也永远无法触及代码在其他地方构建的位置。
 
-此外，缓存与运行器位于同一私有网络上，因此缓存读写保持在内部并靠近计算资源，而不是穿越公共互联网。
+构建不再只发生在一个地方。相同的代码在开发者的笔记本电脑上、跨 CI 环境编译，并且越来越多地由编码代理和其他自动化环境编译。Tuist 运行器与众不同，因为它们共享所有那些环境已经读写过的同一个<.localized_link href="/guides/features/cache">缓存</.localized_link>，无论你使用何种构建系统。队友在笔记本电脑上预热的构件、代理生成的构件或早期构建留下的构件都能在运行器上命中缓存，反之亦然。无需单独预热 CI 缓存，且加速效果不仅限于 CI。
+
+此外，缓存与运行器位于同一私有网络上，因此缓存读写保持内部化并靠近计算资源，而无需穿越公共互联网。
 
 综上所述：
 
-- **跨所有环境共享。** 运行器读写的缓存与你的开发者机器、CI 和编码代理相同，因此在任何地方完成的工作都能预热各处的缓存。
-- **与计算资源共置。** 缓存流量停留在运行器旁边的内部网络上，而不是通过公共入口。
-- **一个系统，而非附加组件。** 缓存、<.localized_link href="/guides/features/selective-testing">选择性测试</.localized_link>、<.localized_link href="/guides/features/test-sharding">测试分片</.localized_link>和<.localized_link href="/guides/features/build-insights">构建洞察</.localized_link>都针对同一个项目和账户运行，因此运行器不是构建数据的独立孤岛。
+- **在所有环境中共享。** 运行器读写的缓存与你的开发者机器、CI 和编码代理相同，因此在任何地方完成的工作都能为各处的缓存预热。
+- **与计算资源共置。** 缓存流量保留在运行器旁边的内部网络上，而不是通过公共入口。
+- **一体化系统，而非附加组件。** 缓存、<.localized_link href="/guides/features/selective-testing">选择性测试</.localized_link>、<.localized_link href="/guides/features/test-sharding">测试分片</.localized_link>和<.localized_link href="/guides/features/build-insights">构建洞察</.localized_link>都针对同一项目和账户运行，因此运行器不是独立的构建数据孤岛。

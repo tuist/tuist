@@ -24,7 +24,7 @@ msgstr "Hesap başarıyla oluşturuldu! Lütfen giriş yapın."
 #: lib/tuist_web/live/user_registration_live.ex:474
 #, elixir-autogen, elixir-format
 msgid "Account name is already taken"
-msgstr "Hesap adı zaten kullanılıyor"
+msgstr "Hesap adı zaten alınmış"
 
 #: lib/tuist_web/live/user_registration_live.ex:239
 #, elixir-autogen, elixir-format
@@ -34,7 +34,7 @@ msgstr "Zaten bir hesabınız var mı?"
 #: lib/tuist_web/live/connect_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
-msgstr "Tuist projenizi zaten kurduysanız kurulumu atlayıp panoya gidebilirsiniz."
+msgstr "Tuist projenizi zaten kurduysanız kurulumu atlayıp panoya gidin."
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:92
 #: lib/tuist_web/live/user_forgot_password_live.ex:73
@@ -56,7 +56,7 @@ msgstr "E-postanızı kontrol edin"
 #: lib/tuist_web/live/user_registration_live.ex:268
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
-msgstr "Devam etmek için gelen kutunuzdaki onay e-postasını kontrol edin ve bağlantıya tıklayın."
+msgstr "Onay e-postası için gelen kutunuzu kontrol edin ve devam etmek için bağlantıya tıklayın."
 
 #: lib/tuist_web/live/choose_username_live.ex:57
 #, elixir-autogen, elixir-format
@@ -105,7 +105,7 @@ msgstr "Bağlantı başarılı"
 msgid "Contact us"
 msgstr "Bize ulaşın"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:26
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:48
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:119
 #: lib/tuist_web/live/choose_username_live.ex:100
 #, elixir-autogen, elixir-format
@@ -117,7 +117,7 @@ msgstr "Devam et"
 #: lib/tuist_web/live/device_codes_success_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
-msgstr "Panel"
+msgstr "Kontrol Paneli"
 
 #: lib/tuist_web/live/user_login_live.ex:260
 #, elixir-autogen, elixir-format
@@ -136,12 +136,12 @@ msgstr "E-posta adresi"
 #: lib/tuist_web/live/user_registration_live.ex:480
 #, elixir-autogen, elixir-format
 msgid "Email is already taken"
-msgstr "E-posta zaten kullanılıyor"
+msgstr "Bu e-posta zaten kullanılıyor"
 
 #: lib/tuist_web/live/connect_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
-msgstr "Geliştirme hızınızı artırmak için ikili önbellekleme ve seçici test gibi Tuist özelliklerini keşfedin."
+msgstr "Geliştirme sürecinizi hızlandırmak için ikili önbellekleme ve seçici test gibi Tuist özelliklerini keşfedin."
 
 #: lib/tuist_web/live/user_login_live.ex:211
 #, elixir-autogen, elixir-format
@@ -156,13 +156,13 @@ msgstr "Parolanızı mı unuttunuz?"
 #: lib/tuist_web/live/user_forgot_password_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
-msgstr "E-posta adresiniz kayıtlarımızda varsa, kısa süre içinde şifre sıfırlama talimatlarını alacaksınız."
+msgstr "E-posta adresiniz kayıtlarımızda bulunuyorsa, kısa süre içinde şifre sıfırlama talimatlarını alacaksınız."
 
 #: lib/tuist_web/live/connect_live.ex:104
 #: lib/tuist_web/live/connect_live.ex:166
 #, elixir-autogen, elixir-format
 msgid "Install Tuist CLI"
-msgstr "Tuist CLI'yı Yükle"
+msgstr "Tuist CLI'yi yükleyin"
 
 #: lib/tuist_web/live/user_registration_live.ex:79
 #, elixir-autogen, elixir-format
@@ -172,7 +172,7 @@ msgstr "Uygulamanızı bir URL ile anında paylaşın."
 #: lib/tuist_web/live/sso_login_live.ex:111
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
-msgstr "SSO ile ilgileniyor musunuz?"
+msgstr "SSO ile mi ilgileniyorsunuz?"
 
 #: lib/tuist_web/live/user_login_live.ex:204
 #, elixir-autogen, elixir-format
@@ -234,7 +234,7 @@ msgstr "Previews"
 #: lib/tuist_web/live/connect_live.ex:70
 #, elixir-autogen, elixir-format
 msgid "Project Ready? Proceed to dashboard"
-msgstr "Proje hazır mı? Panoya git"
+msgstr "Proje hazır mı? Panoya devam et"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:62
 #: lib/tuist_web/live/user_reset_password_live.ex:74
@@ -262,12 +262,12 @@ msgstr "Seçici test"
 #: lib/tuist_web/live/user_registration_live.ex:315
 #, elixir-autogen, elixir-format
 msgid "Sign up"
-msgstr "Kayıt ol"
+msgstr "Kaydol"
 
 #: lib/tuist_web/live/user_registration_live.ex:108
 #, elixir-autogen, elixir-format
 msgid "Sign up for Tuist"
-msgstr "Tuist'e kayıt ol"
+msgstr "Tuist'e kaydol"
 
 #: lib/tuist_web/live/choose_username_live.ex:236
 #, elixir-autogen, elixir-format
@@ -386,7 +386,7 @@ msgstr "Hesabınız doğrulandı. Kısa süre içinde yönlendirileceksiniz..."
 #: lib/tuist_web/live/user_reset_password_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Your new password must be different to previously used passwords."
-msgstr "Yeni parolanız daha önce kullanılan şifrelerden farklı olmalıdır."
+msgstr "Yeni parolanız daha önce kullandığınız parolalardan farklı olmalıdır."
 
 #: lib/tuist_web/live/connect_live.ex:116
 #: lib/tuist_web/live/connect_live.ex:134
@@ -443,12 +443,12 @@ msgstr "SSO ile giriş yap"
 #: lib/tuist_web/live/sso_login_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
-msgstr "Bu e-posta için yapılandırılmış bir SSO organizasyonu bulunmuyor. Adresi kontrol edin ve organizasyon yöneticinizden SSO alanı kurulumunu doğrulamasını isteyin."
+msgstr "Bu e-posta adresi için yapılandırılmış bir SSO organizasyonu bulunmuyor. Adresi kontrol edin ve SSO alanı kurulumunu doğrulaması için organizasyon yöneticinize başvurun."
 
 #: lib/tuist_web/controllers/auth_controller.ex:782
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
-msgstr "Bu e-postayla zaten bir hesap mevcut. Lütfen bunun yerine giriş yapın."
+msgstr "Bu e-posta adresine sahip bir hesap zaten mevcut. Lütfen bunun yerine giriş yapın."
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:22
 #, elixir-autogen, elixir-format
@@ -458,12 +458,12 @@ msgstr "E-postanızı onaylayın"
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "Confirm your email address to finish signing in"
-msgstr "Oturum açmayı tamamlamak için e-posta adresinizi onaylayın"
+msgstr "Oturum açma işlemini tamamlamak için e-posta adresinizi onaylayın"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "If your email is registered and not yet confirmed, you'll receive a confirmation link shortly."
-msgstr "E-postanız kayıtlı ve henüz onaylanmamışsa, kısa süre içinde bir onay bağlantısı alacaksınız."
+msgstr "E-postanız kayıtlıysa ve henüz onaylanmamışsa, kısa süre içinde bir onay bağlantısı alacaksınız."
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:60
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:81
@@ -492,7 +492,7 @@ msgstr "Lütfen güvenlik kontrolünü tamamlayıp tekrar deneyin."
 #: lib/tuist_web/live/user_registration_live.ex:406
 #, elixir-autogen, elixir-format
 msgid "The security check could not load. Check for a blocker on challenges.cloudflare.com and reload the page."
-msgstr "Güvenlik kontrolü yüklenemedi. challenges.cloudflare.com üzerindeki engelleyicileri kontrol edip sayfayı yeniden yükleyin."
+msgstr "Güvenlik kontrolü yüklenemedi. challenges.cloudflare.com üzerinde engelleyici olup olmadığını kontrol edip sayfayı yeniden yükleyin."
 
 #: lib/tuist_web/live/choose_username_live.ex:191
 #: lib/tuist_web/live/user_registration_live.ex:420
@@ -531,7 +531,7 @@ msgstr "Doğrulanıyor, lütfen bekleyin..."
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:87
 #, elixir-autogen, elixir-format
 msgid "Just a quick check"
-msgstr "Kısa bir kontrol"
+msgstr "Hızlı bir kontrol"
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:89
 #, elixir-autogen, elixir-format
@@ -546,7 +546,7 @@ msgstr "Çok fazla deneme yapıldı. Lütfen bir süre bekleyip tekrar deneyin."
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:110
 #, elixir-autogen, elixir-format
 msgid "Turnstile is unavailable. Please try again shortly."
-msgstr "Turnstile kullanılamıyor. Lütfen kısa süre içinde tekrar deneyin."
+msgstr "Turnstile kullanılamıyor. Lütfen kısa süre sonra tekrar deneyin."
 
 #: lib/tuist_web/controllers/public_page_challenge_controller.ex:152
 #, elixir-autogen, elixir-format
@@ -561,7 +561,7 @@ msgstr "İnsan olduğunuzu doğrulayın"
 #: lib/tuist_web/controllers/auth_controller.ex:104
 #, elixir-autogen, elixir-format
 msgid "Google sign-in could not be completed. Please try logging in again."
-msgstr "Google ile giriş tamamlanamadı. Lütfen tekrar giriş yapmayı deneyin."
+msgstr "Google ile oturum açma işlemi tamamlanamadı. Lütfen tekrar giriş yapmayı deneyin."
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:63
 #, elixir-autogen, elixir-format
@@ -574,7 +574,7 @@ msgstr "Zaten bağlı"
 #: lib/tuist_web/components/user_security.ex:278
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:38
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:38
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:34
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:57
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:189
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:58
@@ -602,25 +602,24 @@ msgstr "Yalnızca %{organization} sizin kuruluşunuzsa bağlayın. Bu kimlik sa�
 #: lib/tuist_web/controllers/sso_link_controller.ex:129
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on · Tuist"
-msgstr "Tek oturum açmayı bağla · Tuist"
+msgstr "Tek giriş oturumunu bağla · Tuist"
 
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on?"
-msgstr "Tek oturum açma bağlantısı kurulacak mı?"
+msgstr "Tek giriş oturumu bağlansın mı?"
 
 #: lib/tuist_web/controllers/auth_controller.ex:587
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
-msgstr "Tuist hesabınızı kuruluşunuzun tek oturum açma sistemine bağlamak için Tuist hesabınızda oturum açın."
+msgstr "Tuist hesabınızı kuruluşunuzun tek giriş oturumuna bağlamak için Tuist hesabınızda oturum açın."
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:122
 #, elixir-autogen, elixir-format
 msgid "Sign in with single sign-on again to link your account."
-msgstr "Hesabınızı bağlamak için tek oturum açma ile tekrar giriş yapın."
+msgstr "Hesabınızı bağlamak için tek giriş oturumuyla tekrar giriş yapın."
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:18
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:15
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
 #: lib/tuist_web/live/device_authorization_live.ex:37
 #, elixir-autogen, elixir-format
@@ -630,7 +629,7 @@ msgstr "%{email} olarak Tuist'te oturum açıldı"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "The %{organization} identity provider account that will sign in to your Tuist account."
-msgstr "Tuist hesabınızda oturum açmak için kullanılacak %{organization} kimlik sağlayıcı hesabı."
+msgstr "Tuist hesabınızda oturum açacak %{organization} kimlik sağlayıcı hesabı."
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:65
 #, elixir-autogen, elixir-format
@@ -638,7 +637,7 @@ msgid "This identity provider account is already linked to another Tuist account
 msgstr "Bu kimlik sağlayıcı hesabı zaten başka bir Tuist hesabına bağlı."
 
 #: lib/tuist_web/controllers/device_code_html.ex:19
-#: lib/tuist_web/controllers/sso_link_html.ex:34
+#: lib/tuist_web/controllers/sso_link_html.ex:35
 #, elixir-autogen, elixir-format
 msgid "Tuist logo"
 msgstr "Tuist logosu"
@@ -661,13 +660,13 @@ msgstr "Tuist paketini ekle"
 #: lib/tuist_web/live/connect_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Add this to the project options in the same file."
-msgstr "Aynı dosyadaki proje seçeneklerine bunu ekleyin."
+msgstr "Bunu aynı dosyadaki proje seçeneklerine ekleyin."
 
 #: lib/tuist_web/live/connect_live.ex:182
 #: lib/tuist_web/live/connect_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Log in and run your tests"
-msgstr "Giriş yapın ve testlerinizi çalıştırın"
+msgstr "Oturum açın ve testlerinizi çalıştırın"
 
 #: lib/tuist_web/live/connect_live.ex:172
 #: lib/tuist_web/live/connect_live.ex:221
@@ -678,7 +677,7 @@ msgstr "Bu projeye yönlendirin"
 #: lib/tuist_web/live/connect_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "Report your builds, catch flaky tests, and split your tests across machines."
-msgstr "Derlemelerinizi raporlayın, kararsız testleri yakalayın ve testlerinizi makineler arasında dağıtın."
+msgstr "Derlemelerinizi bildirin, kararsız testleri yakalayın ve testlerinizi makineler arasında dağıtın."
 
 #: lib/tuist_web/live/connect_live.ex:232
 #, elixir-autogen, elixir-format
@@ -728,17 +727,17 @@ msgstr "%{provider} bağlantısı için Tuist organizasyonunu seçin."
 #: lib/tuist_web/live/integration_installation_accounts_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "You need administrator access to connect an integration."
-msgstr "Entegrasyon bağlamak için yönetici erişimine ihtiyacınız var."
+msgstr "Bir entegrasyonu bağlamak için yönetici erişimine ihtiyacınız var."
 
 #: lib/tuist_web/live/sso_login_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
-msgstr "Bu oturum açma etki alanını birden fazla organizasyon kullanıyor. Organizasyonunuzun SSO oturum açma bağlantısını kullanın veya etki alanını DNS ile doğrulaması için bir yöneticiden yardım isteyin."
+msgstr "Bu oturum açma etki alanını birden fazla organizasyon kullanıyor. Organizasyonunuzun SSO oturum açma bağlantısını kullanın veya bir yöneticiden DNS ile etki alanını doğrulamasını isteyin."
 
 #: lib/tuist_web/live/user_registration_live.ex:55
 #, elixir-autogen, elixir-format
 msgid "Analyze builds and test runs to keep CI fast and reliable."
-msgstr "CI'yi hızlı ve güvenilir tutmak için derlemeleri ve test çalıştırmalarını analiz edin."
+msgstr "CI'ı hızlı ve güvenilir tutmak için derlemeleri ve test çalıştırmalarını analiz edin."
 
 #: lib/tuist_web/live/user_registration_live.ex:52
 #, elixir-autogen, elixir-format
@@ -787,7 +786,7 @@ msgstr "Kimlik doğrulama veya kurtarma kodu"
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Back to sign in"
-msgstr "Girişe dön"
+msgstr "Girişe geri dön"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:182
 #, elixir-autogen, elixir-format
@@ -820,7 +819,7 @@ msgstr "Kurtarma kodlarımı kaydettim"
 #: lib/tuist_web/live/user_security_settings_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Protect your account with an authenticator app and recovery codes."
-msgstr "Hesabınızı bir kimlik doğrulayıcı uygulama ve kurtarma kodlarıyla koruyun."
+msgstr "Hesabınızı kimlik doğrulayıcı uygulaması ve kurtarma kodlarıyla koruyun."
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:2
 #: lib/tuist_web/live/authentication_settings_live.html.heex:192
@@ -832,7 +831,7 @@ msgstr "Kurtarma kodlarınızı kaydedin"
 #: lib/tuist_web/live/user_security_settings_live.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Set up authenticator app"
-msgstr "Kimlik doğrulayıcı uygulamayı kurun"
+msgstr "Kimlik doğrulayıcı uygulamasını ayarla"
 
 #: lib/tuist_web/controllers/user_mfa_controller.ex:201
 #, elixir-autogen, elixir-format
@@ -859,41 +858,41 @@ msgstr "Doğrula"
 #: lib/tuist_web/controllers/user_passkey_controller.ex:69
 #, elixir-autogen, elixir-format
 msgid "Passkey added."
-msgstr "Geçiş anahtarı eklendi."
+msgstr "Şifre anahtarı eklendi."
 
 #: lib/tuist_web/controllers/user_passkey_controller.ex:117
 #, elixir-autogen, elixir-format
 msgid "Passkey removed."
-msgstr "Geçiş anahtarı kaldırıldı."
+msgstr "Şifre anahtarı kaldırıldı."
 
 #: lib/tuist_web/controllers/user_passkey_controller.ex:180
 #, elixir-autogen, elixir-format
 msgid "Remove a passkey before adding another one."
-msgstr "Başka bir geçiş anahtarı eklemeden önce mevcut olanı kaldırın."
+msgstr "Başka bir tane eklemeden önce şifre anahtarını kaldırın."
 
 #: lib/tuist_web/controllers/user_mfa_controller.ex:197
 #: lib/tuist_web/controllers/user_passkey_controller.ex:147
 #: lib/tuist_web/controllers/user_passkey_controller.ex:184
 #, elixir-autogen, elixir-format
 msgid "The passkey could not be verified. Try again."
-msgstr "Geçiş anahtarı doğrulanamadı. Tekrar deneyin."
+msgstr "Şifre anahtarı doğrulanamadı. Tekrar deneyin."
 
 #: lib/tuist_web/controllers/user_passkey_controller.ex:182
 #: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:37
 #: lib/tuist_web/live/authentication_settings_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "This passkey is already registered."
-msgstr "Bu geçiş anahtarı zaten kayıtlı."
+msgstr "Bu şifre anahtarı zaten kayıtlı."
 
-#: lib/tuist_web/authentication.ex:865
+#: lib/tuist_web/authentication.ex:904
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
-msgstr "Kuruluşlarınızın her biri kendi tek oturum açma (SSO) sistemini gerektirdiğinden, bu oturum Tuist CLI, uygulama veya MCP istemcilerinde kullanılamaz. Yardım için kuruluş yöneticisine başvurun."
+msgstr "Organizasyonlarınızın her biri kendi tek oturum açma (SSO) sistemini gerektirdiği için bu oturum Tuist CLI, uygulama veya MCP istemcilerinde oturum açamaz. Yardım için bir organizasyon yöneticisine başvurun."
 
 #: lib/tuist_web/live/user_security_settings_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Add a passkey"
-msgstr "Geçiş anahtarı ekle"
+msgstr "Şifre anahtarı ekle"
 
 #: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:34
 #: lib/tuist_web/live/authentication_settings_live.html.heex:66
@@ -924,7 +923,7 @@ msgstr "Geçiş anahtarı doğrulama işlemi iptal edildi."
 #: lib/tuist_web/live/user_security_settings_live.ex:20
 #, elixir-autogen, elixir-format
 msgid "Passkeys"
-msgstr "Geçiş anahtarları"
+msgstr "Geçiş Anahtarları"
 
 #: lib/tuist_web/components/user_security.ex:48
 #, elixir-autogen, elixir-format
@@ -973,7 +972,7 @@ msgstr "Terminalinizde gösterilen kodu girin."
 #: lib/tuist_web/live/device_authorization_live.ex:72
 #, elixir-autogen, elixir-format
 msgid "Only enter a code from a terminal you are using. Never enter a code someone sent you."
-msgstr "Kodu yalnızca kullandığınız bir terminalden girin. Size gönderilen bir kodu asla girmeyin."
+msgstr "Yalnızca kullandığınız bir terminaldeki kodu girin. Size gönderilen bir kodu asla girmeyin."
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:32
 #: lib/tuist_web/live/device_authorization_live.ex:65
@@ -985,33 +984,33 @@ msgstr "Giriş yap"
 #: lib/tuist_web/live/device_authorization_live.ex:19
 #, elixir-autogen, elixir-format
 msgid "Sign in to Tuist"
-msgstr "Tuist'e giriş yap"
+msgstr "Tuist'te oturum aç"
 
 #: lib/tuist_web/live/device_authorization_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Sign in to the Tuist CLI"
-msgstr "Tuist CLI'ye giriş yap"
+msgstr "Tuist CLI'da oturum aç"
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Sign in to the Tuist CLI?"
-msgstr "Tuist CLI'ye giriş yapılsın mı?"
+msgstr "Tuist CLI'da oturum açılsın mı?"
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Sign in to the Tuist app?"
-msgstr "Tuist uygulamasına giriş yapılsın mı?"
+msgstr "Tuist uygulamasında oturum açılsın mı?"
 
 #: lib/tuist_web/controllers/auth_controller.ex:722
 #: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Sign-in link expired"
-msgstr "Giriş bağlantısının süresi doldu"
+msgstr "Oturum açma bağlantısının süresi doldu"
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "Signing in gives whoever started it access to your Tuist account. If you did not start it, cancel."
-msgstr "Giriş yapmak, işlemi başlatan kişinin Tuist hesabınıza erişmesini sağlar. İşlemi siz başlatmadıysanız iptal edin."
+msgstr "Oturum açma işlemini başlatan kişi, Tuist hesabınıza erişim kazanır. İşlemi siz başlatmadıysanız iptal edin."
 
 #: lib/tuist_web/controllers/auth_controller.ex:704
 #, elixir-autogen, elixir-format
@@ -1021,12 +1020,12 @@ msgstr "Bu kod hatalı veya süresi dolmuş. Kontrol edip tekrar deneyin."
 #: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "This sign-in link has expired or was already used. Start the sign-in again."
-msgstr "Bu giriş bağlantısının süresi doldu veya daha önce kullanıldı. Giriş işlemini yeniden başlatın."
+msgstr "Bu oturum açma bağlantısının süresi doldu veya zaten kullanıldı. Oturum açma işlemini yeniden başlatın."
 
 #: lib/tuist_web/controllers/auth_controller.ex:710
 #, elixir-autogen, elixir-format
 msgid "Too many attempts. Wait a few minutes and try again."
-msgstr "Çok fazla deneme yapıldı. Birkaç dakika bekleyip tekrar deneyin."
+msgstr "Çok fazla deneme. Birkaç dakika bekleyip tekrar deneyin."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:56
 #: lib/tuist_web/live/authentication_settings_live.html.heex:132
@@ -1068,7 +1067,7 @@ msgstr "Otomatik olarak kopyalanamadı. Kurtarma kodlarınızı seçip kopyalay�
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Enter this setup key in your authenticator app."
-msgstr "Bu kurulum anahtarını kimlik doğrulayıcı uygulamanıza girin."
+msgstr "Bu kurulum anahtarını kimlik doğrulama uygulamanıza girin."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:163
 #, elixir-autogen, elixir-format
@@ -1079,7 +1078,7 @@ msgstr "Yeni kurtarma kodları oluştur"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "JavaScript is required to use passkeys."
-msgstr "Şifresiz girişleri kullanmak için JavaScript gereklidir."
+msgstr "Anahtarlar için JavaScript gereklidir."
 
 #: lib/tuist_web/components/user_security.ex:23
 #, elixir-autogen, elixir-format
@@ -1089,7 +1088,7 @@ msgstr "Hiç kullanılmadı"
 #: lib/tuist_web/controllers/user_passkey_controller.ex:83
 #, elixir-autogen, elixir-format
 msgid "Passkey renamed."
-msgstr "Şifresiz giriş yeniden adlandırıldı."
+msgstr "Anahtar yeniden adlandırıldı."
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:25
 #, elixir-autogen, elixir-format
@@ -1105,7 +1104,7 @@ msgstr "Kurtarma kodlarını yeniden oluştur"
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Remove %{name} from your Tuist account."
-msgstr "%{name} öğesini Tuist hesabınızdan kaldırın."
+msgstr "%{name} öğesini Tuist hesabınızdan kaldır."
 
 #: lib/tuist_web/components/user_security.ex:152
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:51
@@ -1159,7 +1158,7 @@ msgstr "Diğer oturumlarınız kapatılacak"
 #: lib/tuist_web/controllers/user_passkey_controller.ex:39
 #, elixir-autogen, elixir-format
 msgid "Add a passkey · Tuist"
-msgstr "Bir passkey ekle · Tuist"
+msgstr "Passkey ekle · Tuist"
 
 #: lib/tuist_web/live/user_security_settings_live.html.heex:44
 #, elixir-autogen, elixir-format
@@ -1189,40 +1188,40 @@ msgstr "Kaydet"
 #: lib/tuist_web/components/user_security.ex:257
 #, elixir-autogen, elixir-format
 msgid "Your account will no longer require an authenticator code at sign-in."
-msgstr "Hesabınız artık giriş sırasında bir kimlik doğrulama kodu gerektirmeyecek."
+msgstr "Hesabınız artık giriş sırasında kimlik doğrulama kodu gerektirmeyecek."
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Each code can be used once if you lose access to your authenticator."
-msgstr "Kimlik doğrulayıcı uygulamanıza erişiminizi kaybederseniz, her kod yalnızca bir kez kullanılabilir."
+msgstr "Kimlik doğrulayıcınıza erişiminizi kaybederseniz, her kod yalnızca bir kez kullanılabilir."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Open the browser extension, select your Tuist login, then choose Scan 2FA QR code from the three-dot menu. Save it, then enter the generated code."
-msgstr "Tarayıcı uzantısını açın, Tuist girişinizi seçin ve üç nokta menüsünden \"2FA QR kodunu tarat\" seçeneğini belirleyin. Kaydedin ve ardından oluşturulan kodu girin."
+msgstr "Tarayıcı uzantısını açın, Tuist girişinizi seçin ve üç noktalı menüden 2FA QR kodunu tarayı seçeneğini belirleyin. Kaydedin ve ardından oluşturulan kodu girin."
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:4
 #: lib/tuist_web/live/authentication_settings_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Save these codes somewhere safe. You won't see them again."
-msgstr "Bu kodları güvenli bir yerde saklayın. Tekrar göremezsiniz."
+msgstr "Bu kodları güvenli bir yere kaydedin. Tekrar görmeyeceksiniz."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:46
 #: lib/tuist_web/live/authentication_settings_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Scan the QR code, then enter the six-digit code."
-msgstr "QR kodunu taratın ve ardından altı haneli kodu girin."
+msgstr "QR kodunu tarayın ve ardından altı haneli kodu girin."
 
 #: lib/tuist_web/live/user_security_settings_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Sign in without a password."
-msgstr "Parola olmadan oturum açın."
+msgstr "Şifre olmadan oturum açın."
 
 #: lib/tuist_web/components/user_security.ex:127
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "The saved credential will remain in your password manager or on your security key."
-msgstr "Kaydedilen kimlik bilgisi, parola yöneticinizde veya güvenlik anahtarınızda kalır."
+msgstr "Kaydedilen kimlik bilgisi şifre yöneticinizde veya güvenlik anahtarınızda kalacaktır."
 
 #: lib/tuist_web/components/user_security.ex:121
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:13
@@ -1234,12 +1233,12 @@ msgstr "Bu tarayıcıda oturum açık kalır."
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "This is your last passkey. Make sure you can sign in another way, or set a password using password reset first."
-msgstr "Bu son geçiş anahtarınız. Başka bir şekilde oturum açabildiğinizden emin olun veya önce parola sıfırlama ile bir parola ayarlayın."
+msgstr "Bu son passkey'inizdir. Başka bir şekilde oturum açabildiğinizden emin olun veya önce şifre sıfırlama ile bir şifre belirleyin."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "To use the setup key instead, edit your Tuist login in 1Password, add a One-Time Password field, paste the key, and save."
-msgstr "Bunun yerine kurulum anahtarını kullanmak için 1Password'deki Tuist girişinizi düzenleyin, Tek Kullanımlık Parola alanı ekleyin, anahtarı yapıştırın ve kaydedin."
+msgstr "Bunun yerine kurulum anahtarını kullanmak için 1Password'deki Tuist girişinizi düzenleyin, Tek Kullanımlık Şifre alanı ekleyin, anahtarı yapıştırın ve kaydedin."
 
 #: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:4
 #, elixir-autogen, elixir-format
@@ -1254,24 +1253,24 @@ msgstr "1Password mu kullanıyorsunuz?"
 #: lib/tuist_web/components/user_security.ex:190
 #, elixir-autogen, elixir-format
 msgid "Your old codes will stop working and other sessions will be signed out."
-msgstr "Eski kodlarınız çalışmayı durduracak ve diğer oturumlar kapatılacak."
+msgstr "Eski kodlarınız çalışmayı durduracak ve diğer oturumlar kapatılacaktır."
 
-#: lib/tuist_web/controllers/sso_link_html.ex:80
+#: lib/tuist_web/controllers/sso_link_html.ex:82
 #, elixir-autogen, elixir-format
 msgid "Sign in again"
-msgstr "Tekrar giriş yap"
+msgstr "Tekrar giriş yapın"
 
 #: lib/tuist_web/controllers/user_passkey_controller.ex:178
 #, elixir-autogen, elixir-format
 msgid "Sign in again to continue changing passkeys."
-msgstr "Anahtarları değiştirmeye devam etmek için tekrar giriş yapın."
+msgstr "Passkey'leri değiştirmeye devam etmek için tekrar giriş yapın."
 
 #: lib/tuist_web/controllers/user_mfa_controller.ex:195
 #, elixir-autogen, elixir-format
 msgid "Sign in again to continue changing two-factor authentication."
 msgstr "İki faktörlü kimlik doğrulamayı değiştirmeye devam etmek için tekrar giriş yapın."
 
-#: lib/tuist_web/controllers/sso_link_html.ex:65
+#: lib/tuist_web/controllers/sso_link_html.ex:67
 #, elixir-autogen, elixir-format
 msgid "To protect your account, confirm your identity before changing security settings. You'll return here after signing in."
 msgstr "Hesabınızı korumak için güvenlik ayarlarını değiştirmeden önce kimliğinizi onaylayın. Giriş yaptıktan sonra buraya döneceksiniz."
@@ -1285,7 +1284,7 @@ msgstr "Kimlik doğrulama ayarlarına dön"
 #: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:51
 #, elixir-autogen, elixir-format
 msgid "Create a passkey"
-msgstr "Geçiş anahtarı oluştur"
+msgstr "Passkey oluştur"
 
 #: lib/tuist_web/components/user_security.ex:36
 #, elixir-autogen, elixir-format
@@ -1295,7 +1294,7 @@ msgstr "Eylemler"
 #: lib/tuist_web/components/user_security.ex:15
 #, elixir-autogen, elixir-format
 msgid "Created"
-msgstr "Oluşturulma Tarihi"
+msgstr "Oluşturuldu"
 
 #: lib/tuist_web/components/user_security.ex:12
 #, elixir-autogen, elixir-format
@@ -1306,7 +1305,7 @@ msgstr "Ad"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Add passkey"
-msgstr "Geçiş anahtarı ekle"
+msgstr "Passkey ekle"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:165
 #, elixir-autogen, elixir-format
@@ -1323,7 +1322,7 @@ msgstr "Etkinleştir"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Enable 2FA"
-msgstr "2FA'yı Etkinleştir"
+msgstr "İki Faktörlü Kimlik Doğrulamayı Etkinleştir"
 
 #: lib/tuist_web/components/user_security.ex:180
 #, elixir-autogen, elixir-format
@@ -1343,24 +1342,24 @@ msgstr "Yeniden Oluştur"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Manage 2FA"
-msgstr "2FA Yönetimi"
+msgstr "İki Faktörlü Kimlik Doğrulamayı Yönet"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:4
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:15
 #, elixir-autogen, elixir-format
 msgid "%{client} will be able to use your Tuist account as you, including your threads and AI subscriptions."
-msgstr "%{client}, sizin adınıza Tuist hesabınızı, konuşmalarınızı ve AI aboneliklerinizi kullanabilecek."
+msgstr "%{client}, konularınız ve AI abonelikleriniz dahil olmak üzere Tuist hesabınızı sizin adınıza kullanabilecek."
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:45
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Continue only if you just started signing in to %{client} yourself."
-msgstr "Bu işlemi yalnızca %{client} oturumunu kendiniz başlattıysanız devam edin."
+msgstr "Bu işlemi yalnızca %{client} oturum açma işlemini kendiniz başlattıysanız devam edin."
 
-#: lib/tuist_web/controllers/oauth/authorize_controller.ex:146
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:248
 #, elixir-autogen, elixir-format
 msgid "Sign in to %{client} · Tuist"
-msgstr "%{client} ile Giriş Yap · Tuist"
+msgstr "%{client} ile giriş yap · Tuist"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:2
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Sign in to %{client}?"
 msgstr "%{client} uygulamasında oturum aç?"
@@ -1383,4 +1382,54 @@ msgstr "%{github_organization} GitHub organizasyonuna bağlanmak için Tuist org
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Only organizations you administer are listed. Create one, or ask an admin to promote you."
-msgstr "Yalnızca yönettiğiniz organizasyonlar listelenir. Bir tane oluşturun veya bir yöneticiden yetki yükseltmesi isteyin."
+msgstr "Yalnızca yönettiğiniz organizasyonlar listelenir. Bir tane oluşturun veya bir yöneticiden yetkinizi yükseltmesini isteyin."
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Anyone can register an application with any name, so check where access goes. The application can read your projects and use Tuist's agent tools as you, including tools that change organizations and projects you can change. If you did not start this, cancel."
+msgstr "Herkes herhangi bir adla bir uygulama kaydedebilir, bu nedenle erişimin nereye gittiğini kontrol edin. Uygulama, projelerinizi okuyabilir ve sizin adınıza Tuist'in aracı araçlarını kullanabilir; bu araçlar arasında değiştirebileceğiniz organizasyonları ve projeleri değiştirenler de bulunur. Eğer bu işlemi siz başlatmadıysanız, iptal edin."
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Application"
+msgstr "Uygulama"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Authorize"
+msgstr "Yetkilendir"
+
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:247
+#, elixir-autogen, elixir-format
+msgid "Authorize application · Tuist"
+msgstr "Uygulamayı yetkilendir · Tuist"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Authorize this application?"
+msgstr "Bu uygulamayı yetkilendirmek istiyor musunuz?"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Continue only if you just connected this application to Tuist yourself."
+msgstr "Yalnızca bu uygulamayı Tuist'e kendiniz bağladıysanız devam edin."
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Sends access to"
+msgstr "Erişim gönderilen yer:"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:32
+#, elixir-autogen, elixir-format
+msgid "Signed in as"
+msgstr "Şu kullanıcı olarak giriş yapıldı:"
+
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:234
+#, elixir-autogen, elixir-format
+msgid "Unnamed application"
+msgstr "İsimsiz uygulama"
+
+#: lib/tuist_web/authentication.ex:926
+#, elixir-autogen, elixir-format
+msgid "%{organization} requires two-factor authentication. Set up an authenticator app, or sign in again with a passkey, to continue."
+msgstr "%{organization} iki faktörlü kimlik doğrulamayı gerektiriyor. Devam etmek için bir kimlik doğrulama uygulaması ayarlayın veya bir passkey ile tekrar oturum açın."

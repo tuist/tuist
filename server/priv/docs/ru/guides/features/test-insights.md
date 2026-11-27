@@ -2,17 +2,17 @@
 {
   "title": "Аналитика тестов",
   "titleTemplate": ":title · Возможности · Руководства · Tuist",
-  "description": "Выявляйте нестабильные и медленные тесты в проектах на Xcode, Gradle, Bazel, Elixir, Rust и Once с помощью аналитики тестов Tuist."
+  "description": "Выявляйте нестабильные и медленные тесты в проектах на Xcode, Gradle, Bazel, Elixir, Rust и Struo с помощью аналитики тестов Tuist."
 }
 ---
 # Аналитика тестов {#test-insights}
 
-Используйте аналитику тестов, чтобы отслеживать состояние вашего набора тестов: выявляйте медленные тесты, контролируйте нестабильные тесты и быстро разбирайтесь в причинах сбоев в CI. Сейчас поддерживаются Xcode, Gradle, Bazel, Elixir, Rust и Once. Доступные результаты и замеры времени зависят от вашего раннера. Чтобы узнать, какой код выполняют ваши тесты в поддерживаемых системах сборки, см. <.localized_link href="/guides/features/test-code-coverage">Покрытие кода</.localized_link>. Рекомендации по [медленным тестам](https://tuist.dev/solutions/slow-tests) и [нестабильным тестам](https://tuist.dev/solutions/flaky-tests) вы найдете в руководствах по решениям.
+Используйте аналитику тестов, чтобы следить за состоянием набора тестов: выявлять медленные тесты, отслеживать нестабильные тесты и быстро разбираться в причинах сбоев CI-запусков. Сейчас поддерживаются Xcode, Gradle, Bazel, Elixir, Rust и Struo. Доступные результаты и временные метрики зависят от вашего раннера. Чтобы видеть, какой код выполняют ваши тесты в поддерживаемых системах сборки, см. <.localized_link href="/guides/features/test-code-coverage">Покрытие кода</.localized_link>. Рекомендации по [медленным тестам](https://tuist.dev/solutions/slow-tests) и [нестабильным тестам](https://tuist.dev/solutions/flaky-tests) смотрите в руководствах по решениям.
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="Отслеживайте аналитику тестов Xcode с помощью пост-действий схем и CLI Tuist."
+    details="Отслеживайте аналитику тестов Xcode с помощью постдействий схемы и CLI Tuist."
     link="/guides/features/test-insights/xcode"
 />
   <.home_card
@@ -36,8 +36,8 @@
     link="/guides/features/test-insights/rust"
 />
   <.home_card
-    title="Once"
-    details="Отслеживайте зарегистрированные цели тестов, наборы, случаи, сбои и попытки повторного запуска через нативную интеграцию Once."
-    link="/guides/features/test-insights/once"
+    title="Struo"
+    details="Отслеживайте сообщаемые цели тестов, наборы, случаи, сбои и попытки повторного запуска через нативную интеграцию Struo."
+    link="/guides/features/test-insights/struo"
 />
 </.home_cards>

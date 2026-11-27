@@ -7,13 +7,13 @@
 ---
 # CLI {#cli}
 
-Tuist CLI, Tuist ile etkileşim kurmak için kullanılan arayüzlerden biridir ve <.localized_link href="/guides/features/projects">oluşturulan projeler</.localized_link> kullanıyorsanız en yaygın olanıdır. Proje oluşturma, ikili dosyaları önbelleğe alma, testleri çalıştırma, önizlemeleri paylaşma ve daha fazlası için komutlar sağlar.
+Tuist CLI, Tuist ile etkileşim kurmanın yollarından biridir ve <.localized_link href="/guides/features/projects">oluşturulmuş projeler</.localized_link> kullanıyorsanız en yaygın olanıdır. Proje oluşturma, ikili dosyaları önbelleğe alma, testleri çalıştırma, önizlemeleri paylaşma ve daha fazlası için komutlar sağlar.
 
 ## Başlarken {#getting-started}
 
-Henüz Tuist'i yüklemediyseniz başlamak için <.localized_link href="/guides/install-tuist">kurulum kılavuzunu</.localized_link> takip edin.
+Tuist'i henüz yüklemediyseniz başlamak için <.localized_link href="/guides/install-tuist">kurulum kılavuzunu</.localized_link> takip edin.
 
-Yüklendikten sonra, mevcut komutların listesini görmek için terminalinizde `tuist` çalıştırabilirsiniz:
+Kurulum tamamlandıktan sonra, kullanılabilir komutların listesini görmek için terminalinizde `tuist` çalıştırabilirsiniz:
 
 ```bash
 tuist --help

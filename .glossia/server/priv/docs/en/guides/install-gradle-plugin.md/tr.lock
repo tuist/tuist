@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "91f8ea26e1a471cfd46f278f283ca1edb6f65539fb9fe868bd8c0c689868f30e",
+  "hash": "667ebdd800ff11c7dda6567ae9c682780e26c94b710269cbe1fa1fd99dfe1e2f",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,13 +26,13 @@
                   "content_hash": "11baaef6e88f6fcc3b520c0eb7c31a48eb64ed654d62b3f6d365d34090daf9e4"
                 },
                 "## Configuration reference {#configuration-reference}": {
-                  "content_hash": "3e713d3118fde8ae87ecc336f652aa57d59df3759c5356a0070e5fc7dc115518"
+                  "content_hash": "12e85de3ada4d5eb995eee531867cc412a15d51c385734f75c2f8c74649a9112"
                 },
                 "## HTTP proxy {#http-proxy}": {
                   "content_hash": "09594ede03ef2120eddcac78e59bdfcff30a06484306210097d117c9a8a40eae"
                 },
                 "## Next steps {#next-steps}": {
-                  "content_hash": "988fdaef318e4c26ab3083179e674d2d8efb08ce7178825796b8764a42a15357"
+                  "content_hash": "005689eb4b0d93921b33613187f288093bda83173fd85be89e8453a54d177f7e"
                 },
                 "## Publish previews {#publish-previews}": {
                   "content_hash": "e664aca8e0b4e4f5532005543b28a8a6658b96fbcfb08919c8d098a69b65a550"
@@ -44,11 +44,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "31b4f513c11c1f4db09951964ce1932e6b32147b4ce144df2c8e2964180c5c72",
+          "hash": "b96fb6cac46997057f29b461ce05826370ed67564994b53e51c5cbf4065d9917",
           "kind": "source",
           "label": "server/priv/docs/en/guides/install-gradle-plugin.md",
           "metadata": {
-            "content_hash": "a3a3cca7502abcbd1f10b623d3999188323aa84dbc6c05a2d005c8656581af89"
+            "content_hash": "5611389e60ee485c96e2f30c12795f13ad1c9ce9763c32e299aca2b0024b3a0a"
           }
         },
         {
@@ -109,7 +109,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -122,13 +122,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -157,11 +151,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -228,19 +222,25 @@
                         "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
                         "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
                         "translation_hash": "ed0c85f2d26a853a8f22f93e2f7919cac0533dba8b5db598ce2479cb1a05b2d5"
+                      },
+                      "entry:f62132c6f65234d7723d00af7da7844ea4be17735ae97c8c81542d1a3c7124cb": {
+                        "case_sensitive": false,
+                        "definition_hash": "b34d6f2265704075c9f2d7555824d65602d7ab02302a028b9c7e2a4f850faffc",
+                        "term_hash": "b792c1896e8d0a8070db2b6fb633a4e82d21621dffc66dc8354ff941bac35e5f",
+                        "translation_hash": "b0e7f7de786443ab41fb84ea534f5c1c5c15db230eb4842bbe2fcd95d7eb66c5"
                       }
                     }
                   },
-                  "hash": "64721271e015695f31a378b4ed5945665d71b732f33c490c3ee9825003a90b39",
+                  "hash": "d1db331b103abe1254bf2b81e0c137801032541f63c391a1f1af86d0228e5298",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "587a043abca89be31a30dbe9b578bd08018a8e02578c8d34020de906fab3f15b"
+                    "content_hash": "784f886f3f1cc06dd346a79bf8509fe45c019e3bf8844e6ca90981d08886e293"
                   }
                 }
               ],
               "details": {},
-              "hash": "2b717106f982e5cc8daa9b1d7901b60a61a614cf1e3843801065fefa998ddf0d",
+              "hash": "4bfd41261fb75654073e8a3e85edd43fdb2910335b5ee9e58f793f1c8030c64c",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -250,21 +250,21 @@
             }
           ],
           "details": {},
-          "hash": "d68cee2a2bcfe9cd1706d8f2e255167e5963b7b30e5a2dbf015c69f8e2181510",
+          "hash": "ecf53d8016754bd126eae59598b74fb88590bd3234f9506ffaddefeeeb6d0069",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "91f8ea26e1a471cfd46f278f283ca1edb6f65539fb9fe868bd8c0c689868f30e",
+      "hash": "667ebdd800ff11c7dda6567ae9c682780e26c94b710269cbe1fa1fd99dfe1e2f",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/install-gradle-plugin.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "68b299d8d86b38c7fc271ad62fbc7504c01ab5fe0d11af92cf2e6c8230f4f3a8",
+  "output_hash": "21ab99821ac03c6e0bc80ddf543ddd74ab70ba3d193af95c104cb6c7acc03a11",
   "output_path": "server/priv/docs/tr/guides/install-gradle-plugin.md",
   "protection_state": "recorded",
   "provider": "",
@@ -274,9 +274,10 @@
       "applied": [
         "repo:features",
         "repo:flaky-tests",
+        "repo:test-run",
         "repo:tests"
       ],
-      "content_hash": "587a043abca89be31a30dbe9b578bd08018a8e02578c8d34020de906fab3f15b",
+      "content_hash": "784f886f3f1cc06dd346a79bf8509fe45c019e3bf8844e6ca90981d08886e293",
       "shadowed": [],
       "version": null
     },
@@ -286,8 +287,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "2a3b5068a734c13ff5acd10a9873fd219016dc42",
+  "source_commit_sha": "3f30a51aa2186e86cb4a5b9f3fc87969b0ce0582",
   "source_path": "server/priv/docs/en/guides/install-gradle-plugin.md",
-  "translated_at": "2026-11-19T00:15:56.017151Z",
-  "translation_session_id": "01a1f11e-0ed8-7d81-867f-2ee4f5133c32"
+  "translated_at": "2026-11-20T05:28:10.323292Z",
+  "translation_session_id": "01a1f768-215b-749c-a358-e1df3676f19e"
 }

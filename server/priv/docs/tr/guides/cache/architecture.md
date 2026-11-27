@@ -2,24 +2,24 @@
 {
   "title": "Mimari",
   "titleTemplate": ":title | Önbellek | Kılavuzlar | Tuist",
-  "description": "Tuist önbellek hizmetinin mimarisi hakkında bilgi edinin."
+  "description": "Tuist önbellek hizmetinin mimarisini öğrenin."
 }
 ---
 
 # Önbellek Mimarisi {#cache-architecture}
 
 > [!NOTE]
-> Bu sayfa, Tuist önbellek hizmeti mimarisine ilişkin teknik bir genel bakış sunar. Öncelikle hizmetin iç işleyişini anlaması gereken **kendi altyapısını barındıran kullanıcılar** ve **katkıda bulunanlar** için hazırlanmıştır. Önbelleği yalnızca kullanmak isteyen genel kullanıcıların bunu okumasına gerek yoktur.
+> Bu sayfa, Tuist önbellek hizmeti mimarisinin teknik bir özetini sunar. Öncelikle hizmetin iç işleyişini anlaması gereken **kendi sunucularında barındıran kullanıcılar** ve **katkıda bulunanlar** için hazırlanmıştır. Önbelleği yalnızca kullanmak isteyen genel kullanıcıların bunu okumasına gerek yoktur.
 
 
-Tuist önbellek hizmeti, derleme yapıtları için İçerik Adreslenebilir Depolama (CAS) ve önbellek meta verileri için bir anahtar-değer deposu sağlayan bağımsız bir hizmettir.
+Tuist önbellek hizmeti, yapı yapıtları için İçerik Adreslenebilir Depolama (CAS) ve önbellek meta verileri için bir anahtar-değer deposu sağlayan bağımsız bir hizmettir.
 
 ## Genel Bakış {#overview}
 
-Hizmet, iki katmanlı bir depolama mimarisi ve yerel SQLite meta verilerini kullanır:
+Hizmet, iki katmanlı bir depolama mimarisi ve yerel SQLite meta verileri kullanır:
 
 - **Yerel disk**: Düşük gecikmeli önbellek isabetleri için birincil depolama
-- **S3**: Yapıtları kalıcı olarak saklayan ve tahliye sonrası kurtarmaya olanak tanıyan dayanıklı depolama
+- **S3**: Yapıtları kalıcı olarak saklayan ve temizleme sonrası kurtarmaya olanak tanıyan dayanıklı depolama
 - **SQLite**: Yapıt erişim izleme, artık dosya temizliği, arka plan işleri ve anahtar-değer önbellek verileri için yerel meta veriler
 
 ```mermaid
@@ -35,50 +35,50 @@ flowchart LR
 
 ### Nginx {#nginx}
 
-Nginx, giriş noktası olarak görev yapar ve `X-Accel-Redirect` kullanarak verimli dosya teslimatını yönetir:
+Nginx giriş noktası olarak görev yapar ve `X-Accel-Redirect` kullanarak verimli dosya teslimini yönetir:
 
 - **İndirmeler**: Önbellek hizmeti kimlik doğrulamayı doğrular, ardından bir `X-Accel-Redirect` başlığı döndürür. Nginx dosyayı doğrudan diskten veya S3 üzerinden proxy yaparak sunar.
 - **Yükleme**: Nginx istekleri önbellek hizmetine proxy eder; hizmet veriyi diske aktarır.
 
 ### İçerik Adreslenebilir Depolama {#cas}
 
-Yapıtlar, parçalı bir dizin yapısında yerel diskte saklanır:
+Yapıtlar, parçalı bir dizin yapısında yerel diskte depolanır:
 
 - **Yol**: `{account}/{project}/cas/{shard1}/{shard2}/{artifact_id}`
-- **Parçalama**: Yapıt kimliğinin ilk dört karakteri iki düzeyli bir parça oluşturur (ör. `ABCD1234` → `AB/CD/ABCD1234`)
+- **Parçalama**: Yapıt kimliğinin ilk dört karakteri iki seviyeli bir parça oluşturur (ör. `ABCD1234` → `AB/CD/ABCD1234`)
 
 ### SQLite Meta Verileri {#sqlite}
 
 Önbellek hizmeti iki SQLite veritabanı kullanır:
 
-- **Birincil meta veri DB**: `cache_artifacts`, artık tarama imleçlerini, Oban işlerini ve diğer hizmet meta verilerini saklar.
-- **Anahtar-değer DB**: `key_value_entries` ve `key_value_entry_hashes` öğelerini ayrılmış bir SQLite dosyasında saklar.
+- **Birincil meta veri veritabanı**: `cache_artifacts`, artık dosya tarama imleçlerini, Oban işlerini ve diğer hizmet meta verilerini saklar.
+- **Anahtar-değer veritabanı**: `key_value_entries` ve `key_value_entry_hashes` öğelerini ayrılmış bir SQLite dosyasında saklar.
 
-Anahtar-değer deposu, yapıt meta verilerini ve artık temizleme durumunu etkilemeden SQLite artımlı otomatik vakumlama kullanabilmesi için kendi veritabanına ayrılır.
+Anahtar-değer deposu, yapıt meta verilerini ve artık dosya temizleme durumunu etkilemeden SQLite artımlı otomatik vakumlama kullanabilmesi için kendi veritabanına ayrılır.
 
 ### S3 Entegrasyonu {#s3}
 
 S3 dayanıklı depolama sağlar:
 
 - **Arka plan yüklemeleri**: Diske yazıldıktan sonra yapıtlar, her dakika çalışan bir arka plan işçi süreci aracılığıyla S3’e yüklenmek üzere sıraya alınır
-- **Talebe bağlı doldurma**: Yerel bir yapıt eksik olduğunda istek, yapıt yerel diske arka planda indirilmek üzere sıraya alınırken önceden imzalanmış bir S3 URL’si aracılığıyla anında sunulur
+- **Talep üzerine doldurma**: Yerel bir yapıt eksik olduğunda, istek imzalı bir S3 URL’si aracılığıyla anında karşılanırken yapıt yerel diske arka planda indirilmek üzere sıraya alınır
 
-### Disk Tahliyesi {#eviction}
+### Disk Temizleme {#eviction}
 
 Hizmet, birden çok arka plan işlemi kullanarak disk alanını yönetir:
 
-- **CAS disk tahliyesi**, `cache_artifacts` tarafından desteklenen LRU semantiğini kullanır
+- **CAS disk temizleme**, `cache_artifacts` tarafından desteklenen LRU semantiğini kullanır
 - Disk kullanımı %85’i aştığında, kullanım %70’e düşene kadar en eski yapıtlar silinir
-- Yerel tahliyeden sonra yapıtlar S3’te kalır
-- **KV tahliyesi**, eski anahtar-değer girdilerini saklama süresine göre kaldırır ve yapılandırılan boyut bütçesini aştığında ayrılmış KV veritabanını da küçültebilir
+- Yerel temizleme sonrasında yapıtlar S3’te kalır
+- **KV temizleme**, eski anahtar-değer girdilerini saklama süresine göre kaldırır ve yapılandırılan boyut bütçesini aştığında ayrılmış KV veritabanını da küçültebilir
 
 ### Artık Dosya Temizliği {#orphan-cleanup}
 
-Hizmet ayrıca diskteki yapıtlar için bir artık dosya temizleme işçisi çalıştırır:
+Hizmet ayrıca disk yapıtları için bir artık dosya temizleme işçisi çalıştırır:
 
-- Diskte var olan ancak karşılık gelen bir `cache_artifacts` satırı bulunmayan dosyalar için depolama ağacını tarar.
-- Bir dosya diske yazıldığında ancak SQLite arabelleği boşaltması tamamlanmadan önce meta veri yazımı kaybolduğunda bu durum oluşabilir.
-- Devam eden yüklemelerle yarışmayı önlemek için güvenlik penceresinden daha yeni olan dosyalar yoksayılır.
+- Diskte mevcut olan ancak karşılık gelen bir `cache_artifacts` satırı bulunmayan dosyalar için depolama ağacını tarar.
+- Bu durum, bir dosya diske yazıldığında ancak SQLite arabellek boşaltması tamamlanmadan önce meta veri yazımı kaybolduğunda meydana gelebilir.
+- Uçuştaki yüklemelerle çakışmayı önlemek için güvenlik penceresinden daha yeni olan dosyalar yoksayılır.
 - Bir artık dosya silinir ve daha sonra tekrar istenirse, sonraki önbellek ıskalaması onun yeniden yüklenmesine neden olur; böylece sistem kendini onarır.
 
 ### Kimlik Doğrulama {#authentication}

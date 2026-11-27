@@ -7,11 +7,11 @@
 ---
 # Xcode 构建洞察 {#xcode-build-insights}
 
-在大型项目中工作不应要求反复重新构建相同的代码。Tuist Build Insights 让你能够跟踪构建分析数据，从而在本地和 CI 构建时间成为瓶颈之前识别趋势。
+处理大型项目时，不应反复重新构建相同的代码。Tuist Build Insights 让你能够跟踪构建分析数据，从而在本地和 CI 构建时间成为瓶颈之前识别趋势。
 
-构建洞察由 `tuist inspect build` 命令驱动，该命令通常添加到方案的 post-action 中。
+构建洞察由 `tuist inspect build` 命令驱动，该命令通常添加到你的 scheme 的 post-action 中。
 
-要开始跟踪本地构建时间，你可以将 `tuist inspect build` 命令添加到方案的 post-action 中来利用它：
+要开始跟踪本地构建时间，你可以将 `tuist inspect build` 命令添加到 scheme 的 post-action 中来利用它：
 
 ![用于检查构建的 Post-action](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
@@ -19,9 +19,9 @@
 > 将“Provide build settings from”字段设置为可执行文件或你的主构建目标，以捕获构建配置。
 
 > [!NOTE]
-> 当构建失败时，不会执行方案的 post-action。
+> 当构建失败时，不会执行 scheme 的 post-action。
 >
-> 在这种情况下，你可以通过在方案的 `.xcscheme` 文件的 `<BuildAction>` 元素上将 `runPostActionsOnFailure` 设置为 `YES` 来执行它：
+> 在这种情况下，你可以通过在 scheme 的 `.xcscheme` 文件的 `<BuildAction>` 元素上将 `runPostActionsOnFailure` 设置为 `YES` 来执行它：
 >
 > ```diff
 > <BuildAction
@@ -41,7 +41,7 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 > [!TIP]
 > **Mise 路径解析**
 >
-> 你的环境的 `PATH` 不会被方案的 post-action 继承，因此请使用 Mise 的绝对路径。这取决于你如何安装 Mise。构建设置应从目标继承，以便 `mise` 可以从 `$SRCROOT` 运行。
+> 你的环境中的 `PATH` 不会被 scheme 的 post-action 继承，因此请使用 Mise 的绝对路径。这取决于你安装 Mise 的方式。构建设置应从目标继承，以便 `mise` 可以从 `$SRCROOT` 运行。
 
 对于 [Homebrew](https://brew.sh/)，将 Homebrew 路径添加到 post-action 环境中：
 
@@ -50,12 +50,12 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 tuist inspect build
 ```
 
-登录后，本地构建会被跟踪并可在 Tuist 仪表盘中查看：
+登录后，本地构建将被跟踪并可在 Tuist 仪表盘中查看：
 
 > [!TIP]
 > 要快速访问仪表盘，请从 CLI 运行 `tuist project show --web`。
 
-![带有构建洞察的仪表盘](/images/guides/features/build-insights/builds-dashboard.png)
+![包含构建洞察的仪表盘](/images/guides/features/build-insights/builds-dashboard.png)
 
 <!-- @snippet: ./_xcode-ci -->
 

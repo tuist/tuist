@@ -11,7 +11,7 @@ Tuist は、[XDG Base Directory Specification](https://specifications.freedeskto
 
 ## サポートされている環境変数 {#supported-environment-variables}
 
-Tuist は、標準の XDG 変数と Tuist 固有のプレフィックス付きバリアントの両方をサポートしています。Tuist 固有のバリアント（`TUIST_` でプレフィックス付け）が優先され、他のアプリケーションとは別に Tuist を構成できます。
+Tuist は、標準の XDG 変数と Tuist 固有のプレフィックス付きバリアントの両方をサポートしています。Tuist 固有のバリアント（`TUIST_` でプレフィックス付き）が優先され、他のアプリケーションとは別に Tuist を構成できます。
 
 ### 設定ディレクトリ {#configuration-directory}
 
@@ -47,11 +47,11 @@ tuist auth login
 - **Plugins**: ダウンロードおよびコンパイルされたプラグインキャッシュ
 - **ProjectDescriptionHelpers**: コンパイルされたプロジェクト記述ヘルパー
 - **Manifests**: キャッシュされたマニフェストファイル
-- **Projects**: 生成された自動化プロジェクトのキャッシュ
-- **EditProjects**: edit コマンド用のキャッシュ
+- **Projects**: 生成された自動化プロジェクトキャッシュ
+- **EditProjects**: edit コマンド用キャッシュ
 - **Runs**: テストおよびビルド実行の分析データ
-- **Binaries**: ビルドアーティファクトバイナリ（環境間で共有不可）
-- **SelectiveTests**: 選択的テストのキャッシュ
+- **Binaries**: ビルド成果物バイナリ（環境間で共有不可）
+- **SelectiveTests**: 選択的テストキャッシュ
 
 **例:**
 ```bash
@@ -92,13 +92,13 @@ tuist generate
 使用するディレクトリを決定する際、Tuist は以下の順序で環境変数を確認します:
 
 1. **Tuist 固有の変数** （例: `TUIST_XDG_CONFIG_HOME`）
-2. **標準の XDG 変数** （例: `XDG_CONFIG_HOME`）
+2. **標準 XDG 変数** （例: `XDG_CONFIG_HOME`）
 3. **デフォルトの場所** （例: `~/.config/tuist`）
 
-これにより、以下が可能になります:
+これにより、次のことが可能になります:
 - 標準の XDG 変数を使用して、すべてのアプリケーションを一貫して整理する
 - Tuist に別の場所が必要な場合は、Tuist 固有の変数で上書きする
-- 構成なしで適切なデフォルトに依存する
+- 設定なしで適切なデフォルトに依存する
 
 ## 一般的なユースケース {#common-use-cases}
 
@@ -137,7 +137,7 @@ jobs:
           path: /tmp/tuist-state/logs/*.log
 ```
 
-### 分離されたディレクトリでのデバッグ {#debugging-with-isolated-directories}
+### 分離されたディレクトリを使用したデバッグ {#debugging-with-isolated-directories}
 
 問題をデバッグする際は、クリーンな状態から始めたい場合があります:
 

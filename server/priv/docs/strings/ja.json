@@ -18,7 +18,7 @@
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "キャッシュボリューム" },
       "calendar": { "text": "カレンダー" },
-      "channels": { "text": "チャネル" },
+      "channels": { "text": "チャンネル" },
       "claude": { "text": "Claude" },
       "compatibility": { "text": "互換性" },
       "coverage": { "text": "カバレッジ" },
@@ -26,7 +26,7 @@
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixirキャッシュ" },
-      "entire": { "text": "全体" },
+      "entire": { "text": "Entire" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -36,16 +36,16 @@
       "iphone-app": { "text": "iPhoneアプリ" },
       "macos-app": { "text": "macOSアプリ" },
       "new-project": { "text": "新規プロジェクト" },
-      "once": { "text": "Once" },
-      "once-cache": { "text": "Onceキャッシュ" },
-      "once-project": { "text": "Onceプロジェクト" },
-      "once-remote-execution": { "text": "Onceリモート実行" },
-      "origin": { "text": "オリジン" },
+      "once": { "text": "Struo" },
+      "once-cache": { "text": "Struoキャッシュ" },
+      "once-project": { "text": "Struoプロジェクト" },
+      "once-remote-execution": { "text": "Struoリモート実行" },
+      "origin": { "text": "Origin" },
       "profiles": { "text": "プロファイル" },
       "project-description": { "text": "プロジェクトの説明" },
       "release": { "text": "リリース" },
       "release-calendar": { "text": "リリースカレンダー" },
-      "release-channels": { "text": "リリースチャネル" },
+      "release-channels": { "text": "リリースチャンネル" },
       "run-previews": { "text": "プレビューの実行" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rustキャッシュ" },
@@ -54,7 +54,7 @@
       "scim-provisioning": { "text": "SCIMプロビジョニング" },
       "server-api": { "text": "サーバーAPI" },
       "single-sign-on": { "text": "シングルサインオン" },
-      "supported-types": { "text": "サポートされるタイプ" },
+      "supported-types": { "text": "対応するタイプ" },
       "webhooks": { "text": "Webhook" },
       "xcodegen-project": { "text": "XcodeGenプロジェクト" },
       "xcodeproj-integration": { "text": "Xcodeproj統合" },
@@ -67,7 +67,7 @@
         "text": "言語 🌍"
       },
       "description": {
-        "text": "Tuistがより多くの言語をサポートしたり、このページの言語ガイダンスを改善するのにご協力いただけます。"
+        "text": "Tuistの多言語対応や、このページの言語ガイドの改善にご協力いただけます。"
       },
       "cta": {
         "text": "貢献する"
@@ -90,7 +90,7 @@
         },
         "start-screen": {
           "recent-searches-title": "検索履歴",
-          "no-recent-searches-text": "検索履歴はありません",
+          "no-recent-searches-text": "検索履歴なし",
           "save-recent-search-button-title": "検索履歴に保存",
           "remove-recent-search-button-title": "検索履歴から削除",
           "favorite-searches-title": "お気に入り",
@@ -232,7 +232,7 @@
           }
         },
         "issue-reporting": {
-          "text": "Issueの報告"
+          "text": "問題の報告"
         },
         "code-reviews": {
           "text": "コードレビュー"
@@ -419,7 +419,7 @@
                   "text": "コード共有"
                 },
                 "synthesized-files": {
-                  "text": "合成ファイル"
+                  "text": "自動生成ファイル"
                 },
                 "dynamic-configuration": {
                   "text": "動的設定"
@@ -498,7 +498,7 @@
               }
             },
             "selective-testing": {
-              "text": "選択",
+              "text": "選択的テスト",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成されたXcodeプロジェクト"
@@ -507,6 +507,14 @@
             },
             "test-sharding": {
               "text": "シャーディング",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "生成されたXcodeプロジェクト"
+                }
+              }
+            },
+            "snapshots": {
+              "text": "スナップショット",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成されたXcodeプロジェクト"

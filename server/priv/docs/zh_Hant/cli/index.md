@@ -9,9 +9,9 @@
 
 Tuist CLI 是與 Tuist 互動的介面之一；若你使用<.localized_link href="/guides/features/projects">產生的專案</.localized_link>，這也是最常見的介面。它提供用於產生專案、快取二進位檔、執行測試、分享預覽等指令。
 
-## 開始使用 {#getting-started}
+## 快速入門 {#getting-started}
 
-若尚未安裝 Tuist，請參閱<.localized_link href="/guides/install-tuist">安裝指南</.localized_link>以開始使用。
+若你尚未安裝 Tuist，請參閱<.localized_link href="/guides/install-tuist">安裝指南</.localized_link>以開始使用。
 
 安裝完成後，你可以在終端機中執行 `tuist` 來查看可用指令清單：
 
@@ -21,7 +21,7 @@ tuist --help
 
 ## 設定 {#configuration}
 
-CLI 的行為可透過 `tuist.toml` 檔案進行設定。請參閱<.localized_link href="/references/tuist-toml">tuist.toml 參考文件</.localized_link>以了解所有可用選項。
+你可以透過 `tuist.toml` 檔案設定 CLI 的行為。請參閱<.localized_link href="/references/tuist-toml">tuist.toml 參考文件</.localized_link>以了解所有可用選項。
 
 ## 疑難排解 {#troubleshooting}
 

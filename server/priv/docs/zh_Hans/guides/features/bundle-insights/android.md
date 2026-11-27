@@ -20,7 +20,7 @@ tuist inspect bundle App.apk
 :::
 
 > [!NOTE]
-> **分析 `.apk` 需要 `aapt2`**，该工具随附于 Android SDK 构建工具中。设置 `ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 以便 Tuist 能够找到它，或者将 `aapt2` 添加到 `PATH` 中。分析 `.aab` 不需要任何外部工具。
+> **分析 `.apk` 需要 `aapt2`**，该工具随附于 Android SDK 构建工具中。设置 `ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 以便 Tuist 能够找到它，或者将 `aapt2` 添加到 `PATH` 中。分析 `.aab` 无需外部工具。
 
 <!-- @snippet: ./_upload-result -->
 

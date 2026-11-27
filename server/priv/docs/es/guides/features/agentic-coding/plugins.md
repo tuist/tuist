@@ -2,13 +2,13 @@
 {
   "title": "Plugins",
   "titleTemplate": ":title · Programación con agentes · Funcionalidades · Guías · Tuist",
-  "description": "Instala el plugin de Tuist para Cursor o el paquete de plugins para agentes independiente del proveedor."
+  "description": "Instala el plugin de Tuist para Cursor o el paquete Agent Plugins, independiente del proveedor."
 }
 ---
 
 # Plugins
 
-Tuist empaqueta sus habilidades para agentes y el servidor MCP alojado como plugins para que puedas instalarlos juntos. Elige el paquete que coincida con tu agente de programación.
+Tuist empaqueta sus habilidades para agentes y el servidor MCP alojado como plugins para que puedas instalar ambos juntos. Elige el paquete que coincida con tu agente de programación.
 
 ## Claude Code
 
@@ -27,11 +27,11 @@ Instala el [plugin de Tuist para Cursor](https://github.com/tuist/cursor-plugin)
 
 1. Abre **Personalizar** en la barra lateral de Cursor.
 2. Busca **Tuist**.
-3. Selecciona **Instalar** y elige si deseas instalarlo para el proyecto actual o para tu cuenta de usuario.
+3. Selecciona **Instalar** y luego elige si deseas instalarlo para el proyecto actual o para tu cuenta de usuario.
 
 También puedes escribir `/add-plugin` en Cursor para abrir el mismo flujo de instalación. El plugin proporciona habilidades de Tuist y conecta Cursor al servidor MCP alojado.
 
-Si tu organización gestiona los marketplaces de Cursor, importa primero `https://github.com/tuist/cursor-plugin` desde **Configuración → Plugins → Marketplaces de equipo → Importar marketplace**.
+Si tu organización gestiona los marketplaces de Cursor, importa primero `https://github.com/tuist/cursor-plugin` desde **Configuración → Plugins → Marketplaces del equipo → Importar Marketplace**.
 
 ## Otros agentes de programación
 

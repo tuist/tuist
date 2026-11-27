@@ -2,12 +2,12 @@
 {
   "title": "Análisis de paquetes",
   "titleTemplate": ":title · Funcionalidades · Guías · Tuist",
-  "description": "Controla el tamaño de los paquetes de iOS y Android, detecta regresiones antes del lanzamiento y mantén tu aplicación optimizada con los análisis de paquetes de Tuist."
+  "description": "Haz seguimiento del tamaño de los paquetes de iOS y Android, detecta regresiones antes del lanzamiento y mantén tu aplicación ligera con el análisis de paquetes de Tuist."
 }
 ---
 # Análisis de paquetes {#bundle-insights}
 
-A medida que añades más funcionalidades a tu app, el tamaño del paquete sigue creciendo. Parte de ese crecimiento es inevitable, pero mucho no lo es: los activos duplicados, los símbolos sin usar y el desperdicio específico de cada plataforma se acumulan. Tuist Bundle Insights admite paquetes tanto de **Apple** como de **Android**, y te ofrece herramientas y análisis para mantener reducido el tamaño de tu app, además de seguir la tendencia a lo largo del tiempo.
+A medida que añades más funcionalidades a tu app, el tamaño del paquete sigue creciendo. Parte de ese crecimiento es inevitable, pero mucho no lo es: recursos duplicados, símbolos sin usar y residuos específicos de la plataforma se acumulan. Tuist Bundle Insights admite paquetes tanto de **Apple** como de **Android**, y te ofrece herramientas y análisis para mantener reducido el tamaño de tu app, además de hacer seguimiento de la tendencia a lo largo del tiempo.
 
 <.home_cards>
   <.home_card

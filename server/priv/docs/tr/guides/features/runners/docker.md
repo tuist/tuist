@@ -1,13 +1,13 @@
 ---
 {
   "title": "Docker",
-  "titleTemplate": ":title · Runners · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist Runners üzerinde Docker kullanın: konteyner oluşturun ve çalıştırın, konteyner işleri, hizmet konteynerleri ve özel kayıt defterlerini yönetin."
+  "titleTemplate": ":title · Çalıştırıcılar · Özellikler · Kılavuzlar · Tuist",
+  "description": "Tuist Çalıştırıcılarda Docker kullanın: kapsayıcıları oluşturun ve çalıştırın, kapsayıcı işleri, hizmet kapsayıcıları ve özel kayıt defterlerini yönetin."
 }
 ---
 # Docker {#docker}
 
-Linux runner'lar, kullanıma hazır Docker ile gelir. Her iş, sanal makinesi içinde kendi Docker daemon'una sahiptir ve `docker` CLI, Buildx ile Compose önceden yüklenmiştir. Bir kurulum eylemine ihtiyacınız yoktur ve `sudo` gerekmez.
+Linux runner'lar Docker kullanıma hazır olarak gelir. Her iş, sanal makinesi içinde kendi Docker daemon'una sahiptir ve `docker` CLI, Buildx ile Compose önceden yüklenmiştir. Bir kurulum eylemine ihtiyacınız yoktur ve `sudo` kullanmanız gerekmez.
 
 ```yaml
 jobs:
@@ -24,7 +24,7 @@ jobs:
 >
 > macOS runner'lar bir Docker daemon sağlamaz. Buna ihtiyaç duyan işler için bir Linux <.localized_link href="/guides/features/runners/profiles">profilini</.localized_link> kullanın.
 
-## Bir işi kapsayıcı içinde çalıştırma {#running-a-job-in-a-container}
+## Bir kapsayıcıda iş çalıştırma {#running-a-job-in-a-container}
 
 İşinizin çalışması gereken imaja `container` yönlendirin. Tuist bu imajı çeker ve her adımı bunun içinde çalıştırır:
 
@@ -64,7 +64,7 @@ jobs:
 
 ## Özel kayıt defterleri {#private-registries}
 
-Çekme veya itme işleminden önce, kayıt defterinin kendi giriş eylemiyle veya `docker login` ile kimlik doğrulaması yapın:
+Çekme veya gönderme işleminden önce, kayıt defterinin kendi giriş eylemiyle veya `docker login` ile kimlik doğrulaması yapın:
 
 ```yaml
       - uses: docker/login-action@v3
@@ -79,9 +79,9 @@ jobs:
 
 ## İmaj çekme işlemleri {#image-pulls}
 
-Docker Hub çekme işlemleri, Tuist tarafından işletilen bir geçişli önbellek üzerinden sunulur; böylece işler Docker Hub'ın anonim hız sınırını tüketmez. Diğer kayıt defterlerindeki imajlar doğrudan çekilir.
+Docker Hub çekme işlemleri, Tuist'in işlettiği bir geçişli önbellek üzerinden sunulur; bu sayede işler Docker Hub'ın anonim hız sınırını tüketmez. Diğer kayıt defterlerindeki imajlar doğrudan çekilir.
 
-Her iş boş bir imaj deposuyla başlar, bu nedenle iş akışınızın kullandığı bir imaj, işler arasında yeniden kullanılmak yerine iş başına bir kez çekilir. Bir iş büyük bir özel imaj çekiyorsa, imajı küçük tutun veya önbelleğe alınmış bir Buildx oluşturucusuyla iş akışı içinde oluşturun:
+Her iş boş bir imaj deposuyla başlar, bu nedenle iş akışınızın kullandığı bir imaj işler arasında yeniden kullanılmak yerine iş başına bir kez çekilir. Bir iş büyük bir özel imaj çekiyorsa, imajı küçük tutun veya önbelleğe alınmış bir Buildx derleyicisiyle iş akışı içinde oluşturun:
 
 ```yaml
       - uses: docker/setup-buildx-action@v3

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "18ac084e17b06003fd568d52639e305cb2317cec5219baa0503d2b99a54237c4",
+  "hash": "6ce1e3e087c39ea1e25e99b80187e113545e5d0f5baf8437a5baca1f9bd0583c",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Model Context Protocol": {
-                  "content_hash": "b7a84877598662d21e14591ccacc60895fdca27d5bd414bf3b409a54deed48c1"
+                  "content_hash": "108e939d2c7ca57994b52e00ef3c51bf6fd5d88347c7b2c9e265185cfe51cae1"
                 },
                 "## Agents in Amp orbs and Claude Code cloud sessions": {
                   "content_hash": "618cd5023882a5fb52e0ff88ef367aeb00f914dfe869ed24ddbeb79e2083851d"
@@ -23,7 +23,7 @@
                   "content_hash": "6a4f37b17532bccb84afdc70eae6791b601b1867cd1b275509a9abad66268bed"
                 },
                 "## Configuration": {
-                  "content_hash": "101c20d09a3d7466bd71cabcc00556b8019e99cfc0a2ab6c9beea100a2b884e9"
+                  "content_hash": "93474314e1c6da31332125974c77cb65e203facba3ac750378a0e25dd2cdd73f"
                 },
                 "## Model Context Protocol versus skills": {
                   "content_hash": "96302518cb6aab6e284be7e1c6aaf4f3f04705337f8ed8283a121e57b36a5b5c"
@@ -32,7 +32,7 @@
                   "content_hash": "1d187d0a352591dd7488c03b01c16021ed73c094a4bc4f05a908e330da7a13ea"
                 },
                 "### Events": {
-                  "content_hash": "c772e92fa6f357d052340fdf7a6cb956a73d6916a74b9a1bb04a4b7c46477068"
+                  "content_hash": "ea3d52a15ec59e19762b635412f707b6751f2a5d6b0bc38c6b93f8eaa2ee222a"
                 },
                 "### Prompts": {
                   "content_hash": "2754eafd8e752cb6dc5adb1feeb5ff92eef864da76417043cb52be4f4536c1b3"
@@ -41,7 +41,7 @@
                   "content_hash": "4e8c0094e243015d24e66c17a5c06fc8ff857a65954446fbc99597672b55c920"
                 },
                 "### Tools": {
-                  "content_hash": "567e276366b6da045cf72bd96b8c61d9632bfbe119ec50ca1a4de292f531f06f"
+                  "content_hash": "9a2064e1e75c007b67be425ceec8da41eb99cc921da05b7c1eb2a93444732741"
                 },
                 "#### Account tokens": {
                   "content_hash": "5ff48a86344ab02ec828d42b5ebb2c762123c70a74db57e9b5c66bf0fb6398d2"
@@ -53,7 +53,7 @@
                   "content_hash": "0cf6808fb16ba2ded689a8eb80950c39440f1fbce612d55cde8ecab4fb2f8e26"
                 },
                 "#### Bazel invocations": {
-                  "content_hash": "c93b590416013f7545f8357f5601567630dbcf6192eea1a441c9d24a4f80b938"
+                  "content_hash": "66d1a0578faabf903ec014537f06e78f6f762918ad2d06b9f5964e7c262e41d7"
                 },
                 "#### Build traces": {
                   "content_hash": "c86c54d7d983d88c2e6a2ab558f52fb1c13c882a6df459982726b9e4e5d9973c"
@@ -62,7 +62,7 @@
                   "content_hash": "81dc3faabc79be2849c0d8766b9d9d7551dc192cdd9af8868f40c0d4f82f4d63"
                 },
                 "#### Cache runs": {
-                  "content_hash": "843cc77b69c8e4b937452a751ee35cb988c1790851167f82a7ff87d6dbe5623f"
+                  "content_hash": "5bcf02125579d69910a3ca70e1300642771fa9564d58ce938bf121354eb44ccb"
                 },
                 "#### Cargo builds": {
                   "content_hash": "ed44687f9af41f66d81ee390965cc33edcff710946d610e04f541e2cc6394fb7"
@@ -97,9 +97,6 @@
                 "#### Notification rules": {
                   "content_hash": "9f951a83ef43b1017a6e4d4995320ce3e7ed3b77757d9ff549b303f7cd570280"
                 },
-                "#### Once runs": {
-                  "content_hash": "bd0da2319b17a7606d7ebc93fa429d869259c82a5e1b02af47eca92cd6e48ad7"
-                },
                 "#### Organization AI": {
                   "content_hash": "114c2b035c2bb30e3e1b945f45ee29d1c763ed4de6e522184d56b75f0f8457bc"
                 },
@@ -113,22 +110,25 @@
                   "content_hash": "6ba7bb74667b20e2ad055b6a82a6ded2f22156fa772af48be7b530e521b381a7"
                 },
                 "#### Sandboxes": {
-                  "content_hash": "914025b4658dcd91f7d65f14dfeb54ec6a09b4b4ba09e636a69ed1b340e4b418"
+                  "content_hash": "6716d3e348d2e49fffaa402aa8f85a872d57c23856eb10615115ab33b100d047"
                 },
                 "#### Source-backed answers": {
                   "content_hash": "c49cd881ec13ebd3498414893a10faebd03e291e1d58d284520bef22b2f3f722"
                 },
+                "#### Struo runs": {
+                  "content_hash": "52c84777180e501e110c9f4eb200f4a6fcef6312b1df1d59523163b93e492b74"
+                },
                 "#### Tasks, actions, modules and files": {
-                  "content_hash": "12b42c63e6512d90a62ac9c49bd571de3c7bc4f7fee7c7034fc8d422b28ba1fe"
+                  "content_hash": "c977e2419a6cbdda002dc96a42dc686b99f6417e26357c7ebe05d879209592e6"
                 },
                 "#### Tests": {
-                  "content_hash": "a750b530769a827a8beeca33c49366d4cc504f326b30d473c77cc24b4364a30d"
+                  "content_hash": "f95ec41fb24cdbf7d300e4bf784712ea228390cfcc06cbdbdba3f79cf53dac2e"
                 },
                 "#### Webhooks": {
                   "content_hash": "83d476067a0febb7df544db0cfb6daa591a296bfed799a8bb9d91e9a94b5c3d1"
                 },
                 "#### Xcode builds": {
-                  "content_hash": "1b647f0b7c215a4448695fd50de61e682b7653884999371933bdc01a2b3941ff"
+                  "content_hash": "194cccf16765fd7bf1b0b9d1031784f83724c65b282457109ff795b83135dad9"
                 },
                 "#### Xcode integration prompt features": {
                   "content_hash": "415dd87b69235f0f40abab5c7e80c5d1cf737487671d8c31052b26077575b0ee"
@@ -140,11 +140,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "2c437d5de0480f2acd02bf6fc940eb946670f94ac0a8e964daf04021e128db00",
+          "hash": "14496a0436d366f9552ddb6da65e59e9759cbe931d5a2fbdef657859bccb4814",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
           "metadata": {
-            "content_hash": "1947e831b47f362198a0b1e8d70bf3b0c1dff9383fe7e190177963713aa54066"
+            "content_hash": "5f093412c6f127d89096e476018cfcb5fb4822bc2befed6a8a53cfda9cd22c6f"
           }
         },
         {
@@ -205,7 +205,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -218,13 +218,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -253,11 +247,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -370,21 +364,21 @@
             }
           ],
           "details": {},
-          "hash": "b22cd8190000fdd6a99f3ea013c1817a76f270e015ce4d1c321c102cdbeb6984",
+          "hash": "c4e875088c9d198b212df4be611a961fd84844a63514545665124046da0168e2",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "18ac084e17b06003fd568d52639e305cb2317cec5219baa0503d2b99a54237c4",
+      "hash": "6ce1e3e087c39ea1e25e99b80187e113545e5d0f5baf8437a5baca1f9bd0583c",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ff9ca4a8f3a0c830d6abb6b44f7ba18b6f0dba678311c81f62d75c570010aa80",
+  "output_hash": "9ab5d5bc013f0b2c3827e5fcf668a781326c69f2e0f59f6f34383d7bc1787133",
   "output_path": "server/priv/docs/tr/guides/features/agentic-coding/mcp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -410,8 +404,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "43b523bdc7ac780541c4d77ba209a93f9062b01f",
+  "source_commit_sha": "bbee4418c8eb8f81e5533fa0d09bb75fa7406569",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
-  "translated_at": "2026-11-18T20:07:24.618361Z",
-  "translation_session_id": "01a1f03a-4133-7890-9c7b-fd93095f7225"
+  "translated_at": "2026-11-25T17:50:23.422342Z",
+  "translation_session_id": "01a213cf-6b91-75cb-8002-9aced897dabf"
 }

@@ -63,7 +63,7 @@ msgstr "请求无效"
 #: lib/tuist_web/components/dashboard_navigation.ex:62
 #, elixir-autogen, elixir-format
 msgid "Billing"
-msgstr "计费"
+msgstr "账单"
 
 #: lib/tuist_web/components/app_layout_components.ex:72
 #: lib/tuist_web/components/app_layout_components.ex:330
@@ -81,12 +81,12 @@ msgstr "构建运行次数"
 msgid "Builds"
 msgstr "构建"
 
-#: lib/tuist_web/components/app_layout_components.ex:470
+#: lib/tuist_web/components/app_layout_components.ex:482
 #: lib/tuist_web/components/dashboard_navigation.ex:207
 #: lib/tuist_web/components/dashboard_navigation.ex:247
 #, elixir-autogen, elixir-format
 msgid "Bundles"
-msgstr "包"
+msgstr "Bundle"
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:54
 #: lib/tuist_web/live/once_runs_live.ex:921
@@ -111,10 +111,10 @@ msgstr "创建组织"
 msgid "Download macOS app"
 msgstr "下载 macOS 应用"
 
-#: lib/tuist_web/components/app_layout_components.ex:670
+#: lib/tuist_web/components/app_layout_components.ex:682
 #, elixir-autogen, elixir-format
 msgid "Emails"
-msgstr "电子邮件"
+msgstr "邮件"
 
 #: lib/tuist_web/controllers/error_html.ex:188
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:42
@@ -123,18 +123,18 @@ msgstr "电子邮件"
 msgid "Error"
 msgstr "错误"
 
-#: lib/tuist_web/components/app_layout_components.ex:685
+#: lib/tuist_web/components/app_layout_components.ex:697
 #: lib/tuist_web/components/dashboard_navigation.ex:58
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "错误"
 
-#: lib/tuist_web/components/app_layout_components.ex:663
+#: lib/tuist_web/components/app_layout_components.ex:675
 #, elixir-autogen, elixir-format
 msgid "Flags"
-msgstr "标志"
+msgstr "标记"
 
-#: lib/tuist_web/components/empty_card_section.ex:29
+#: lib/tuist_web/components/empty_card_section.ex:33
 #: lib/tuist_web/components/public_project_cta_banner.ex:40
 #, elixir-autogen, elixir-format
 msgid "Get started"
@@ -145,13 +145,13 @@ msgstr "开始使用"
 msgid "Go to dashboard"
 msgstr "前往控制台"
 
-#: lib/tuist_web/components/app_layout_components.ex:693
+#: lib/tuist_web/components/app_layout_components.ex:705
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr "Grafana"
 
-#: lib/tuist_web/components/app_layout_components.ex:584
+#: lib/tuist_web/components/app_layout_components.ex:596
 #: lib/tuist_web/components/dashboard_navigation.ex:244
 #, elixir-autogen, elixir-format
 msgid "Integrations"
@@ -168,21 +168,21 @@ msgstr "GitHub 应用安装无效。请重试。"
 msgid "Invalid installation request. Please try again."
 msgstr "安装请求无效。请重试。"
 
-#: lib/tuist_web/components/app_layout_components.ex:657
+#: lib/tuist_web/components/app_layout_components.ex:669
 #: lib/tuist_web/components/dashboard_navigation.ex:30
 #, elixir-autogen, elixir-format
 msgid "Jobs"
-msgstr "作业"
+msgstr "任务"
 
 #: lib/tuist_web/components/empty_state.ex:43
 #, elixir-autogen, elixir-format
 msgid "Learn more"
 msgstr "了解更多"
 
-#: lib/tuist_web/components/app_layout_components.ex:651
+#: lib/tuist_web/components/app_layout_components.ex:663
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
-msgstr "实时仪表盘"
+msgstr "LiveDashboard"
 
 #: lib/tuist_web/components/account_dropdown.ex:109
 #, elixir-autogen, elixir-format
@@ -203,7 +203,7 @@ msgstr "模块缓存"
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:119
 #: lib/tuist_web/live/bazel_cache_live.ex:821
-#: lib/tuist_web/live/once_cache_live.ex:892
+#: lib/tuist_web/live/once_cache_live.ex:893
 #: lib/tuist_web/live/xcode_cache_live.html.heex:248
 #: lib/tuist_web/live/xcode_cache_live.html.heex:265
 #: lib/tuist_web/live/xcode_cache_live.html.heex:282
@@ -277,7 +277,7 @@ msgstr "请确保你访问的是正确的资源，并且拥有相应的访问权
 msgid "Prev"
 msgstr "上一页"
 
-#: lib/tuist_web/components/app_layout_components.ex:458
+#: lib/tuist_web/components/app_layout_components.ex:470
 #: lib/tuist_web/components/dashboard_navigation.ex:206
 #: lib/tuist_web/components/dashboard_search.ex:76
 #: lib/tuist_web/controllers/dashboard_search_controller.ex:136
@@ -308,7 +308,7 @@ msgstr "服务器错误"
 msgid "Settings"
 msgstr "设置"
 
-#: lib/tuist_web/components/app_layout_components.ex:482
+#: lib/tuist_web/components/app_layout_components.ex:494
 #: lib/tuist_web/components/dashboard_navigation.ex:311
 #, elixir-autogen, elixir-format
 msgid "Project Settings"
@@ -317,19 +317,19 @@ msgstr "项目设置"
 #: lib/tuist_web/controllers/error_html.ex:115
 #, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
-msgstr "抱歉，我们这边出了点问题。请联系 contact@tuist.dev，我们会进行调查。"
+msgstr "抱歉，我们的系统出现了问题。请联系 contact@tuist.dev，我们将进行调查。"
 
 #: lib/tuist_web/controllers/error_html.ex:136
 #, elixir-autogen, elixir-format
 msgid "Sorry, the page you are looking for doesn't exist or has been moved."
-msgstr "抱歉，您查找的页面不存在或已移动。"
+msgstr "抱歉，您查找的页面不存在或已被移动。"
 
 #: lib/tuist_web/controllers/error_html.ex:72
 #, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr "抱歉，您的请求过于频繁。请稍后再试。"
 
-#: lib/tuist_web/components/app_layout_components.ex:677
+#: lib/tuist_web/components/app_layout_components.ex:689
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "存储"
@@ -368,7 +368,7 @@ msgstr "测试"
 msgid "The account %{account_handle} was not found."
 msgstr "未找到账号 %{account_handle}。"
 
-#: lib/tuist_web/authentication.ex:913
+#: lib/tuist_web/authentication.ex:922
 #: lib/tuist_web/live/layout_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
@@ -388,7 +388,7 @@ msgstr "你查找的页面不存在或已迁移。"
 #: lib/tuist_web/controllers/preview_controller.ex:149
 #, elixir-autogen, elixir-format
 msgid "The preview ipa doesn't exist or has expired."
-msgstr "预览 IPA 文件不存在或已过期。"
+msgstr "预览 IPA 不存在或已过期。"
 
 #: lib/tuist_web/controllers/api/analytics_controller.ex:628
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
@@ -401,7 +401,7 @@ msgstr "未找到项目 %{project_slug}。"
 #: lib/tuist_web/plugs/loader_plug.ex:142
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
-msgstr "项目完整标识 %{project_slug} 无效。应遵循“account_handle/project_handle”格式。"
+msgstr "项目完整标识 %{project_slug} 无效。应遵循“账户标识/项目标识”的格式。"
 
 #: lib/tuist_web/plugs/loader_plug.ex:100
 #, elixir-autogen, elixir-format
@@ -411,7 +411,7 @@ msgstr "未找到 ID 为 %{run_id} 的运行。"
 #: lib/tuist_web/live/layout_live.ex:315
 #, elixir-autogen, elixir-format
 msgid "The run you are looking for doesn't exist or has been moved."
-msgstr "你要查找的运行不存在或已移动。"
+msgstr "你要查找的运行不存在或已被移动。"
 
 #: lib/tuist_web/controllers/error_html.ex:78
 #, elixir-autogen, elixir-format
@@ -423,8 +423,8 @@ msgstr "请求过多"
 msgid "Too many requests."
 msgstr "请求过多。"
 
-#: lib/tuist_web/components/app_layout_components.ex:732
-#: lib/tuist_web/components/app_layout_components.ex:770
+#: lib/tuist_web/components/app_layout_components.ex:744
+#: lib/tuist_web/components/app_layout_components.ex:782
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr "Tuist 图标"
@@ -432,7 +432,7 @@ msgstr "Tuist 图标"
 #: lib/tuist_web/controllers/error_html.ex:43
 #, elixir-autogen, elixir-format
 msgid "Unauthorized"
-msgstr "未授权"
+msgstr "未经授权"
 
 #: lib/tuist/report_actor.ex:72
 #: lib/tuist/report_actor.ex:75
@@ -466,7 +466,7 @@ msgstr "你无权查看此页面"
 #: lib/tuist_web/authorization.ex:56
 #, elixir-autogen, elixir-format
 msgid "You need to be authenticated to access this page."
-msgstr "你需要通过身份验证才能访问此页面。"
+msgstr "你需要登录才能访问此页面。"
 
 #: lib/tuist_web/controllers/user_session_controller.ex:47
 #, elixir-autogen, elixir-format
@@ -539,7 +539,7 @@ msgstr "Gradle 缓存"
 msgid "Create project"
 msgstr "创建项目"
 
-#: lib/tuist_web/components/app_layout_components.ex:620
+#: lib/tuist_web/components/app_layout_components.ex:632
 #: lib/tuist_web/components/dashboard_navigation.ex:61
 #: lib/tuist_web/live/bazel_cache_live.ex:24
 #: lib/tuist_web/live/ops_cache_live.html.heex:3
@@ -567,7 +567,7 @@ msgstr "身份验证失败"
 #: lib/tuist_web/controllers/auth_controller.ex:965
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
-msgstr "你的身份提供商拒绝了访问。请联系组织管理员将你分配到 Tuist 应用程序。"
+msgstr "你的身份提供商拒绝了访问。请联系组织管理员将你分配到 Tuist 应用。"
 
 #: lib/tuist_web/components/app_layout_components.ex:188
 #: lib/tuist_web/components/app_layout_components.ex:436
@@ -584,22 +584,22 @@ msgstr "与身份提供商的身份验证失败。请重试。"
 #: lib/tuist_web/controllers/auth_controller.ex:1063
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with the SSO provider. Please try again."
-msgstr "SSO 提供商身份验证失败。请重试。"
+msgstr "与 SSO 提供商的身份验证失败。请重试。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:944
 #, elixir-autogen, elixir-format
 msgid "SSO is not fully configured for this organization. Ask an organization admin to review the SSO settings."
-msgstr "此组织的 SSO 尚未完全配置。请联系组织管理员检查 SSO 设置。"
+msgstr "该组织尚未完全配置 SSO。请联系组织管理员检查 SSO 设置。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:1007
 #, elixir-autogen, elixir-format
 msgid "The SSO authorization code is invalid or expired. Please restart the sign-in flow."
-msgstr "SSO 授权代码无效或已过期。请重新启动登录流程。"
+msgstr "SSO 授权码无效或已过期。请重新启动登录流程。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:979
 #, elixir-autogen, elixir-format
 msgid "The SSO provider callback is missing an authorization code. Please restart the sign-in flow."
-msgstr "SSO 提供程序回调中缺少授权代码。请重新启动登录流程。"
+msgstr "SSO 提供商回调中缺少授权码。请重新启动登录流程。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:930
 #, elixir-autogen, elixir-format
@@ -624,7 +624,7 @@ msgstr "Tuist Ops"
 #: lib/tuist_web/controllers/auth_controller.ex:993
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't exchange the authorization code with your identity provider. Ask your organization admin to verify the SSO credentials and callback URL."
-msgstr "Tuist 无法与你的身份提供商交换授权代码。请联系组织管理员验证 SSO 凭据和回调 URL。"
+msgstr "Tuist 无法与你的身份提供商交换授权码。请联系组织管理员验证 SSO 凭据和回调 URL。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:1000
 #, elixir-autogen, elixir-format
@@ -654,17 +654,17 @@ msgstr "你的 SSO 会话已过期。请从登录页面重新开始登录流程�
 #: lib/tuist_web/controllers/auth_controller.ex:1028
 #, elixir-autogen, elixir-format
 msgid "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
-msgstr "你的 Tuist 账户已存在，但尚未加入此组织。请联系组织管理员将你添加为成员，然后再次使用 SSO 登录。"
+msgstr "你的 Tuist 账户已存在，但尚未加入此组织。请联系组织管理员将你添加为成员，然后再次通过 SSO 登录。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:1014
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing a stable user identifier. Ask your organization admin to review the user info claims."
-msgstr "你的身份提供商响应中缺少稳定的用户标识符。请联系组织管理员检查用户信息声明。"
+msgstr "你的身份提供商响应中缺少稳定的用户标识符。请联系组织管理员审查用户信息声明。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:1021
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing an email address. Ask your organization admin to include the email claim."
-msgstr "你的身份提供商响应中缺少电子邮件地址。请联系组织管理员在声明中包含电子邮件。"
+msgstr "你的身份提供商响应中缺少电子邮件地址。请联系组织管理员包含 email 声明。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:972
 #, elixir-autogen, elixir-format
@@ -674,9 +674,9 @@ msgstr "你的身份提供商返回了身份验证错误。请重试或联系组
 #: lib/tuist_web/components/account_dropdown.ex:73
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
-msgstr "仪表板"
+msgstr "仪表盘"
 
-#: lib/tuist_web/components/app_layout_components.ex:633
+#: lib/tuist_web/components/app_layout_components.ex:645
 #: lib/tuist_web/live/ops_accounts_live.ex:19
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
@@ -684,7 +684,7 @@ msgstr "仪表板"
 msgid "Accounts"
 msgstr "账户"
 
-#: lib/tuist_web/components/app_layout_components.ex:590
+#: lib/tuist_web/components/app_layout_components.ex:602
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr "身份验证"
@@ -703,7 +703,7 @@ msgstr "%{account} 计划将在当前周期结束时取消。"
 #: lib/tuist_web/live/ops_account_live.ex:437
 #, elixir-autogen, elixir-format
 msgid "%{account} upgraded to Enterprise. Stripe will send an invoice for the first period."
-msgstr "%{account} 已升级至 Enterprise。Stripe 将发送首期账单。"
+msgstr "%{account} 已升级至 Enterprise。Stripe 将发送首个周期的发票。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:21
 #, elixir-autogen, elixir-format
@@ -727,12 +727,12 @@ msgstr "活跃"
 #: lib/tuist_web/live/ops_account_live.html.heex:945
 #, elixir-autogen, elixir-format
 msgid "Address line 1"
-msgstr "地址第一行"
+msgstr "地址行 1"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:953
 #, elixir-autogen, elixir-format
 msgid "Address line 2 (optional)"
-msgstr "地址第二行（可选）"
+msgstr "地址行 2（可选）"
 
 #: lib/tuist_web/live/ops_account_helpers.ex:20
 #, elixir-autogen, elixir-format
@@ -790,7 +790,7 @@ msgstr "取消"
 #: lib/tuist_web/live/ops_account_live.html.heex:887
 #, elixir-autogen, elixir-format
 msgid "Cancel %{account}'s subscription at the end of the current billing period? Access is kept until then."
-msgstr "在当前计费周期结束时取消 %{account} 的订阅？在此之前仍可继续访问。"
+msgstr "要在当前计费周期结束时取消 %{account} 的订阅吗？在此之前仍可继续使用。"
 
 #: lib/tuist_web/live/ops_account_live.ex:467
 #, elixir-autogen, elixir-format
@@ -836,7 +836,7 @@ msgstr "国家/地区"
 #: lib/tuist_web/live/ops_account_live.html.heex:907
 #, elixir-autogen, elixir-format
 msgid "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
-msgstr "创建 Stripe 客户（如不存在），设置账单地址，并启动按发票计费的 Enterprise 订阅。客户将通过电子邮件收到发票；此处不收集银行卡信息。"
+msgstr "创建 Stripe 客户（如不存在），设置账单地址，并启动按发票计费的 Enterprise 订阅。客户将通过电子邮件收到发票；此处不收集信用卡信息。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1286
 #, elixir-autogen, elixir-format
@@ -960,7 +960,7 @@ msgstr "意大利"
 msgid "Japan"
 msgstr "日本"
 
-#: lib/tuist_web/components/app_layout_components.ex:626
+#: lib/tuist_web/components/app_layout_components.ex:638
 #: lib/tuist_web/live/ops_account_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Kura"
@@ -1041,12 +1041,12 @@ msgstr "无账户"
 #: lib/tuist_web/live/ops_accounts_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "No accounts match the current filter."
-msgstr "当前筛选条件下没有匹配的账户。"
+msgstr "没有符合当前筛选条件的账户。"
 
 #: lib/tuist_web/live/ops_account_live.ex:450
 #, elixir-autogen, elixir-format
 msgid "No active subscription to cancel."
-msgstr "没有可取消的活跃订阅"
+msgstr "没有可取消的活跃订阅。"
 
 #: lib/tuist/utilities/date_formatter.ex:5
 #: lib/tuist/utilities/date_formatter.ex:76
@@ -1133,7 +1133,7 @@ msgstr "Pro"
 #: lib/tuist_web/live/ops_account_live.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "Region"
-msgstr "区域"
+msgstr "地区"
 
 #: lib/tuist_web/live/ops_account_live.ex:1316
 #, elixir-autogen, elixir-format
@@ -1280,13 +1280,13 @@ msgstr "美国"
 #: lib/tuist_web/live/ops_account_live.html.heex:902
 #, elixir-autogen, elixir-format
 msgid "Upgrade %{account} to Enterprise"
-msgstr "将 %{account} 升级为企业版"
+msgstr "将 %{account} 升级至企业版"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:862
 #: lib/tuist_web/live/ops_account_live.html.heex:1003
 #, elixir-autogen, elixir-format
 msgid "Upgrade to Enterprise"
-msgstr "升级为企业版"
+msgstr "升级至企业版"
 
 #: lib/tuist_web/live/ops_account_live.ex:1332
 #, elixir-autogen, elixir-format
@@ -1311,7 +1311,7 @@ msgstr "无法完成 GitHub App 注册。"
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:102
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server installations must go through the App registration flow first."
-msgstr "GitHub Enterprise Server 安装必须先通过应用注册流程。"
+msgstr "GitHub Enterprise Server 安装必须先完成应用注册流程。"
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:101
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:122
@@ -1325,7 +1325,7 @@ msgstr "GitHub Enterprise Server 仅在 Enterprise 计划中提供。"
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:128
 #, elixir-autogen, elixir-format
 msgid "Invalid manifest registration request."
-msgstr "清单注册请求无效。"
+msgstr "无效的清单注册请求。"
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:51
 #, elixir-autogen, elixir-format
@@ -1355,14 +1355,14 @@ msgstr "GitHub Enterprise Server 以 HTTP %{status} 拒绝了清单。注册码�
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:372
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server returned 404 when converting the manifest. The temporary registration code may have expired (it's valid for one hour) — start the flow again from the integrations page."
-msgstr "GitHub Enterprise Server 在转换清单时返回 404。临时注册码可能已过期（有效期为一小时）— 请从集成页面重新开始流程。"
+msgstr "GitHub Enterprise Server 在转换清单时返回了 404。临时注册代码可能已过期（有效期为一小时）——请从集成页面重新开始流程。"
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:385
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
-msgstr "GitHub Enterprise Server 在转换清单时返回 HTTP %{status}。请检查服务器日志中的请求正文并重试。"
+msgstr "GitHub Enterprise Server 在转换清单时返回了 HTTP %{status}。请检查服务器日志中的请求正文并重试。"
 
-#: lib/tuist_web/components/app_layout_components.ex:572
+#: lib/tuist_web/components/app_layout_components.ex:584
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr "常规"
@@ -1443,7 +1443,7 @@ msgstr "已完成"
 #: lib/tuist_web/live/ops_database_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Connected as"
-msgstr "连接为"
+msgstr "连接身份"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:87
 #, elixir-autogen, elixir-format
@@ -1470,7 +1470,7 @@ msgstr "复制为 Markdown"
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr "无法从 Kubernetes API 读取集群的 Backup 资源 — 请检查服务器 ServiceAccount 在 postgresql.cnpg.io 上的 RBAC 权限。"
 
-#: lib/tuist_web/components/app_layout_components.ex:645
+#: lib/tuist_web/components/app_layout_components.ex:657
 #: lib/tuist_web/live/ops_database_live.html.heex:3
 #: lib/tuist_web/live/ops_database_live.html.heex:58
 #, elixir-autogen, elixir-format
@@ -1510,7 +1510,7 @@ msgstr "结果为空"
 #: lib/tuist_web/live/ops_database_live.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "Every index has been used at least once."
-msgstr "每个索引都至少被使用过一次。"
+msgstr "每个索引至少被使用过一次。"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:448
 #, elixir-autogen, elixir-format
@@ -1557,17 +1557,17 @@ msgstr "最后 WAL 归档"
 #: lib/tuist_web/live/ops_database_live.html.heex:340
 #, elixir-autogen, elixir-format
 msgid "Last archived"
-msgstr "最后归档时间"
+msgstr "最后归档"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "Last archived WAL"
-msgstr "最后归档的 WAL"
+msgstr "最近归档的 WAL"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:358
 #, elixir-autogen, elixir-format
 msgid "Last failed WAL"
-msgstr "最后失败的 WAL"
+msgstr "最近失败的 WAL"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:233
 #, elixir-autogen, elixir-format
@@ -1592,7 +1592,7 @@ msgstr "模式"
 #: lib/tuist_web/live/ops_database_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "No CNPG cluster wired to this server (dev, or Postgres still on the external provider). Base backups appear once the server runs against the in-cluster cluster."
-msgstr "未将 CNPG 集群连接到此服务器（开发环境，或 PostgreSQL 仍位于外部提供商）。当服务器针对集群内集群运行时，才会显示基础备份。"
+msgstr "此服务器未连接 CNPG 集群（开发环境，或 Postgres 仍位于外部提供商）。当服务器针对集群内集群运行时，将显示基础备份。"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:329
 #, elixir-autogen, elixir-format
@@ -1612,7 +1612,7 @@ msgstr "无锁"
 #: lib/tuist_web/live/ops_database_live.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "No long queries"
-msgstr "无长查询"
+msgstr "无长时间查询"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:283
 #, elixir-autogen, elixir-format
@@ -1652,12 +1652,12 @@ msgstr "未配置"
 #: lib/tuist_web/live/ops_database_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Nothing is currently running for longer than 200ms."
-msgstr "当前没有耗时超过 200ms 的运行项。"
+msgstr "当前没有运行时间超过 200 毫秒的查询。"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:255
 #, elixir-autogen, elixir-format
 msgid "Nothing is holding a lock right now."
-msgstr "当前没有持有锁的项。"
+msgstr "当前没有持有锁的操作。"
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:106
 #, elixir-autogen, elixir-format
@@ -1668,7 +1668,7 @@ msgstr "可空"
 #: lib/tuist_web/live/ops_database_live.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "PID"
-msgstr "PID"
+msgstr "进程 ID"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:314
 #, elixir-autogen, elixir-format
@@ -1689,7 +1689,7 @@ msgstr "关系"
 #: lib/tuist_web/live/ops_database_live.html.heex:277
 #, elixir-autogen, elixir-format
 msgid "Replay lag (bytes)"
-msgstr "回放延迟（字节）"
+msgstr "重放延迟（字节）"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:265
 #, elixir-autogen, elixir-format
@@ -1760,7 +1760,7 @@ msgstr "设置"
 #: lib/tuist_web/live/ops_database_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "Single-instance cluster, or replicas have not connected."
-msgstr "单实例集群，或副本未连接。"
+msgstr "单实例集群，或副本尚未连接。"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:83
 #: lib/tuist_web/live/ops_database_live.html.heex:142
@@ -1784,7 +1784,7 @@ msgstr "状态"
 #: lib/tuist_web/live/ops_database_live.html.heex:364
 #, elixir-autogen, elixir-format
 msgid "Stats reset"
-msgstr "统计重置"
+msgstr "重置统计信息"
 
 #: lib/tuist_web/live/ops_database_live.html.heex:271
 #, elixir-autogen, elixir-format
@@ -1858,13 +1858,13 @@ msgstr "写入延迟（字节）"
 msgid "Usage"
 msgstr "用量"
 
-#: lib/tuist_web/components/app_layout_components.ex:753
+#: lib/tuist_web/components/app_layout_components.ex:765
 #: lib/tuist_web/components/dashboard_search.ex:93
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr "文档"
 
-#: lib/tuist_web/components/app_layout_components.ex:578
+#: lib/tuist_web/components/app_layout_components.ex:590
 #, elixir-autogen, elixir-format
 msgid "Tokens"
 msgstr "令牌"
@@ -1872,7 +1872,7 @@ msgstr "令牌"
 #: lib/tuist_web/live/ops_account_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "Limits apply independently to Linux and macOS. A new runner starts only when both its vCPU and memory fit within that platform's remaining capacity."
-msgstr "Linux 和 macOS 的限制独立计算。仅当新运行器的 vCPU 和内存均在该平台的剩余容量范围内时，才会启动新的运行器。"
+msgstr "Linux 和 macOS 的限制独立适用。仅当新运行器的 vCPU 和内存均在该平台的剩余容量范围内时，才会启动新的运行器。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:419
 #: lib/tuist_web/live/ops_account_live.html.heex:718
@@ -1925,17 +1925,17 @@ msgstr "vCPU 限制"
 #: lib/tuist_web/controllers/auth_controller.ex:1035
 #, elixir-autogen, elixir-format
 msgid "Your organization does not allow automatic enrollment for this email domain. Ask an organization admin to invite you."
-msgstr "你的组织不允许此邮箱域名自动加入。请联系组织管理员邀请你。"
+msgstr "你的组织不允许此电子邮件域名自动加入。请联系组织管理员邀请你。"
 
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "Superseded"
-msgstr "已取代"
+msgstr "已被取代"
 
 #: lib/tuist_web/live/ops_account_live.ex:357
 #, elixir-autogen, elixir-format
 msgid "%{account} is now %{visibility}."
-msgstr "%{account} 现在为 %{visibility}。"
+msgstr "%{account} 现已设为 %{visibility}。"
 
 #: lib/tuist_web/live/ops_account_live.ex:364
 #, elixir-autogen, elixir-format
@@ -1950,7 +1950,7 @@ msgstr "操作"
 #: lib/tuist_web/live/ops_account_live.html.heex:789
 #, elixir-autogen, elixir-format
 msgid "Dashboards"
-msgstr "仪表板"
+msgstr "仪表盘"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:813
 #, elixir-autogen, elixir-format
@@ -1980,7 +1980,7 @@ msgstr "公开"
 #: lib/tuist_web/live/ops_account_live.html.heex:800
 #, elixir-autogen, elixir-format
 msgid "Public projects, runners, and usage. Members, webhooks, cache, billing, and settings stay private."
-msgstr "公开项目、运行器和用量。成员、Webhook、缓存、计费和设置保持私有。"
+msgstr "公开项目、运行器和用量。成员、Webhook、缓存、计费和设置保持私密。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:796
 #, elixir-autogen, elixir-format
@@ -2000,39 +2000,39 @@ msgstr "声明"
 #: lib/tuist_web/live/ops_account_live.ex:1217
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built."
-msgstr "Kura 磁盘声明设置为 %{claim}。正在运行的实例未发生变化；将在下次构建卷时应用。"
+msgstr "Kura 磁盘声明已设为 %{claim}。当前运行的实例未受影响；将在下次构建卷时应用。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1246
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim lowered to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget."
 msgid_plural "Kura disk claim lowered to %{claim}. %{count} running instances keep their caches and evict down to the new budget."
-msgstr[0] "Kura 磁盘声明降低至 %{claim}。%{count} 个正在运行的实例保留其缓存并驱逐数据以符合新预算。"
+msgstr[0] "Kura 磁盘声明已降至 %{claim}。%{count} 个正在运行的实例将保留其缓存，并清理至新预算限制。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1261
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim raised to %{claim}. Up to %{count} running instance rebuilds its volumes, one replica at a time behind the standby that keeps serving."
 msgid_plural "Kura disk claim raised to %{claim}. Up to %{count} running instances rebuild their volumes, one replica at a time behind the standby that keeps serving."
-msgstr[0] "Kura 磁盘声明提高至 %{claim}。最多 %{count} 个正在运行的实例将重建其卷，在保持服务的备用实例之后逐个副本进行。"
+msgstr[0] "Kura 磁盘声明已提升至 %{claim}。最多 %{count} 个正在运行的实例将逐个重建其卷，每次一个副本，由备用实例继续提供服务。"
 
 #: lib/tuist_web/live/ops_account_live.ex:152
 #, elixir-autogen, elixir-format
 msgid "%{account} is on a runner trial and will not be billed for runner usage until it is cancelled."
-msgstr "%{account} 正处于运行器试用期内，在取消之前不会收取运行器使用费。"
+msgstr "%{account} 正处于 Runner 试用期，在取消之前不会收取 Runner 使用费。"
 
 #: lib/tuist_web/live/ops_account_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "%{account}'s runner trial is over. Runner usage is billable from now on."
-msgstr "%{account} 的运行器试用期已结束。从现在开始，运行器使用量将计入账单。"
+msgstr "%{account} 的 Runner 试用期已结束。从现在开始，Runner 使用量将计费。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "An account on a runner trial is not billed for runner usage. Usage is still metered and still reported, but the subscription carries no runner item for Stripe to invoice it against. The trial runs until it is cancelled here."
-msgstr "处于运行器试用期的账户不收取运行器使用费。使用量仍会被计量和报告，但订阅中不包含供 Stripe 开具发票的运行器项目。试用期将持续到在此处取消为止。"
+msgstr "处于 Runner 试用期的账户不收取 Runner 使用费。使用量仍会被计量和报告，但订阅中不包含可供 Stripe 开具发票的 Runner 项目。试用期将持续到在此处取消为止。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:650
 #, elixir-autogen, elixir-format
 msgid "Cancel runner trial"
-msgstr "取消运行器试用"
+msgstr "取消 Runner 试用"
 
 #: lib/tuist_web/live/ops_account_live.ex:214
 #, elixir-autogen, elixir-format
@@ -2047,27 +2047,27 @@ msgstr "无法开始试用：%{reason}"
 #: lib/tuist_web/live/ops_account_live.html.heex:669
 #, elixir-autogen, elixir-format
 msgid "Expires"
-msgstr "到期时间"
+msgstr "到期"
 
 #: lib/tuist_web/live/ops_account_live.ex:673
 #, elixir-autogen, elixir-format
 msgid "No expiry"
-msgstr "永不过期"
+msgstr "无过期时间"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "On a runner trial"
-msgstr "处于 Runner 试用期"
+msgstr "试用运行器中"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:611
 #, elixir-autogen, elixir-format
 msgid "Runner trial"
-msgstr "Runner 试用"
+msgstr "运行器试用"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:637
 #, elixir-autogen, elixir-format
 msgid "Start runner trial"
-msgstr "开始 Runner 试用"
+msgstr "开始运行器试用"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:666
 #, elixir-autogen, elixir-format
@@ -2082,7 +2082,7 @@ msgstr "预付费"
 #: lib/tuist_web/live/ops_account_live.html.heex:656
 #, elixir-autogen, elixir-format
 msgid "Prepaid runner minutes"
-msgstr "预付费 Runner 分钟数"
+msgstr "预付费运行器分钟数"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:663
 #, elixir-autogen, elixir-format
@@ -2102,7 +2102,7 @@ msgstr "试用版"
 #: lib/tuist_web/live/ops_account_live.html.heex:626
 #, elixir-autogen, elixir-format
 msgid "Cancelling adds the runner items to this account's subscription, which makes its runner usage billable from that moment. Minutes it ran during the trial stay free, including those already recorded in the current billing period."
-msgstr "取消会将运行器项目添加到此账户的订阅中，从那一刻起，其运行器使用量将开始计费。在试用期间运行的分钟数仍然免费，包括在当前计费周期内已记录的分钟数。"
+msgstr "取消会将运行器项目添加到此账户的订阅中，从那一刻起，其运行器使用量将开始计费。试用期间运行的分钟数仍然免费，包括当前计费周期内已记录的分钟数。"
 
 #: lib/tuist_web/live/ops_account_live.ex:925
 #, elixir-autogen, elixir-format
@@ -2117,17 +2117,17 @@ msgstr "%{mbps} Mbps"
 #: lib/tuist_web/live/ops_account_live.html.heex:365
 #, elixir-autogen, elixir-format
 msgid "Ceiling override (Mbps)"
-msgstr "上限覆盖 (Mbps)"
+msgstr "上限覆盖（Mbps）"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Egress floor / ceiling"
-msgstr "出站流量下限/上限"
+msgstr "出口下限/上限"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "Floor override (Mbps)"
-msgstr "下限覆盖 (Mbps)"
+msgstr "下限覆盖（Mbps）"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:348
 #, elixir-autogen, elixir-format
@@ -2137,7 +2137,7 @@ msgstr "节点限制"
 #: lib/tuist_web/live/ops_account_live.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Now"
-msgstr "现在"
+msgstr "当前"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:345
 #, elixir-autogen, elixir-format
@@ -2152,7 +2152,7 @@ msgstr "保存出口流量限制"
 #: lib/tuist_web/live/ops_account_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Unshaped"
-msgstr "未整形"
+msgstr "不限速"
 
 #: lib/tuist_web/live/ops_account_live.ex:939
 #: lib/tuist_web/live/ops_account_live.ex:1068
@@ -2163,7 +2163,7 @@ msgstr "未知"
 #: lib/tuist_web/live/ops_account_live.html.heex:328
 #, elixir-autogen, elixir-format
 msgid "The floor this account's pods reserve and the ceiling they may burst to, set per region because the boxes differ. Empty a field to hand that number back to the region, which is a default rather than a limit: where the two disagree the region's half gives way to the one you set. The only limit is each region's node budget, since the floor is what the scheduler bin-packs against it. Saving recreates the account's instances in that region so the new pair takes effect. They keep their volumes and restart one at a time behind the standby, so no cache is lost."
-msgstr "此账户 Pod 在各区域的预留下限和突发上限。由于不同区域的实例规格不同，因此需按区域分别设置。清空字段可将该数值交还给区域默认值（这是默认配置而非硬性限制）：当两者不一致时，以你设置的值为准。唯一的限制是各区域的节点预算，因为调度器会根据预留下限进行装箱。保存操作会在该区域重新创建账户实例，使新配置生效。实例会保留其卷，并在备用实例后方逐一重启，因此不会丢失缓存。"
+msgstr "此账户 Pod 的预留下限和突发上限按区域设置，因为不同区域的资源配置不同。清空字段可将该数值交还给区域默认值；默认值并非硬性限制：当两者冲突时，以你设置的值为准。唯一的限制是每个区域的节点预算，因为调度器会根据预留下限进行装箱。保存操作会重建该区域中的账户实例，以使新的配置生效。实例会保留其卷，并在备用实例之后逐个重启，因此不会丢失缓存。"
 
 #: lib/tuist_web/live/ops_account_live.ex:971
 #, elixir-autogen, elixir-format
@@ -2174,12 +2174,12 @@ msgstr "最高 %{mbps}"
 #, elixir-autogen, elixir-format
 msgid "Egress limits updated in %{regions}. %{count} instance is recreated to pick them up."
 msgid_plural "Egress limits updated in %{regions}. %{count} instances are recreated to pick them up."
-msgstr[0] "%{regions} 中的出口流量限制已更新。正在重建 %{count} 个实例以应用这些更改。"
+msgstr[0] "%{regions} 中的出口流量限制已更新。正在重新创建 %{count} 个实例以应用这些更改。"
 
 #: lib/tuist_web/live/ops_account_live.ex:856
 #, elixir-autogen, elixir-format
 msgid "No egress limits changed."
-msgstr "未更改任何出口流量限制。"
+msgstr "未更改出口流量限制。"
 
 #: lib/tuist_web/live/ops_account_live.ex:895
 #, elixir-autogen, elixir-format
@@ -2190,19 +2190,19 @@ msgstr[0] "未保存任何内容：%{regions} 被拒绝。"
 #: lib/tuist_web/live/ops_account_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Saving recreates this account's Kura instances in the regions you changed. They keep their volumes and restart one at a time behind the standby, so no cache is lost. Continue?"
-msgstr "保存操作将在你更改的区域中重建此账户的 Kura 实例。它们会保留其卷，并在备用实例后逐个重启，因此不会丢失缓存。是否继续？"
+msgstr "保存操作将在你更改的区域中重新创建此账户的 Kura 实例。它们会保留卷数据，并在备用实例后方逐个重启，因此不会丢失缓存。是否继续？"
 
 #: lib/tuist_web/live/ops_account_live.ex:905
 #, elixir-autogen, elixir-format
 msgid "%{regions} was rejected and not saved."
 msgid_plural "%{regions} were rejected and not saved."
-msgstr[0] "%{regions} 被拒绝且未保存。"
+msgstr[0] "%{regions} 被拒绝，未保存。"
 
 #: lib/tuist_web/live/ops_account_live.ex:962
 #, elixir-autogen, elixir-format
 msgid "up to %{mbps}, across %{count} box"
 msgid_plural "up to %{mbps}, across %{count} boxes"
-msgstr[0] "最高 %{mbps}，共 %{count} 个盒子"
+msgstr[0] "最高 %{mbps}，跨 %{count} 台设备"
 
 #: lib/tuist_web/live/ops_kura_rollouts_live.html.heex:3
 #, elixir-autogen, elixir-format
@@ -2239,23 +2239,23 @@ msgstr "%{count} 分钟"
 #: lib/tuist_web/live/ops_account_live.ex:1206
 #, elixir-autogen, elixir-format
 msgid "%{used} of %{budget}"
-msgstr "已用 %{used} / 总额度 %{budget}"
+msgstr "已用 %{used} / 总预算 %{budget}"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:166
 #: lib/tuist_web/live/ops_account_live.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "Apply proposal"
-msgstr "应用方案"
+msgstr "应用提案"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:244
 #, elixir-autogen, elixir-format
 msgid "Apply the proposed claim? Growing rebuilds volumes one replica at a time behind the standby; shrinking keeps the cache and evicts down."
-msgstr "是否应用提议的配额？扩容时会在备用副本之后逐个增加副本；缩容时会保留缓存并逐出数据。"
+msgstr "是否应用提议的配额调整？扩容时将在备用副本之后逐个增加副本；缩容时将保留缓存并逐出数据。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "Automatic sizing set this account's claim to %{claim}."
-msgstr "自动调整将此账户的配额设置为 %{claim}。"
+msgstr "自动 sizing 已将此账户的配额设置为 %{claim}。"
 
 #: lib/tuist_web/live/ops_account_kura_placement_live.html.heex:23
 #: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:23
@@ -2263,7 +2263,7 @@ msgstr "自动调整将此账户的配额设置为 %{claim}。"
 #: lib/tuist_web/live/ops_account_live.html.heex:315
 #, elixir-autogen, elixir-format
 msgid "By"
-msgstr "由"
+msgstr "作者"
 
 #: lib/tuist_web/live/ops_account_kura_placement_live.html.heex:16
 #: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:16
@@ -2298,7 +2298,7 @@ msgstr "过去一周内没有 Pod 报告其磁盘使用情况。"
 #: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "No sizing decisions"
-msgstr "未做出大小决策"
+msgstr "无容量决策"
 
 #: lib/tuist_web/live/ops_account_live.ex:1096
 #: lib/tuist_web/live/ops_account_live.ex:1132
@@ -2328,13 +2328,13 @@ msgstr "已报告"
 #, elixir-autogen, elixir-format
 msgid "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
 msgid_plural "Seen on %{count} days of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
-msgstr[0] "在 %{count} 天的测量数据中出现（丢弃 %{bytes}，相当于整个缓存的 %{turnover}x）。"
+msgstr[0] "在 %{count} 天的测量中观察到（丢弃 %{bytes}，相当于整个缓存的 %{turnover}x）。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1060
 #, elixir-autogen, elixir-format
 msgid "Seen on %{count} day of measurements."
 msgid_plural "Seen on %{count} consecutive days of measurements."
-msgstr[0] "在 %{count} 天的测量数据中出现。"
+msgstr[0] "在 %{count} 天的测量中观察到。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:283
 #, elixir-autogen, elixir-format
@@ -2356,37 +2356,37 @@ msgstr "容量规划决策"
 #: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Sizing has not decided anything for this account yet."
-msgstr "尚未为此账户做出任何容量规划决策。"
+msgstr "此账户尚未做出任何容量规划决策。"
 
 #: lib/tuist_web/live/ops_account_live.ex:290
 #, elixir-autogen, elixir-format
 msgid "Sizing proposal dismissed."
-msgstr "已忽略容量建议。"
+msgstr "已忽略容量调整建议。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:216
 #, elixir-autogen, elixir-format
 msgid "Sizing proposes growing the disk claim from %{current} to %{recommended}."
-msgstr "容量建议将磁盘配额从 %{current} 增加到 %{recommended}。"
+msgstr "容量调整建议将磁盘配额从 %{current} 增加到 %{recommended}。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:224
 #, elixir-autogen, elixir-format
 msgid "Sizing proposes shrinking the disk claim from %{current} to %{recommended}."
-msgstr "容量建议将磁盘配额从 %{current} 减少到 %{recommended}。"
+msgstr "容量调整建议将磁盘配额从 %{current} 减少到 %{recommended}。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1024
 #, elixir-autogen, elixir-format
 msgid "The cache in %{region} has not filled past %{peak}% of the disk it reserves, and has discarded nothing."
-msgstr "%{region} 中的缓存使用量从未超过其预留磁盘的 %{peak}%，也未丢弃任何数据。"
+msgstr "%{region} 区域的缓存使用量未超过其预留磁盘的 %{peak}%，且未丢弃任何数据。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1004
 #, elixir-autogen, elixir-format
 msgid "The cache in %{region} is discarding work a median of %{shed_age} after it was written, when it should keep everything for at least %{floor}."
-msgstr "%{region} 中的缓存在写入后平均 %{shed_age} 就丢弃数据，而应至少保留 %{floor}。"
+msgstr "%{region} 区域的缓存在写入后平均 %{shed_age} 就丢弃了工作成果，而它应至少保留 %{floor}。"
 
 #: lib/tuist_web/live/ops_account_live.ex:272
 #, elixir-autogen, elixir-format
 msgid "The proposal no longer applies; the next sizing sweep re-evaluates the account."
-msgstr "该建议已不再适用；下次容量评估将重新分析账户。"
+msgstr "该建议已不再适用；下次容量调整扫描将重新评估账户。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:181
 #: lib/tuist_web/live/ops_account_live.html.heex:299
@@ -2428,7 +2428,7 @@ msgstr "已关闭"
 #: lib/tuist_web/live/ops_account_live.ex:1121
 #, elixir-autogen, elixir-format
 msgid "peaked at %{peak}% of its disk"
-msgstr "峰值达到其磁盘的 %{peak}%"
+msgstr "磁盘使用峰值达 %{peak}%"
 
 #: lib/tuist_web/live/ops_account_live.ex:1093
 #, elixir-autogen, elixir-format
@@ -2449,28 +2449,28 @@ msgstr "%{days} 天内日均 %{rate} 次运行"
 #: lib/tuist_web/live/ops_account_live.ex:1143
 #, elixir-autogen, elixir-format
 msgid "%{share}%% of runs over %{days} days"
-msgstr "%{days} 天内运行次数的 %{share}%%"
+msgstr "%{share}%% 的构建在 %{days} 天内"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "Apply the proposed placement? A new region starts empty and warms from its peers; a region being left keeps serving until the account is up elsewhere, then drains."
-msgstr "是否应用建议的部署位置？新区域初始为空，并从对等节点预热；被移除的区域将继续提供服务，直到账户在其他地方上线，然后进行排空。"
+msgstr "是否应用建议的区域分配？新区域初始为空，并从其他区域同步预热；被移除的区域将继续提供服务，直到账户在其他区域正常运行后，再逐步清空。"
 
 #: lib/tuist_web/live/ops_account_kura_placement_live.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "No placement decisions"
-msgstr "无部署决策"
+msgstr "无区域分配决策"
 
 #: lib/tuist_web/live/ops_account_kura_placement_live.ex:24
 #: lib/tuist_web/live/ops_account_live.ex:1135
 #, elixir-autogen, elixir-format
 msgid "Placement"
-msgstr "部署"
+msgstr "区域分配"
 
 #: lib/tuist_web/live/ops_account_live.ex:1198
 #, elixir-autogen, elixir-format
 msgid "Placement added %{region}. It is provisioned on the account's next cache demand."
-msgstr "已添加 %{region} 区域。将在账户下次产生缓存需求时进行预置。"
+msgstr "已添加 %{region} 部署位置。将在账户下次产生缓存需求时进行预配。"
 
 #: lib/tuist_web/live/ops_account_kura_placement_live.html.heex:3
 #: lib/tuist_web/live/ops_account_live.html.heex:178
@@ -2481,42 +2481,42 @@ msgstr "部署决策"
 #: lib/tuist_web/live/ops_account_kura_placement_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Placement has not decided anything for this account yet."
-msgstr "尚未为此账户做出任何部署决策。"
+msgstr "该账户尚未做出任何部署决策。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Placement has recorded nothing for this account; it is served from wherever its instances already are."
-msgstr "此账户暂无部署记录；请求将由现有实例所在位置提供服务。"
+msgstr "该账户暂无部署记录；请求将由现有实例所在位置提供服务。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1202
 #, elixir-autogen, elixir-format
 msgid "Placement is leaving %{region}. It drains once nothing else is waiting on it."
-msgstr "部署正在离开 %{region}。当没有其他请求等待时，它将排空流量。"
+msgstr "部署位置将离开 %{region}。当没有其他请求等待时，它会排空流量。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1189
 #, elixir-autogen, elixir-format
 msgid "Placement moved to %{to}. %{from} keeps serving until %{to} is up, then drains."
-msgstr "部署已迁移至 %{to}。%{from} 将继续提供服务，直到 %{to} 上线后才会排空流量。"
+msgstr "部署位置已迁移至 %{to}。%{from} 将继续提供服务，直到 %{to} 就绪后再排空流量。"
 
 #: lib/tuist_web/live/ops_account_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Placement proposal dismissed."
-msgstr "部署提案已驳回。"
+msgstr "部署方案已驳回。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1178
 #, elixir-autogen, elixir-format
 msgid "Placement proposes also serving this account from %{to}."
-msgstr "部署提议也从 %{to} 为此账户提供服务。"
+msgstr "部署方案建议从 %{to} 为此账户提供额外服务。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1182
 #, elixir-autogen, elixir-format
 msgid "Placement proposes giving up %{from} for this account."
-msgstr "部署提议放弃为此账户提供 %{from} 的服务。"
+msgstr "部署方案建议停止通过 %{from} 为此账户提供服务。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1164
 #, elixir-autogen, elixir-format
 msgid "Placement proposes moving this account from %{from} to %{to}."
-msgstr "部署提议将此账户从 %{from} 迁移至 %{to}。"
+msgstr "部署方案建议将此账户从 %{from} 迁移至 %{to}。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:87
 #, elixir-autogen, elixir-format
@@ -2531,7 +2531,7 @@ msgstr "自"
 #: lib/tuist_web/live/ops_account_live.ex:315
 #, elixir-autogen, elixir-format
 msgid "The proposal no longer applies; the next placement sweep re-evaluates the account."
-msgstr "该提案已不再适用；下次放置扫描将重新评估账户。"
+msgstr "该提议已不再适用；下一次放置扫描将重新评估账户。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1127
 #, elixir-autogen, elixir-format
@@ -2551,7 +2551,7 @@ msgstr "主区域"
 #: lib/tuist_web/live/ops_account_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "retiring"
-msgstr "退役中"
+msgstr "即将停用"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:92
 #, elixir-autogen, elixir-format
@@ -2566,7 +2566,7 @@ msgstr "服务中"
 #: lib/tuist_web/live/ops_account_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Last seen"
-msgstr "最后出现时间"
+msgstr "最后活跃时间"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:125
 #, elixir-autogen, elixir-format
@@ -2576,7 +2576,7 @@ msgstr "最近区域"
 #: lib/tuist_web/live/ops_account_live.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "No cache traffic has been attributed to this account in the last two weeks."
-msgstr "过去两周内，此账户未产生缓存流量。"
+msgstr "过去两周内，此账户没有产生缓存流量。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:131
 #, elixir-autogen, elixir-format
@@ -2596,7 +2596,7 @@ msgstr "流量来源"
 #: lib/tuist_web/live/ops_account_live.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Where this account runs follows where its cache traffic comes from. A first placement is a guess, so it is corrected quickly on a clear majority; after that the primary moves only when another region has durably carried most of its runs. An account gains a region when that region's own traffic clears an absolute floor, and gives one up when it falls well below it. Pinning a service region takes the account out of placement's hands entirely."
-msgstr "账户的运行位置遵循其缓存流量的来源地。首次放置是推测性的，因此会在出现明显多数时迅速修正；此后，只有当另一个区域持续承担大部分运行时，主区域才会变更。当某个区域的自身流量超过绝对下限时，账户会获得该区域；当流量远低于该下限时，则会失去该区域。固定服务区域后，账户将完全脱离自动放置机制。"
+msgstr "此账户的运行区域会跟随其缓存流量的来源地。初始分配仅为预估，当某个区域的运行量形成明显多数时会迅速修正；此后，仅当另一区域长期承担大部分运行时，主区域才会变更。当某区域的自有流量超过绝对下限时，账户会获得该区域；当流量远低于该下限时，则会失去该区域。锁定服务区域后，账户将完全脱离自动分配机制。"
 
 #: lib/tuist_web/controllers/error_html.ex:105
 #, elixir-autogen, elixir-format
@@ -2611,7 +2611,7 @@ msgstr "运行分析暂时不可用。请稍后再试。"
 #: lib/tuist_web/controllers/error_html.ex:93
 #, elixir-autogen, elixir-format
 msgid "Sorry, this page is temporarily unavailable. Please try again in a moment."
-msgstr "抱歉，此页面暂时不可用。请稍后重试。"
+msgstr "抱歉，此页面暂时不可用。请稍后再试。"
 
 #: lib/tuist_web/controllers/error_html.ex:99
 #, elixir-autogen, elixir-format
@@ -2654,23 +2654,23 @@ msgstr "无变化"
 #, elixir-autogen, elixir-format
 msgid "Seen on %{count} day of measurements (%{bytes} discarded)."
 msgid_plural "Seen on %{count} days of measurements (%{bytes} discarded)."
-msgstr[0] "在 %{count} 天的测量数据中出现（已丢弃 %{bytes}）。"
+msgstr[0] "在 %{count} 天的测量中可见（已丢弃 %{bytes}）。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1171
 #, elixir-autogen, elixir-format
 msgid "Placement proposes moving this account off its first region, %{from}, to %{to}."
-msgstr "Placement 建议将此账户从首个区域 %{from} 迁移到 %{to}。"
+msgstr "Placement 建议将此账户从首个区域 %{from} 迁移至 %{to}。"
 
 #: lib/tuist_web/components/app_layout_components.ex:201
 #: lib/tuist_web/components/dashboard_navigation.ex:170
 #, elixir-autogen, elixir-format
 msgid "Bazel Cache"
-msgstr "Bazel Cache"
+msgstr "Bazel 缓存"
 
 #: lib/tuist_web/live/ops_account_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "%{account}'s free tier starts over from now. It has the full allowance again until the end of the month."
-msgstr "%{account} 的免费层现已重置。在本月剩余时间内，你将重新获得完整的配额。"
+msgstr "%{account} 的免费层从现在开始重新计算。到本月底之前，你将再次拥有完整的配额。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:587
 #, elixir-autogen, elixir-format
@@ -2705,14 +2705,14 @@ msgstr "重置免费额度"
 #: lib/tuist_web/live/ops_account_live.html.heex:589
 #, elixir-autogen, elixir-format
 msgid "This account is over its free tier and cannot reach the cache until it upgrades or the free tier is reset. Enforcement runs once a day, so an account can read as over the limit for up to a day before it is actually cut off."
-msgstr "此账户已超出免费额度，在升级或重置免费额度之前无法访问缓存。强制执行每天运行一次，因此账户在实际被切断前最多可能显示超限一天。"
+msgstr "此账户已超出免费额度，在升级或重置免费额度之前无法访问缓存。强制执行每天运行一次，因此账户可能在被实际切断前最多一天内显示为超出限制。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:600
 #, elixir-autogen, elixir-format
 msgid "Reset this account's free tier? It gets the full allowance again for the rest of the month, and the runs it has already made stop counting."
-msgstr "要重置此账户的免费额度吗？本月剩余时间将重新获得完整配额，且已运行的构建不再计入用量。"
+msgstr "要重置此账户的免费额度吗？本月剩余时间将重新获得完整配额，且已完成的运行不再计入用量。"
 
-#: lib/tuist_web/authentication.ex:899
+#: lib/tuist_web/authentication.ex:908
 #, elixir-autogen, elixir-format
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr "你查找的项目不存在或已被移动。"
@@ -2721,38 +2721,38 @@ msgstr "你查找的项目不存在或已被移动。"
 #, elixir-autogen, elixir-format
 msgid "%{count} instance was lowered and keeps its cache, evicting down to the new budget."
 msgid_plural "%{count} instances were lowered and keep their caches, evicting down to the new budget."
-msgstr[0] "%{count} 个实例已降级并保留其缓存，驱逐至新预算范围内。"
+msgstr[0] "%{count} 个实例已降级并保留其缓存，驱逐至新预算。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1228
 #, elixir-autogen, elixir-format
 msgid "%{count} instance was raised and rebuilds its volumes, one replica at a time behind the standby that keeps serving."
 msgid_plural "%{count} instances were raised and rebuild their volumes, one replica at a time behind the standby that keeps serving."
-msgstr[0] "%{count} 个实例已启动并重建其卷，每次一个副本，在继续提供服务的备用实例之后进行。"
+msgstr[0] "%{count} 个实例已启动并逐个重建其卷，每次一个副本，由保持服务的备用实例接管。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1227
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim moved to %{claim}."
-msgstr "Kura 磁盘声明已移至 %{claim}。"
+msgstr "Kura 磁盘配额已移至 %{claim}。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:209
 #, elixir-autogen, elixir-format
 msgid "Sizing proposes growing the instances pinned below %{recommended} to it, the claim the account's other instances hold."
-msgstr "大小调整建议将固定在 %{recommended} 以下的实例扩容至该值，即账户中其他实例持有的声明量。"
+msgstr "容量建议将低于 %{recommended} 的固定实例扩容至该值，即账户中其他实例持有的配额。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1014
 #, elixir-autogen, elixir-format
 msgid "The cache in %{region} has kept work for at least %{retention} before discarding it, when it needs to keep everything for %{floor}."
-msgstr "当需要将所有数据保留 %{floor} 时，%{region} 中的缓存在丢弃之前至少保留了 %{retention} 的工作成果。"
+msgstr "当需要保留所有数据 %{floor} 时，%{region} 中的缓存在丢弃之前至少保留工作 %{retention}。"
 
 #: lib/tuist_web/live/ops_account_live.ex:1114
 #, elixir-autogen, elixir-format
 msgid "keeps work %{retention}, needs %{floor}"
-msgstr "保留工作成果 %{retention}，需要 %{floor}"
+msgstr "保留工作 %{retention}，需要 %{floor}"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Disk is sized automatically: the claim grows when the cache starts discarding work sooner than the plan promises to keep it, and shrinks when it goes a long time without filling up or keeps work for weeks longer than that. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
-msgstr "磁盘自动调整大小：当缓存开始比计划承诺的更早丢弃工作成果时，声明量会增加；当长时间未填满或保留工作成果的时间远超过该期限时，声明量会减少。扩容时在继续提供服务的备用实例之后逐个重建副本；缩容时保留缓存并逐出数据以降低容量。"
+msgstr "磁盘自动调整大小：当缓存开始比计划承诺更早地丢弃工作时，配额会增长；当长时间未填满或保留工作的时间远超该期限时，配额会缩小。扩容时在保持服务的备用实例后逐个重建卷；缩容时保持缓存并向下驱逐。"
 
 #: lib/tuist_web/components/runs/pull_request_button.ex:25
 #, elixir-autogen, elixir-format
@@ -2762,7 +2762,7 @@ msgstr "PR #%{number}"
 #: lib/tuist_web/controllers/auth_controller.ex:1042
 #, elixir-autogen, elixir-format
 msgid "Your organization hasn't verified a login email domain that matches your email, so single sign-on can't create a Tuist account for you. If you were invited, sign up with the invited email address, accept the invitation, and then sign in with single sign-on to link your account."
-msgstr "你的组织尚未验证与你的邮箱匹配的登录域名，因此单点登录无法为你创建 Tuist 账户。如果你收到了邀请，请使用被邀请的邮箱地址注册，接受邀请，然后通过单点登录登录以关联你的账户。"
+msgstr "你的组织尚未验证与你的邮箱匹配的登录域名，因此单点登录无法为你创建 Tuist 账号。如果你收到了邀请，请使用被邀请的邮箱注册，接受邀请，然后通过单点登录登录以关联你的账号。"
 
 #: lib/tuist_web/components/app_layout_components.ex:139
 #: lib/tuist_web/components/app_layout_components.ex:403
@@ -2770,13 +2770,6 @@ msgstr "你的组织尚未验证与你的邮箱匹配的登录域名，因此单
 #, elixir-autogen, elixir-format
 msgid "Code Coverage"
 msgstr "代码覆盖率"
-
-#: lib/tuist_web/components/app_layout_components.ex:213
-#: lib/tuist_web/components/dashboard_navigation.ex:171
-#: lib/tuist_web/live/once_cache_live.ex:27
-#, elixir-autogen, elixir-format
-msgid "Once Cache"
-msgstr "一次性缓存"
 
 #: lib/tuist_web/live/ops_account_helpers.ex:43
 #, elixir-autogen, elixir-format
@@ -2791,7 +2784,7 @@ msgstr "Tuist 上 %{project} 的 %{page}。探索项目的构建、测试和缓�
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:347
 #, elixir-autogen, elixir-format
 msgid "Tuist could not reach %{url}. Confirm the GitHub Enterprise API URL is reachable from Tuist, or self-host Tuist if it's internal-only."
-msgstr "Tuist 无法访问 %{url}。请确认 Tuist 可以访问该 GitHub Enterprise API URL，或者如果它是内部专用的，请自托管 Tuist。"
+msgstr "Tuist 无法访问 %{url}。请确认 Tuist 可以访问该 GitHub Enterprise API URL，或者如果该 URL 仅限内部使用，请自托管 Tuist。"
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:318
 #, elixir-autogen, elixir-format
@@ -2801,12 +2794,12 @@ msgstr "Tuist 无法解析 %{url}。请仔细检查 GitHub Enterprise API URL �
 #: lib/tuist_web/live/ops_account_live.ex:614
 #, elixir-autogen, elixir-format
 msgid "%{account} now holds a pool of %{credit} in runner credit, about %{minutes} baseline minutes, usable until %{date}."
-msgstr "%{account} 现在拥有 %{credit} 的运行器积分池，相当于约 %{minutes} 基准分钟数，可用至 %{date}。"
+msgstr "%{account} 现在拥有 %{credit} 的运行器积分池，约合 %{minutes} 基准分钟数，有效期至 %{date}。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:694
 #, elixir-autogen, elixir-format
 msgid "Amount paid (USD)"
-msgstr "支付金额（USD）"
+msgstr "支付金额（美元）"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:749
 #, elixir-autogen, elixir-format
@@ -2816,52 +2809,52 @@ msgstr "基准分钟数"
 #: lib/tuist_web/live/ops_account_live.html.heex:732
 #, elixir-autogen, elixir-format
 msgid "Contract's last day"
-msgstr "合同最后一天"
+msgstr "合同最后日期"
 
 #: lib/tuist_web/live/ops_account_live.ex:665
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: %{reason}"
-msgstr "无法授予池：%{reason}"
+msgstr "无法授予资源池：%{reason}"
 
 #: lib/tuist_web/live/ops_account_live.ex:659
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: a Stripe invoice id starts with in_."
-msgstr "无法授予池：Stripe 发票 ID 以 in_ 开头。"
+msgstr "无法授予资源池：Stripe 发票 ID 以 in_ 开头。"
 
 #: lib/tuist_web/live/ops_account_live.ex:642
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: choose the platforms the credit pays for."
-msgstr "无法授予池：请选择信用额度适用的平台。"
+msgstr "无法授予资源池：请选择积分所覆盖的平台。"
 
 #: lib/tuist_web/live/ops_account_live.ex:626
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: enter the amount paid in dollars, a credit multiplier such as 1.25, the platforms, and the contract's last day."
-msgstr "无法授予池：请输入支付金额（美元）、信用乘数（如 1.25）、适用平台以及合同最后一天。"
+msgstr "无法授予资源池：请输入支付的美元金额、积分乘数（例如 1.25）、平台以及合同的最后日期。"
 
 #: lib/tuist_web/live/ops_account_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: no runner price is configured for this environment yet."
-msgstr "无法授予池：尚未为此环境配置运行器价格。"
+msgstr "无法授予资源池：尚未为此环境配置运行器价格。"
 
 #: lib/tuist_web/live/ops_account_live.ex:632
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: the amount paid has to be more than zero."
-msgstr "无法授予额度池：支付金额必须大于零。"
+msgstr "无法授予资源池：支付金额必须大于零。"
 
 #: lib/tuist_web/live/ops_account_live.ex:653
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: the contract's last day has to be after today and within thirteen months."
-msgstr "无法授予额度池：合同截止日期必须在今天之后且在十三个月内。"
+msgstr "无法授予资源池：合同的最后日期必须在今天之后，且在十三个月以内。"
 
 #: lib/tuist_web/live/ops_account_live.ex:636
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: the credit multiplier has to be between 1.0 and 2.0, with at most four decimal places."
-msgstr "无法授予额度池：信用乘数必须在 1.0 到 2.0 之间，最多保留四位小数。"
+msgstr "无法授予资源池：信用乘数必须介于 1.0 和 2.0 之间，最多保留四位小数。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:743
 #, elixir-autogen, elixir-format
 msgid "Credit granted"
-msgstr "已授予额度"
+msgstr "已授予信用额度"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:701
 #, elixir-autogen, elixir-format
@@ -2871,7 +2864,7 @@ msgstr "信用乘数"
 #: lib/tuist_web/live/ops_account_live.html.heex:779
 #, elixir-autogen, elixir-format
 msgid "Grant pool"
-msgstr "授予额度池"
+msgstr "授予资源池"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:714
 #, elixir-autogen, elixir-format
@@ -2881,7 +2874,7 @@ msgstr "平台"
 #: lib/tuist_web/live/ops_account_live.ex:670
 #, elixir-autogen, elixir-format
 msgid "Pool"
-msgstr "额度池"
+msgstr "资源池"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:738
 #, elixir-autogen, elixir-format
@@ -2896,27 +2889,27 @@ msgstr "macOS 和 Linux"
 #: lib/tuist_web/live/ops_account_live.html.heex:725
 #, elixir-autogen, elixir-format
 msgid "Contract's first day"
-msgstr "合同起始日"
+msgstr "合同首日"
 
 #: lib/tuist_web/live/ops_account_live.ex:646
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: the contract has to start on or before its last day and last at most a year."
-msgstr "无法授予池额度：合同必须在最后日期或之前开始，且持续时间不超过一年。"
+msgstr "无法分配资源池：合同的开始日期必须不晚于结束日期，且持续时间不得超过一年。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:757
 #, elixir-autogen, elixir-format
 msgid "First invoice paid from the pool"
-msgstr "从池额度支付的首张发票"
+msgstr "从资源池支付的首张发票"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:769
 #, elixir-autogen, elixir-format
 msgid "Invoices paid from the pool"
-msgstr "从池额度支付的发票"
+msgstr "从资源池支付的发票"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:763
 #, elixir-autogen, elixir-format
 msgid "Last invoice paid from the pool"
-msgstr "从池额度支付的最后一张发票"
+msgstr "从资源池支付的最后一张发票"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:771
 #, elixir-autogen, elixir-format
@@ -2926,7 +2919,7 @@ msgstr "没有可开具发票的订阅"
 #: lib/tuist_web/live/ops_account_live.ex:419
 #, elixir-autogen, elixir-format
 msgid "%{account} already has an active subscription."
-msgstr "%{account} 已有有效订阅。"
+msgstr "%{account} 已有活跃订阅。"
 
 #: lib/tuist_web/live/ops_account_live.ex:411
 #, elixir-autogen, elixir-format
@@ -2936,12 +2929,12 @@ msgstr "%{account} 现已加入开源计划。"
 #: lib/tuist_web/live/ops_account_live.html.heex:871
 #, elixir-autogen, elixir-format
 msgid "Put %{account} on the Open Source plan? Its usage is never invoiced, and Kura does not serve open source accounts."
-msgstr "将 %{account} 设为开源计划？其用量永不 invoiced，且 Kura 不为开源账户提供服务。"
+msgstr "将 %{account} 设为开源计划？其用量不会开具发票，且 Kura 不为开源账户提供服务。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:868
 #, elixir-autogen, elixir-format
 msgid "Start open source plan"
-msgstr "开始使用开源计划"
+msgstr "启动开源计划"
 
 #: lib/tuist_web/controllers/origin_app_setup_controller.ex:105
 #, elixir-autogen, elixir-format
@@ -2952,7 +2945,7 @@ msgstr "无效的 Origin 安装请求。请重试。"
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Analytics"
-msgstr "分析"
+msgstr "分析数据"
 
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:9
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:17
@@ -3016,12 +3009,12 @@ msgstr "无数据"
 #: lib/tuist_web/live/mix_build_live.ex:344
 #, elixir-autogen, elixir-format
 msgid "All results"
-msgstr "全部结果"
+msgstr "所有结果"
 
 #: lib/tuist_web/live/mix_build_live.ex:296
 #, elixir-autogen, elixir-format
 msgid "Hits divided by hits plus misses. Work without a cache lookup is excluded."
-msgstr "缓存命中率，即命中数除以（命中数 + 未命中数）。不涉及缓存查询的工作不计入。"
+msgstr "命中次数除以（命中次数 + 未命中次数）。不涉及缓存查找的工作已排除。"
 
 #: lib/tuist_web/live/mix_build_live.html.heex:335
 #, elixir-autogen, elixir-format
@@ -3043,12 +3036,12 @@ msgstr "上一页"
 #: lib/tuist_web/live/toolchain_cache_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "Average and percentiles of individual build cache hit rates. Work without a cache lookup is excluded."
-msgstr "各构建缓存命中率的平均值和百分位数。不涉及缓存查询的工作不计入。"
+msgstr "各构建缓存命中率的平均值和百分位数。不涉及缓存查找的工作已排除。"
 
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "No cache measurements yet"
-msgstr "暂无缓存测量数据"
+msgstr "尚无缓存测量数据"
 
 #: lib/tuist_web/live/mix_build_live.ex:291
 #, elixir-autogen, elixir-format
@@ -3058,33 +3051,33 @@ msgstr "从本地快照或共享远程 CAS 恢复的构件。"
 #: lib/tuist_web/live/mix_build_live.ex:293
 #, elixir-autogen, elixir-format
 msgid "Cache lookups without reusable local or remote artifacts."
-msgstr "在本地或远程没有可复用构件时的缓存查找。"
+msgstr "进行了缓存查找，但没有可复用的本地或远程构件。"
 
 #: lib/tuist_web/live/mix_build_live.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS transfer or local fallback copy time. Local operations include verification and installation; remote transfers exclude local installation. Task rows identify the source. Excludes cache-key latency and compilation."
-msgstr "成功的客户端 CAS 传输或本地回退复制耗时。本地操作包括验证和安装；远程传输不包括本地安装。任务行标识来源。不包括缓存键延迟和编译。"
+msgstr "成功的客户端 CAS 传输或本地回退复制时间。本地操作包括验证和安装；远程传输不包括本地安装。任务行标识来源。不包括缓存键延迟和编译。"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS transfers and local fallback copies, with provenance on each build's task rows. Remote timings measure transfers; local timings include verification and installation. Throughput is bytes divided by operation time. Compilation and linked resources are excluded. CAS Outputs separately shows only Kura-reported remote transfers."
-msgstr "成功的客户端 CAS 传输和本地回退复制，并在每个构建的任务行中提供出处。远程计时衡量传输；本地计时包括验证和安装。吞吐量为字节数除以操作时间。不包括编译和关联资源。CAS Outputs 仅显示 Kura 报告的远程传输。"
+msgstr "成功的客户端 CAS 传输和本地回退复制，每个构建的任务行均提供出处信息。远程计时衡量传输时间；本地计时包括验证和安装。吞吐量等于字节数除以操作时间。不包括编译和链接的资源。“CAS Outputs”仅显示 Kura 报告的远程传输。"
 
 #: lib/tuist_web/live/mix_build_live.ex:300
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS download bytes and local snapshot copy bytes. CAS Outputs shows only Kura-reported remote transfers."
-msgstr "成功的客户端 CAS 下载字节数和本地快照复制字节数。CAS Outputs 仅显示 Kura 报告的远程传输。"
+msgstr "成功的客户端 CAS 下载字节数和本地快照复制字节数。“CAS Outputs”仅显示 Kura 报告的远程传输。"
 
 #: lib/tuist_web/live/mix_build_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS upload bytes and local snapshot copy bytes. CAS Outputs shows only Kura-reported remote transfers."
-msgstr "成功的客户端 CAS 上传字节数和本地快照复制字节数。CAS Outputs 仅显示 Kura 报告的远程传输。"
+msgstr "成功的客户端 CAS 上传字节数和本地快照复制字节数。“CAS Outputs”仅显示 Kura 报告的远程传输。"
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:98
 #: lib/tuist_web/controllers/integration_installation_controller.ex:108
 #, elixir-autogen, elixir-format
 msgid "This account already has a GitHub App registered for a different GitHub host."
-msgstr "此账户已为其他 GitHub 主机注册了 GitHub App。"
+msgstr "此账户已为另一个 GitHub 主机注册了 GitHub App。"
 
 #: lib/tuist_web/components/app_layout_components.ex:234
 #: lib/tuist_web/components/dashboard_navigation.ex:178
@@ -3102,12 +3095,12 @@ msgstr "命中"
 #: lib/tuist_web/live/ops_account_live.html.heex:571
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit}"
-msgstr "已用 %{usage} / 共 %{limit}"
+msgstr "%{usage} / %{limit}"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:551
 #, elixir-autogen, elixir-format
 msgid "An Air account can reach the cache until it uses %{egress} of cache egress or %{requests} cache requests a month. Resetting starts the count over from now, so the account is unblocked and has the full allowance again for the rest of the month. It is not an exemption: the reset goes inert on the first of next month, when counting returns to the month boundary."
-msgstr "Air 账户可以使用缓存，直到当月消耗的缓存出站流量达到 %{egress} 或缓存请求数达到 %{requests}。重置后将从此刻重新计数，因此账户将解除限制，并在本月剩余时间内恢复完整配额。这并非豁免：重置将在下个月第一天失效，届时计数将回到按月周期。"
+msgstr "Air 账户可以使用缓存，直到当月消耗的缓存出站流量达到 %{egress} 或缓存请求数达到 %{requests}。重置后将从此刻重新计数，因此账户将解除限制，并在本月剩余时间内恢复全额配额。这并非豁免：重置将在下个月 1 日失效，届时计数将恢复到按月周期进行。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:560
 #, elixir-autogen, elixir-format
@@ -3137,14 +3130,14 @@ msgstr "保存沙盒限制"
 #: lib/tuist_web/live/ops_account_live.html.heex:679
 #, elixir-autogen, elixir-format
 msgid "A pool is runner credit paid up front for a contract term of up to a year, usually by bank transfer. It stays usable for the whole term instead of expiring each month, so quiet months do not forfeit minutes the customer already paid for, and usage past it is billed on demand. A term shorter than a year lines a new contract up with the end of an earlier one. The pool pays the invoices that carry the term's usage, shown below once both dates are in. Granting a pool bills nothing: charge for it on its own invoice, and enter that invoice's id here so the credit can be traced to it."
-msgstr "资源池是为最长一年的合同期预先支付的运行器额度，通常通过银行转账支付。它在整个合同期内持续可用，而不是每月过期，因此即使在用量较低的月份也不会浪费客户已付费的分钟数，超出额度的用量则按需计费。短于一年的合同期可使新合同与上一合同的结束时间对齐。资源池用于支付包含该合同期用量的发票，如下所示，待两个日期均生效后显示。授予资源池不会产生费用：请为其单独开具发票，并在此处输入该发票的 ID，以便将额度关联到该发票。"
+msgstr "资源池是为期最长一年的合同期内预付的运行器额度，通常通过银行转账支付。它在整个合同期内有效，而非每月过期，因此即使在使用量较低的月份，客户也不会损失已预付的分钟数，超出额度的使用量则按需计费。短于一年的合同期可使新合同与上一合同的结束时间对齐。资源池用于支付包含该合同期使用量的发票，如下所示（需在两个日期均确定后显示）。授予资源池本身不会产生费用：请为其单独开具发票，并在此处输入该发票的 ID，以便将额度追溯至该发票。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:704
 #, elixir-autogen, elixir-format
 msgid "Credit granted per dollar paid: the on-demand price per minute divided by the deal's prepaid price per minute."
-msgstr "每支付 1 美元授予的积分：按需每分钟价格除以协议的预付费每分钟价格。"
+msgstr "每支付一美元授予的额度：按需每分钟价格除以协议中的预付费每分钟价格。"
 
-#: lib/tuist_web/components/app_layout_components.ex:604
+#: lib/tuist_web/components/app_layout_components.ex:616
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:29
 #: lib/tuist_web/live/organization_ai_settings_live.ex:15
 #, elixir-autogen, elixir-format
@@ -3164,7 +3157,7 @@ msgstr "远程执行并发限制已更新。"
 #: lib/tuist_web/live/ops_account_live.html.heex:511
 #, elixir-autogen, elixir-format
 msgid "Remote execution limits are independent of CI and sandboxes. Every Bazel action runs in its own VM with 2 vCPUs and 4 GB of memory; idle, busy and starting VMs count toward both limits. The bazel_remote_execution flag decides whether the account executes at all."
-msgstr "远程执行限制独立于 CI 和沙盒。每个 Bazel 操作都在拥有 2 个 vCPU 和 4 GB 内存的独立虚拟机中运行；空闲、繁忙和启动中的虚拟机均计入这两项限制。bazel_remote_execution 标志决定账户是否执行任何操作。"
+msgstr "远程执行限制独立于 CI 和沙盒。每个 Bazel 操作都在拥有 2 个 vCPU 和 4 GB 内存的独立虚拟机中运行；空闲、繁忙和启动中的虚拟机均计入这两项限制。bazel_remote_execution 标志决定账户是否执行。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:541
 #, elixir-autogen, elixir-format
@@ -3197,15 +3190,10 @@ msgstr "日志"
 msgid "Traces"
 msgstr "追踪"
 
-#: lib/tuist_web/components/layout_components.ex:50
-#, elixir-autogen, elixir-format
-msgid "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
-msgstr "Tuist 是为工程团队及其 AI 编码代理打造的构建平台。它支持 Xcode、Gradle、Bazel、Elixir 和 Rust 的构建与测试工作流；Rust 支持目前处于金丝雀阶段。功能因工具链而异，且 Rust 编译缓存仍处于实验阶段。"
-
 #: lib/tuist_web/live/ops_account_live.html.heex:471
 #, elixir-autogen, elixir-format
 msgid "Sandbox limits are independent of CI. Creating, resuming and running sandboxes count toward the CPU and memory limits. Disk is budgeted per sandbox node, not per account."
-msgstr "沙盒限制独立于 CI。创建、恢复和运行沙盒均计入 CPU 和内存限额。磁盘空间按每个沙盒节点分配，而非按账户分配。"
+msgstr "沙盒限制独立于 CI。创建、恢复和运行沙盒均计入 CPU 和内存限制。磁盘空间按每个沙盒节点分配，而非按账户分配。"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:105
 #, elixir-autogen, elixir-format
@@ -3225,12 +3213,12 @@ msgstr "账户集成"
 #: lib/tuist_web/components/dashboard_navigation.ex:78
 #, elixir-autogen, elixir-format
 msgid "Account Settings"
-msgstr "账号设置"
+msgstr "账户设置"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:85
 #, elixir-autogen, elixir-format
 msgid "Account Tokens"
-msgstr "账号令牌"
+msgstr "账户令牌"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:76
 #, elixir-autogen, elixir-format
@@ -3266,7 +3254,7 @@ msgstr "构建与测试洞察"
 #: lib/tuist_web/components/dashboard_search.ex:176
 #, elixir-autogen, elixir-format
 msgid "Builds and test runs appear when you search by ID or link, or with a filter like is:test-run."
-msgstr "通过 ID 或链接搜索，或使用 is:test-run 等过滤器时，会显示构建和测试运行。"
+msgstr "通过 ID 或链接搜索，或使用 is:test-run 等筛选条件时，会显示构建和测试运行记录。"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:326
 #, elixir-autogen, elixir-format
@@ -3281,7 +3269,7 @@ msgstr "关闭搜索"
 #: lib/tuist_web/components/dashboard_search.ex:49
 #, elixir-autogen, elixir-format
 msgid "Commit SHA or prefix"
-msgstr "Commit SHA 或前缀"
+msgstr "提交 SHA 或前缀"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:302
 #, elixir-autogen, elixir-format
@@ -3291,7 +3279,7 @@ msgstr "编译缓存"
 #: lib/tuist_web/components/dashboard_navigation.ex:295
 #, elixir-autogen, elixir-format
 msgid "Configure app bundle analysis"
-msgstr "配置应用 Bundle 分析"
+msgstr "配置应用包分析"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:294
 #, elixir-autogen, elixir-format
@@ -3311,7 +3299,7 @@ msgstr "连接代码仓库和 CI 提供商"
 #: lib/tuist_web/components/dashboard_navigation.ex:292
 #, elixir-autogen, elixir-format
 msgid "Connect this project to a repository"
-msgstr "将此项目关联到代码仓库"
+msgstr "将本项目连接到代码仓库"
 
 #: lib/tuist_web/components/dashboard_search.ex:59
 #, elixir-autogen, elixir-format
@@ -3336,7 +3324,7 @@ msgstr "帮助"
 #: lib/tuist_web/components/dashboard_navigation.ex:107
 #, elixir-autogen, elixir-format
 msgid "Manage AI subscriptions and routing"
-msgstr "管理 AI 订阅与路由"
+msgstr "管理 AI 订阅和路由"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:100
 #, elixir-autogen, elixir-format
@@ -3426,7 +3414,7 @@ msgstr "重试"
 #: lib/tuist_web/components/dashboard_search.ex:82
 #, elixir-autogen, elixir-format
 msgid "Run lookup covers the last 30 days. Dates use UTC."
-msgstr "运行查找覆盖最近 30 天。日期使用 UTC。"
+msgstr "运行查询覆盖过去 30 天。日期使用 UTC。"
 
 #: lib/tuist_web/components/dashboard_search.ex:54
 #, elixir-autogen, elixir-format
@@ -3438,7 +3426,7 @@ msgstr "运行结果"
 msgid "Search"
 msgstr "搜索"
 
-#: lib/tuist_web/components/app_layout_components.ex:780
+#: lib/tuist_web/components/app_layout_components.ex:792
 #: lib/tuist_web/components/dashboard_search.ex:12
 #: lib/tuist_web/components/dashboard_search.ex:134
 #: lib/tuist_web/components/dashboard_search.ex:150
@@ -3454,7 +3442,7 @@ msgstr "在 %{project} 中搜索…"
 #: lib/tuist_web/components/dashboard_search.ex:87
 #, elixir-autogen, elixir-format
 msgid "Search is busy. Try again shortly. You can still navigate to pages."
-msgstr "搜索繁忙。请稍后重试。你仍可导航到其他页面。"
+msgstr "搜索繁忙。请稍后重试。你仍可导航至其他页面。"
 
 #: lib/tuist_web/components/dashboard_search.ex:154
 #, elixir-autogen, elixir-format
@@ -3479,7 +3467,7 @@ msgstr "部分结果不可用。你仍可导航至其他页面。"
 #: lib/tuist_web/components/dashboard_search.ex:78
 #, elixir-autogen, elixir-format
 msgid "Suggested filters"
-msgstr "建议的筛选条件"
+msgstr "建议筛选条件"
 
 #: lib/tuist_web/components/dashboard_search.ex:39
 #, elixir-autogen, elixir-format
@@ -3493,7 +3481,7 @@ msgstr "关闭"
 
 #: lib/tuist_web/components/app_layout_components.ex:225
 #: lib/tuist_web/components/dashboard_navigation.ex:173
-#: lib/tuist_web/live/remote_execution_live.ex:29
+#: lib/tuist_web/live/remote_execution_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Remote execution"
 msgstr "远程执行"
@@ -3501,4 +3489,21 @@ msgstr "远程执行"
 #: lib/tuist_web/live/ops_account_live.html.heex:645
 #, elixir-autogen, elixir-format
 msgid "This account has no paid plan. Cancelling its trial puts it back on Air's free runner allowance and cache caps, and its runner usage stays unbilled until it subscribes. Cancel the trial anyway?"
-msgstr "此账户未订阅付费计划。取消试用后，它将恢复为 Air 的免费运行器额度和缓存上限，在订阅之前，其运行器用量将不计费。仍要取消试用吗？"
+msgstr "此账户未订阅付费方案。取消试用后，账户将恢复为 Air 方案的免费运行器额度和缓存上限，在订阅之前，运行器使用量不会计费。仍要取消试用吗？"
+
+#: lib/tuist_web/components/app_layout_components.ex:458
+#, elixir-autogen, elixir-format
+msgid "Snapshots"
+msgstr "快照"
+
+#: lib/tuist_web/components/app_layout_components.ex:213
+#: lib/tuist_web/components/dashboard_navigation.ex:171
+#: lib/tuist_web/live/once_cache_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "Struo Cache"
+msgstr "Struo Cache"
+
+#: lib/tuist_web/components/layout_components.ex:50
+#, elixir-autogen, elixir-format
+msgid "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Struo support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
+msgstr "Tuist 是面向工程团队及其编码智能体的构建平台。它支持 Xcode、Gradle、Bazel、Elixir 和 Rust 的构建与测试工作流；Struo 支持处于 Canary 阶段。功能因工具链而异，Rust 编译缓存为实验性功能。"

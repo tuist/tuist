@@ -7,17 +7,19 @@
 ---
 # Sürekli Entegrasyon (CI) {#continuous-integration-ci}
 
-Tuist komutlarını [sürekli entegrasyon](https://en.wikipedia.org/wiki/Continuous_integration) iş akışlarınızda çalıştırmak için bunları CI ortamınıza kurmanız gerekir. 
+Tuist komutlarını [sürekli entegrasyon](https://en.wikipedia.org/wiki/Continuous_integration) iş akışlarınızda çalıştırmak için, CI ortamınıza kurmanız gerekir. 
 
-Kimlik doğrulama isteğe bağlıdır ancak <.localized_link href="/guides/features/cache">önbellek</.localized_link> gibi sunucu tarafı özellikleri kullanmak istiyorsanız gereklidir. Tuist kurulduktan sonra CI çalışmalarını kısaltmak ve maliyetlerini düşürmek için [Yavaş derlemeler](https://tuist.dev/solutions/slow-builds) ve [CI maliyetleri](https://tuist.dev/solutions/ci-costs) bölümlerine bakın.
+Kimlik doğrulama isteğe bağlıdır ancak <.localized_link href="/guides/features/cache">önbellek</.localized_link> gibi sunucu tarafı özellikleri kullanmak istiyorsanız gereklidir. Tuist kurulduktan sonra CI çalıştırma sürelerini kısaltmak ve maliyetlerini düşürmek için [Yavaş derlemeler](https://tuist.dev/solutions/slow-builds) ve [CI maliyetleri](https://tuist.dev/solutions/ci-costs) bölümlerine bakın.
 
-Aşağıdaki bölümler, bunu farklı CI platformlarında nasıl yapacağınıza ilişkin örnekler sunar. Once, kendi yerel Tuist sağlayıcısı üzerinden bağlanır; Tuist CLI'ye ihtiyaç duymaz. Bu iş akışı için [Once](#once) bölümüne bakın.
+Aşağıdaki bölümler, bunu farklı CI platformlarında nasıl yapacağınıza dair örnekler sunar. Struo, kendi yerel Tuist sağlayıcısı üzerinden bağlanır; Tuist CLI'ye ihtiyaç duymaz. Bu iş akışı için [Struo](#struo) bölümüne bakın.
 
-## Once {#once}
+## Struo {#struo}
 
-<.localized_link href="/guides/get-started/once-project">Once ile başlayın</.localized_link> bölümündeki sağlayıcı ve önbellek bağlantısını commit edin. [Once'ın kurulum talimatları](https://buildonce.dev/docs/guide/getting-started)nı kullanarak Once'ı job'a kurun, ardından önbelleklenebilir işleri çalıştırmadan önce kimlik doğrulaması yapın.
+<a id="once"></a>
 
-GitHub Actions, CircleCI ve Bitrise, Once'ın etkileşimsiz OpenID Connect oturum açmasını destekler. Depoyu Tuist projenize <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC kimlik doğrulaması</.localized_link> bölümünde açıklandığı şekilde bağlayın. GitHub Actions'ta identity-token iznini verin:
+Sağlayıcıyı ve önbellek bağlamasını <.localized_link href="/guides/get-started/struo-project">Struo ile başlayın</.localized_link> kılavuzundan commit edin. Struo'yu iş içinde [Struo'nun kurulum talimatları](https://struo.run/docs/guide/getting-started)nı kullanarak kurun, ardından önbelleğe alınabilir işleri çalıştırmadan önce kimlik doğrulaması yapın.
+
+GitHub Actions, CircleCI ve Bitrise, Struo'nun etkileşimsiz OpenID Connect girişini destekler. Depoyu Tuist projenize <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC kimlik doğrulaması</.localized_link> bölümünde açıklandığı şekilde bağlayın. GitHub Actions'ta identity-token iznini verin:
 
 ```yaml
 permissions:
@@ -30,23 +32,23 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: jdx/mise-action@v2
-      # Pin Once in your repository's mise.toml.
-      - run: once auth login --provider tuist --no-browser
-      - run: once build MyTarget
-      - run: once test
+      # Pin Struo in your repository's mise.toml.
+      - run: struo auth login --provider tuist --no-browser
+      - run: struo build MyTarget
+      - run: struo test
 ```
 
-Hedeflerinizin gerektirdiği araç zincirlerine sahip bir işletim sistemi seçin. `MyTarget` ifadesini hedefinizle değiştirin ve mevcut araç kurulum iş akışınız aracılığıyla Once'ı sabitleyin. Elde edilen oturum, job sırasında önbellek erişimi, raporlama ve yapıt yayınlama için yeniden kullanılır.
+Hedeflerinizin gerektirdiği araç zincirlerine sahip bir işletim sistemi seçin. `MyTarget` yerine hedefinizi yazın ve Struo'yu mevcut araç kurulum iş akışınız üzerinden sabitleyin. Elde edilen oturum, iş sırasında önbellek erişimi, raporlama ve yapıt yayınlama için yeniden kullanılır.
 
-Diğer sağlayıcılarda, ihtiyacınız olan işlemler için yetkilendirilmiş bir <.localized_link href="/guides/server/authentication#account-tokens">hesap jetonu</.localized_link> kullanmak üzere `TUIST_TOKEN` değerini ayarlayın. Bunu CI gizli depoda saklayın, asla `once.toml` veya iş akışı kaynağında tutmayın. Bu jetonu kullanırken etkileşimli bir oturum açma adımı gerekmez.
+Diğer sağlayıcılarda, ihtiyacınız olan işlemler için yetkilendirilmiş bir <.localized_link href="/guides/server/authentication#account-tokens">hesap jetonu</.localized_link> kullanmak üzere `TUIST_TOKEN` değerini ayarlayın. Bunu CI gizli depo alanında saklayın; asla `struo.toml` veya iş akışı kaynağında tutmayın. Bu jetonu kullanırken etkileşimli bir giriş adımına gerek yoktur.
 
-Çoklu çalışanlı paketler için <.localized_link href="/guides/features/test-sharding/once">Once test parçalama</.localized_link> kılavuzunu takip edin. Uygulamaları yayınlamak için açık bir <.localized_link href="/guides/features/previews/once">Once önizleme yayınlama</.localized_link> adımı ekleyin. Normal derlemeler önizlemeleri örtük olarak yayınlamaz.
+Çoklu çalışan grupları için <.localized_link href="/guides/features/test-sharding/struo">Struo test parçalama</.localized_link> kılavuzunu takip edin. Uygulamaları yayınlamak için açık bir <.localized_link href="/guides/features/previews/struo">Struo önizleme yayınlama</.localized_link> adımı ekleyin. Normal derlemeler önizlemeleri örtük olarak yayınlamaz.
 
 ## Örnekler {#examples}
 
 ### GitHub Actions {#github-actions}
 
-[GitHub Actions](https://docs.github.com/en/actions) üzerinde güvenli ve gizli anahtar gerektirmeyen kimlik doğrulama için <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC kimlik doğrulaması</.localized_link>nı kullanabilirsiniz:
+[GitHub Actions](https://docs.github.com/en/actions) üzerinde güvenli ve gizli anahtarsız kimlik doğrulama için <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC kimlik doğrulaması</.localized_link>nı kullanabilirsiniz:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -141,16 +143,16 @@ jobs:
 > [!NOTE]
 > **OIDC kurulumu**
 >
-> OIDC kimlik doğrulamasını kullanmadan önce GitHub deponuzu Tuist projenize <.localized_link href="/guides/integrations/gitforge/github">bağlamanız</.localized_link> gerekir. OIDC'nin çalışması için `permissions: id-token: write` gereklidir. Tuist 4.218.0'dan itibaren CLI, ilk isteğinde kimlik jetonunu takas eder, bu nedenle iş akışında `tuist auth login` adımına gerek yoktur; daha eski sürümlerde diğer Tuist komutlarından önce `tuist auth login` çalıştırın. Alternatif olarak, `TUIST_TOKEN` gizli anahtarıyla bir <.localized_link href="/guides/server/authentication#account-tokens">hesap jetonu</.localized_link> kullanabilirsiniz.
+> OIDC kimlik doğrulamasını kullanmadan önce, GitHub deponuzu Tuist projenize <.localized_link href="/guides/integrations/gitforge/github">bağlamanız</.localized_link> gerekir. OIDC'nin çalışması için `permissions: id-token: write` gereklidir. Tuist 4.218.0'dan itibaren CLI, ilk isteğinde kimlik jetonunu değiştirir, bu nedenle iş akışında `tuist auth login` adımına gerek yoktur; önceki sürümlerde diğer Tuist komutlarından önce `tuist auth login` çalıştırın. Alternatif olarak, `TUIST_TOKEN` gizli anahtarıyla bir <.localized_link href="/guides/server/authentication#account-tokens">hesap jetonu</.localized_link> kullanabilirsiniz.
 
 
 > [!TIP]
-> Tuist projelerinizde Tuist sürümünü ortamlar arasında sabitlemek için `mise use --pin` kullanımını öneririz. Bu komut, Tuist sürümünü `mise.toml` dosyanıza sabitler.
+> Tuist projelerinizde `mise use --pin` kullanarak Tuist sürümünü ortamlar arasında sabitlemenizi öneririz. Bu komut, Tuist sürümünü `mise.toml` dosyanıza sabitler.
 
 
 ### Xcode Cloud {#xcode-cloud}
 
-Gerçek kaynak olarak Xcode projelerini kullanan [Xcode Cloud](https://developer.apple.com/xcode-cloud/)'da, Tuist'i kurmak ve ihtiyacınız olan komutları çalıştırmak için bir [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) betiği eklemeniz gerekir, örneğin `tuist generate`:
+Gerçek kaynak olarak Xcode projelerini kullanan [Xcode Cloud](https://developer.apple.com/xcode-cloud/)'da, Tuist'i kurmak ve ihtiyaç duyduğunuz komutları çalıştırmak için bir [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) betiği eklemeniz gerekir, örneğin `tuist generate`:
 
 ::: code-group
 
@@ -184,7 +186,7 @@ tuist generate
 
 ### CircleCI {#circleci}
 
-[CircleCI](https://circleci.com) üzerinde güvenli ve gizli anahtar gerektirmeyen kimlik doğrulama için <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC kimlik doğrulaması</.localized_link>nı kullanabilirsiniz:
+[CircleCI](https://circleci.com) üzerinde güvenli ve gizli anahtarsız kimlik doğrulama için <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC kimlik doğrulaması</.localized_link>nı kullanabilirsiniz:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -235,12 +237,12 @@ jobs:
 > [!NOTE]
 > **Kimlik Doğrulama**
 >
-> OIDC kimlik doğrulamasını kullanmadan önce GitHub deponuzu Tuist projenize <.localized_link href="/guides/integrations/gitforge/github">bağlamanız</.localized_link> gerekir. CircleCI OIDC jetonları, bağlı GitHub deponuzu içerir; Tuist bunu projelerinize erişimi yetkilendirmek için kullanır. Tuist 4.218.0'dan itibaren CLI, ilk isteğinde kimlik jetonunu takas eder, bu nedenle `tuist auth login` adımına gerek yoktur; daha eski sürümlerde diğer Tuist komutlarından önce `mise exec -- tuist auth login` çalıştırın. Alternatif olarak, `TUIST_TOKEN` ortam değişkeniyle bir <.localized_link href="/guides/server/authentication#account-tokens">hesap jetonu</.localized_link> kullanabilirsiniz.
+> OIDC kimlik doğrulamasını kullanmadan önce, GitHub deponuzu Tuist projenize <.localized_link href="/guides/integrations/gitforge/github">bağlamanız</.localized_link> gerekir. CircleCI OIDC jetonları, bağlı GitHub deponuzu içerir; Tuist bunu projelerinize erişimi yetkilendirmek için kullanır. Tuist 4.218.0'dan itibaren CLI, ilk isteğinde kimlik jetonunu değiştirir, bu nedenle `tuist auth login` adımına gerek yoktur; önceki sürümlerde diğer Tuist komutlarından önce `mise exec -- tuist auth login` çalıştırın. Alternatif olarak, `TUIST_TOKEN` ortam değişkeniyle bir <.localized_link href="/guides/server/authentication#account-tokens">hesap jetonu</.localized_link> kullanabilirsiniz.
 
 
 ### Bitrise {#bitrise}
 
-[Bitrise](https://bitrise.io) üzerinde güvenli ve gizli anahtar gerektirmeyen kimlik doğrulama için <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC kimlik doğrulaması</.localized_link>nı kullanabilirsiniz:
+[Bitrise](https://bitrise.io) üzerinde güvenli ve gizli anahtarsız kimlik doğrulama için <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC kimlik doğrulaması</.localized_link>nı kullanabilirsiniz:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -292,7 +294,7 @@ workflows:
 > [!NOTE]
 > **Kimlik Doğrulama**
 >
-> OIDC kimlik doğrulamasını kullanmadan önce GitHub deponuzu Tuist projenize <.localized_link href="/guides/integrations/gitforge/github">bağlamanız</.localized_link> gerekir. Bitrise OIDC jetonları, bağlı GitHub deponuzu içerir; Tuist bunu projelerinize erişimi yetkilendirmek için kullanır. Tuist 4.218.0'dan itibaren CLI, ilk isteğinde kimlik jetonunu takas eder, bu nedenle `tuist auth login` adımına gerek yoktur; daha eski sürümlerde diğer Tuist komutlarından önce `mise exec -- tuist auth login` çalıştırın. Alternatif olarak, `TUIST_TOKEN` ortam değişkeniyle bir <.localized_link href="/guides/server/authentication#account-tokens">hesap jetonu</.localized_link> kullanabilirsiniz.
+> OIDC kimlik doğrulamasını kullanmadan önce, GitHub deponuzu Tuist projenize <.localized_link href="/guides/integrations/gitforge/github">bağlamanız</.localized_link> gerekir. Bitrise OIDC jetonları, bağlı GitHub deponuzu içerir; Tuist bunu projelerinize erişimi yetkilendirmek için kullanır. Tuist 4.218.0'dan itibaren CLI, ilk isteğinde kimlik jetonunu değiştirir, bu nedenle `tuist auth login` adımına gerek yoktur; önceki sürümlerde diğer Tuist komutlarından önce `mise exec -- tuist auth login` çalıştırın. Alternatif olarak, `TUIST_TOKEN` ortam değişkeniyle bir <.localized_link href="/guides/server/authentication#account-tokens">hesap jetonu</.localized_link> kullanabilirsiniz.
 
 
 ### Codemagic {#codemagic}
@@ -364,7 +366,7 @@ tuist setup cache
 > [!NOTE]
 > **İş akışı adımları**
 >
-> Tuist Install adımı, Tuist'i Homebrew ile kurar ve `tuist generate` komutunu çalıştırır. Sürümü sabitlemek için **Tuist Version** girişini ayarlayın, ardından `tuist test` veya `tuist build` gibi komutları çalıştırmak için bir Tuist Commands adımı ekleyin.
+> Tuist Install adımı, Tuist'i Homebrew ile kurar ve `tuist generate` komutunu çalıştırır. Sürümü sabitlemek için **Tuist Version** girdisini ayarlayın, ardından `tuist test` veya `tuist build` gibi komutları çalıştırmak üzere bir Tuist Commands adımı ekleyin.
 
 > [!NOTE]
 > **Kimlik Doğrulama**
@@ -373,11 +375,11 @@ tuist setup cache
 
 ## xcodebuild çıktı biçimlendirme {#xcodebuild-output-formatting}
 
-`tuist build`, `tuist test`, `tuist xcodebuild build` ve `tuist xcodebuild test`, `xcodebuild` çıktısını [xcbeautify](https://github.com/cpisciotta/xcbeautify) biçimlendiricisiyle biçimlendirir; bu nedenle bu komutları kendiniz xcbeautify üzerinden yönlendirmenize gerek yoktur. GitHub Actions'ta, `GITHUB_ACTIONS` ortam değişkeni aracılığıyla algılanan Tuist, xcbeautify'ın GitHub Actions render'ını kullanır; bu derleyici uyarılarını, hataları ve test başarısızlıklarını çalıştırma özetinde ve çekme isteğinde ek açıklamalar olarak gösterir. Diğer her yerde terminal render'ını kullanır; çıktı yönlendirilmediyse veya `NO_COLOR` ayarlanmadıysa renklidir.
+`tuist build`, `tuist test`, `tuist xcodebuild build` ve `tuist xcodebuild test`, `xcodebuild` çıktısını [xcbeautify](https://github.com/cpisciotta/xcbeautify) biçimlendiricisiyle biçimlendirir; bu nedenle bu komutları kendiniz xcbeautify üzerinden yönlendirmenize gerek yoktur. GitHub Actions'ta, `GITHUB_ACTIONS` ortam değişkeni aracılığıyla algılanır ve Tuist, xcbeautify'ın GitHub Actions oluşturucusunu kullanır; bu oluşturucu, derleyici uyarılarını, hataları ve test başarısızlıklarını çalıştırma özetinde ve çekme isteğinde açıklama olarak gösterir. Diğer tüm yerlerde terminal oluşturucusunu kullanır; çıktı başka bir yere yönlendirilmedikçe veya `NO_COLOR` ayarlanmadıkça renklidir.
 
-Net bir hata olmadan derleme başarısız olduğunda olduğu gibi, `xcodebuild` biçimlendirilmemiş çıktısını yazdırmak için `--verbose` parametresini iletin.
+Net bir hata olmadan bir derleme başarısız olduğunda olduğu gibi, `xcodebuild` biçimlendirilmemiş çıktısını yazdırmak için `--verbose` parametresini geçirin.
 
-Bir iş `xcodebuild` komutunu Tuist üzerinden değil de doğrudan çağırıyorsa, bunu kendiniz xcbeautify üzerinden yönlendirin ve başarısız bir derlemenin yine de adımı başarısız kılmaması için `pipefail` ayarını yapın:
+Bir iş `xcodebuild` komutunu Tuist üzerinden değil de doğrudan çağırıyorsa, bunu kendiniz xcbeautify üzerinden yönlendirin ve başarısız bir derlemenin adımı yine de başarısız kılması için `pipefail` ayarını yapın:
 
 ```bash
 set -o pipefail
@@ -386,7 +388,7 @@ xcodebuild test -scheme App | xcbeautify --renderer github-actions
 
 ## Çalıştırma raporu {#run-report}
 
-Tuist bir çalıştırmayı yüklediğinde, buna ait kontrol paneli URL'leri günlüklere yazdırılır. Günlükleri kazımaya gerek kalmadan bunları almak — örneğin bir iş başarısız olduğunda test raporu bağlantısını Slack'e göndermek veya bir çalıştırmayı kendi araçlarınıza aktarmak — için `tuist test`, `tuist xcodebuild test` veya `tuist xcodebuild build` komutlarına `--run-report-path` parametresini iletin (veya `TUIST_RUN_REPORT_PATH` ayarını yapın). Tuist, çalıştırma yüklendikten sonra JSON raporunu belirtilen yola yazar:
+Tuist bir çalıştırmayı yüklediğinde, buna ait panodaki URL'ler günlüklere yazdırılır. Günlükleri kazımadan bunlara erişmek için — örneğin bir iş başarısız olduğunda test raporu bağlantısını Slack'e göndermek veya bir çalıştırmayı kendi araçlarınıza aktarmak amacıyla — `tuist test`, `tuist xcodebuild test` veya `tuist xcodebuild build` komutlarına `--run-report-path` parametresini geçirin (veya `TUIST_RUN_REPORT_PATH` ayarlayın). Tuist, çalıştırma yüklendikten sonra JSON raporunu belirtilen yola yazar:
 
 ```json
 {
@@ -417,20 +419,20 @@ Tuist bir çalıştırmayı yüklediğinde, buna ait kontrol paneli URL'leri gü
 | - | - | - |
 | `runId` | dize | Çalıştırmanın benzersiz tanımlayıcısı. |
 | `status` | dize | `"success"` veya `"failure"`. |
-| `runURL` | dize | Çalıştırma için kontrol paneli URL'si. Her zaman mevcuttur. |
-| `testRunURL` | dize? | Test çalıştırması için kontrol paneli URL'si; komut testleri çalıştırdığında mevcuttur. |
-| `buildRunURL` | dize? | Derleme çalıştırması için kontrol paneli URL'si; komut derleme yaptığında mevcuttur. |
-| `testRuns` | dizi | Şema başına test sonuçları: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`, `ranTestModules` ve `skippedTestModules`. Test sayıları test senaryolarını ifade eder ve `skippedTests` sonuç paketinin atlanmış olarak bildirdiklerini sayar. `skippedTestModules`, <.localized_link href="/guides/features/selective-testing">seçici test</.localized_link> tarafından atlanan test modüllerini sayar ve seçici test uygulanmadığında veya çalıştırma bir test parçası olduğunda atlanır. |
+| `runURL` | dize | Çalıştırma için panodaki URL. Her zaman mevcuttur. |
+| `testRunURL` | dize? | Test çalıştırması için panodaki URL; komut testleri çalıştırdığında mevcuttur. |
+| `buildRunURL` | dize? | Derleme çalıştırması için panodaki URL; komut derleme yaptığında mevcuttur. |
+| `testRuns` | dizi | Şema başına test sonuçları: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`, `ranTestModules` ve `skippedTestModules`. Test sayıları test durumlarını ifade eder ve `skippedTests` sonuç paketinin atlanmış olarak bildirdiği testlerin sayısını verir. `skippedTestModules`, <.localized_link href="/guides/features/selective-testing">seçici test</.localized_link> tarafından atlanan test modüllerinin sayısını verir ve seçici test uygulanmadığında veya çalıştırma bir test parçası olduğunda atlanır. |
 | `buildRuns` | dizi | Şema başına derleme sonuçları: `scheme`, `succeeded`, `durationInSeconds`. |
 
-`testRunURL` ve `buildRunURL` bağımsızdır: hem derleme hem de test yapan bir komut her ikisini de yazar; günlükler bunu yapamaz — çalıştırma başına yalnızca bir URL yazdırırlar.
+`testRunURL` ve `buildRunURL` bağımsızdır: hem derleme hem de test yapan bir komut her ikisini de yazar; oysa günlükler bunu yapamaz — çalıştırma başına yalnızca bir URL yazdırırlar.
 
 > [!NOTE]
 > **Raporun ne zaman yazıldığı**
 >
-> Rapor yalnızca sunucuya yüklenen çalıştırmalar için yazılır; bu kimlik doğrulama gerektirir ve CI'da otomatik olarak gerçekleşir. Yol, her çalıştırmanın başında temizlenir, bu nedenle rapor üretmeyen bir çalıştırma önceki bir çalıştırmadan kalan eski bir rapor yerine hiçbir şey bırakmaz.
+> Rapor yalnızca sunucuya yüklenen çalıştırmalar için yazılır; bu işlem kimlik doğrulama gerektirir ve CI üzerinde otomatik olarak gerçekleşir. Yol, her çalıştırmanın başında temizlenir; bu nedenle rapor üretmeyen bir çalıştırma, önceki bir çalıştırmadan kalan eski bir rapor yerine hiçbir şey bırakmaz.
 
-GitLab CI'da yaygın bir kullanım, bir URL'yi sonraki işlere bir [`dotenv` raporu](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv) aracılığıyla açığa çıkarmaktır:
+GitLab CI'da yaygın bir kullanım, bir URL'yi sonraki işlere bir [`dotenv` raporu](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv) aracılığıyla açmaktır:
 
 ```yaml
 test:

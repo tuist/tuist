@@ -2,7 +2,7 @@
 {
   "title": "Dizinler",
   "titleTemplate": ":title · CLI · Tuist",
-  "description": "Tuist'in yapılandırma, önbellek ve durum dizinlerini nasıl organize ettiğini öğrenin."
+  "description": "Tuist'in yapılandırma, önbellek ve durum dizinlerini nasıl düzenlediğini öğrenin."
 }
 ---
 # Dizinler {#directories}
@@ -11,7 +11,7 @@ Tuist, dosyalarını sisteminizdeki birkaç dizinde [XDG Base Directory Specific
 
 ## Desteklenen ortam değişkenleri {#supported-environment-variables}
 
-Tuist hem standart XDG değişkenlerini hem de Tuist’e özel ön ekli varyantları destekler. Tuist’e özel varyantlar (`TUIST_` ön ekiyle) önceliklidir; böylece Tuist’i diğer uygulamalardan bağımsız olarak yapılandırabilirsiniz.
+Tuist hem standart XDG değişkenlerini hem de Tuist’e özel ön ekli varyantları destekler. Tuist’e özel varyantlar (`TUIST_` ile ön eklenir) önceliklidir; böylece Tuist’i diğer uygulamalardan bağımsız olarak yapılandırabilirsiniz.
 
 ### Yapılandırma dizini {#configuration-directory}
 
@@ -21,7 +21,7 @@ Tuist hem standart XDG değişkenlerini hem de Tuist’e özel ön ekli varyantl
 
 **Varsayılan:** `~/.config/tuist`
 
-**Kullanım alanı:**
+**Kullanım amacı:**
 - Sunucu kimlik bilgileri (`credentials/{host}.json`)
 
 **Örnek:**
@@ -43,14 +43,14 @@ tuist auth login
 
 **Varsayılan:** `~/.cache/tuist`
 
-**Kullanım alanı:**
+**Kullanım amacı:**
 - **Eklentiler**: İndirilen ve derlenen eklenti önbelleği
-- **ProjectDescriptionHelpers**: Derlenmiş proje tanımı yardımcıları
+- **ProjectDescriptionHelpers**: Derlenmiş proje açıklama yardımcıları
 - **Bildirimler**: Önbelleğe alınmış bildirim dosyaları
 - **Projeler**: Oluşturulan otomasyon projesi önbelleği
 - **EditProjects**: edit komutu için önbellek
-- **Çalıştırmalar**: Test ve derleme çalıştırması analiz verileri
-- **İkilikler**: Derleme yapıtı ikilikleri (ortamlar arasında paylaşılamaz)
+- **Çalıştırmalar**: Test ve derleme çalıştırma analiz verileri
+- **İkili Dosyalar**: Derleme çıktı ikili dosyaları (ortamlar arasında paylaşılamaz)
 - **SelectiveTests**: Seçici test önbelleği
 
 **Örnek:**
@@ -72,7 +72,7 @@ tuist cache
 
 **Varsayılan:** `~/.local/state/tuist`
 
-**Kullanım alanı:**
+**Kullanım amacı:**
 - **Oturumlar**: Oturum günlükleri ve ağ kayıtları (`sessions/{uuid}/`)
 - **Kilitler**: Kimlik doğrulama kilit dosyaları (`{handle}.sock`)
 
@@ -89,14 +89,14 @@ tuist generate
 
 ## Öncelik sırası {#precedence-order}
 
-Hangi dizinin kullanılacağını belirlerken Tuist ortam değişkenlerini aşağıdaki sırayla kontrol eder:
+Hangi dizinin kullanılacağını belirlerken Tuist ortam değişkenlerini şu sırayla kontrol eder:
 
 1. **Tuist’e özel değişken** (ör. `TUIST_XDG_CONFIG_HOME`)
 2. **Standart XDG değişkeni** (ör. `XDG_CONFIG_HOME`)
 3. **Varsayılan konum** (ör. `~/.config/tuist`)
 
 Bu sayede şunları yapabilirsiniz:
-- Tüm uygulamalarınızı tutarlı bir şekilde düzenlemek için standart XDG değişkenlerini kullanın
+- Tüm uygulamalarınızı tutarlı şekilde düzenlemek için standart XDG değişkenlerini kullanın
 - Tuist için farklı konumlara ihtiyaç duyduğunuzda Tuist’e özel değişkenlerle geçersiz kılın
 - Herhangi bir yapılandırma yapmadan makul varsayılanlara güvenin
 

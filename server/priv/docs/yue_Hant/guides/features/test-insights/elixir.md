@@ -7,22 +7,22 @@
 ---
 # Elixir 測試洞察 {#elixir-test-insights}
 
-Tuist 嘅 Hex 套件會喺每次測試執行之後上載你 Elixir 專案嘅測試結果，令你直接喺 Tuist 儀表板入面了解測試表現同不穩定測試。
+Tuist 嘅 Hex 套件會喺每次測試執行之後上載你 Elixir 專案嘅測試結果，令你可以直接喺 Tuist 儀表板查看測試表現同不穩定測試。
 
 > [!IMPORTANT]
-> **要求**
+> **必要條件**
 >
 > - 完成 <.localized_link href="/guides/get-started/elixir-project">開始使用 Elixir</.localized_link>
 
-## 回報你嘅測試執行 {#report-your-test-runs}
+## 報告你嘅測試執行 {#report-your-test-runs}
 
-共用設定會安裝測試整合。繼續使用 `mix test`，參數、輸出同退出碼都保持一樣：
+共用設定會安裝測試整合。繼續使用 `mix test`，參數、輸出同退出碼都一樣：
 
 ```bash
 mix test test/my_app_test.exs:12 --trace
 ```
 
-Tuist 會喺執行完成時回報；唔需要額外嘅測試 alias。
+Tuist 會喺執行完畢時報告；唔需要額外嘅測試別名。
 
 你可以喺 Tuist 儀表板存取你嘅測試洞察，並觀察佢哋隨時間嘅變化：
 
@@ -36,25 +36,26 @@ Tuist 會喺執行完成時回報；唔需要額外嘅測試 alias。
 - 每次失敗嘅訊息同位置
 - 跨執行偵測不穩定測試
 - 分支同提交，以及喺持續整合環境下嘅提供者同執行
-- 喺持續整合環境下，checkout 嘅 [Git 歷史記錄](#git-history)
+- 喺持續整合環境下，檢出嘅 [Git 歷史](#git-history)
 
-Doctest 會好似其他測試一樣被回報。使用 `--cover` 時，亦會上載執行嘅行覆蓋率：請參閱 <.localized_link href="/guides/features/test-code-coverage/elixir">Elixir 代碼覆蓋率</.localized_link>。
+文件測試會好似其他測試咁報告。使用 `--cover` 時，亦會上載執行嘅行覆蓋率：請參閱 <.localized_link href="/guides/features/test-code-coverage/elixir">Elixir 代碼覆蓋率</.localized_link>。
 
 > [!NOTE]
-> 套件透過一個 ExUnit formatter 進行回報，並將佢加到你已經使用嘅 formatter 旁邊。如果你喺命令行傳遞 `--formatter`，Mix 會替換整個清單，導致執行唔會被回報，而任務會向你發出警告。
+> 套件透過一個 ExUnit 格式器進行報告，該格式器會添加到你已經使用嘅格式器旁邊。如果你喺命令行傳遞 `--formatter`，Mix 會替換整個列表，導致執行唔會被報告，任務會向你發出警告。
 
-### Git 歷史記錄 {#git-history}
+### Git 歷史 {#git-history}
 
-喺持續整合環境下，套件亦會上載 checkout 嘅提交歷史記錄：提交 SHA、佢哋嘅父提交、提交日期，以及執行同其拉取請求基礎分支所處嘅分支。唔會上載任何檔案內容、提交訊息或作者。呢個資訊會告訴 Tuist 邊啲提交已合併到你嘅預設分支，例如合併佇列測試過嘅提交。套件會讀取 checkout 已有嘅歷史記錄，如果 checkout 冇基礎分支，就會向遠端查詢最新提交（`git ls-remote`）。除咗代碼覆蓋率（`--cover`）之外，佢唔會獲取歷史記錄。使用代碼覆蓋率時，淺層 checkout 會被加深（唔包含檔案內容），以找出拉取請求從邊度分支出來，並喺持續整合環境下到達 Tuist 已有嘅提交，確保提交永遠唔會喺冇父提交嘅情況下上載。
+喺持續整合環境下，套件亦會上載檢出嘅提交歷史：提交 SHA、其父提交、提交日期，以及執行及其拉取請求基礎分支所處嘅分支。唔會上載檔案內容、提交訊息或作者。呢樣資料會告訴 Tuist 哪些提交已合併到你嘅預設分支，例如合併隊列測試過嘅提交。套件會讀取檢出已有嘅歷史，如果檢出冇基礎分支，就會向遠端查詢其最新提交（`git ls-remote`）。除咗代碼覆蓋率（`--cover`）之外，佢唔會獲取歷史。使用代碼覆蓋率時，淺層檢出會加深（唔包含檔案內容），以找出拉取請求嘅分支點，並喺持續整合環境下到達 Tuist 已有嘅提交，確保提交永遠唔會喺冇父提交嘅情況下上載。
 
-| 變數 | 效果 |
+| 變量 | 效果 |
 | --- | --- |
-| `TUIST_GIT_UPLOAD_ENABLED=false` | 唔會讀取或上載任何 Git 歷史記錄。 |
-| `TUIST_GIT_UNSHALLOW_ENABLED=false` | 只讀取 checkout，唔會聯絡遠端。 |
+| `TUIST_GIT_UPLOAD_ENABLED=false` | 唔會讀取或上載任何 Git 歷史。 |
+| `TUIST_GIT_UNSHALLOW_ENABLED=false` | 只讀取檢出，唔會聯絡遠端。 |
+| `TUIST_GIT_BRANCH=<branch>` | 命名執行嘅分支，優先於 CI 提供者同檢出嘅分支。喺 Tuist 唔識別嘅 CI 系統上設置，呢啲系統檢出嘅係提交而非分支，否則執行會冇分支。 |
 
 ## 疑難排解 {#troubleshooting}
 
-回報永遠唔會改變你測試嘅結果：如果報告無法發送，執行會照常退出，而且唔會打印任何內容。要查看報告為何未被發送，請設定 `TUIST_DEBUG=1`：
+報告永遠唔會改變你測試嘅結果：如果報告無法發送，執行會照常退出，亦唔會打印任何內容。要查看報告為何未發送，請設置 `TUIST_DEBUG=1`：
 
 ```bash
 TUIST_DEBUG=1 mix test

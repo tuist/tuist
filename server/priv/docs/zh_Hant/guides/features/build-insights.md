@@ -1,13 +1,13 @@
 ---
 {
-  "title": "建置分析",
+  "title": "建置洞察",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "使用 Tuist 建置分析，追蹤 Xcode、Gradle、Bazel、Elixir、Rust 與 Once 專案的建置效能。"
+  "description": "使用 Tuist Build Insights 追蹤 Xcode、Gradle、Bazel、Elixir、Rust 和 Struo 專案的建置效能。"
 }
 ---
 # 建置洞察 {#build-insights}
 
-使用「建置洞察」追蹤本機與 CI 建置效能。目前支援 Xcode、Gradle、Bazel、Elixir、Rust 與 Once。若要逐步調查建置緩慢與 CI 成本上升的問題，請參閱[建置緩慢](https://tuist.dev/solutions/slow-builds)與[CI 成本](https://tuist.dev/solutions/ci-costs)。
+使用「建置洞察」追蹤本機與 CI 的建置效能。目前支援 Xcode、Gradle、Bazel、Elixir、Rust 與 Struo。若要逐步調查建置緩慢與 CI 成本上升的問題，請參閱 [Slow builds](https://tuist.dev/solutions/slow-builds) 與 [CI costs](https://tuist.dev/solutions/ci-costs)。
 
 <.home_cards>
   <.home_card
@@ -27,12 +27,12 @@
 />
   <.home_card
     title="Bazel"
-    details="透過 Build Event Protocol 追蹤 Bazel 指令持續時間、快取總量與關鍵路徑診斷。"
+    details="透過 Build Event Protocol 追蹤 Bazel 指令持續時間、快取總計與關鍵路徑診斷。"
     link="/guides/features/build-insights/bazel"
 />
   <.home_card
     title="Elixir"
-    details="追蹤你的 Elixir 專案編譯所需時間、警告訊息，以及拖慢建置的檔案。"
+    details="追蹤 Elixir 專案的編譯耗時、警告，以及拖慢建置的檔案。"
     link="/guides/features/build-insights/elixir"
 />
   <.home_card
@@ -41,8 +41,8 @@
     link="/guides/features/build-insights/rust"
 />
   <.home_card
-    title="Once"
+    title="Struo"
     details="即時追蹤執行，並檢查圖形動作、持續時間、失敗與快取決策。"
-    link="/guides/features/build-insights/once"
+    link="/guides/features/build-insights/struo"
 />
 </.home_cards>

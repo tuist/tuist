@@ -29,4 +29,4 @@ msgstr "散点图"
 #: lib/tuist_web/components/chart_type_toggle.ex:67
 #, elixir-autogen, elixir-format
 msgid "Bar"
-msgstr "Bar"
+msgstr "柱状图"

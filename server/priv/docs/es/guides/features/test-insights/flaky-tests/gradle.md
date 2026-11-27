@@ -2,7 +2,7 @@
 {
   "title": "Tests inestables en Gradle",
   "titleTemplate": ":title · Tests inestables · Análisis de tests · Funcionalidades · Guías · Tuist",
-  "description": "Detecta, gestiona y aísla los tests inestables en proyectos Gradle con Tuist."
+  "description": "Detecta, gestiona y pon en cuarentena los tests inestables en proyectos Gradle con Tuist."
 }
 ---
 # Tests inestables de Gradle {#gradle-flaky-tests}
@@ -18,7 +18,7 @@
 
 ## Cómo funciona la detección de inestabilidad {#how-it-works}
 
-Tuist detecta los tests inestables de dos maneras:
+Tuist detecta los tests inestables de dos formas:
 
 ### Reintentos de tests {#test-retries}
 
@@ -48,26 +48,26 @@ tasks.test {
 
 Incluso sin reintentos de tests, Tuist puede detectar tests inestables comparando resultados entre diferentes ejecuciones de CI en el mismo commit y el mismo proyecto de Gradle. Si un test pasa en una ejecución de CI pero falla en otra para el mismo commit y proyecto, la ejecución fallida se marca como inestable.
 
-El proyecto de Gradle forma parte de la clave de comparación porque el mismo test puede comportarse de manera determinista diferente entre proyectos; por ejemplo, una clase de test compartida compilada con distintas dependencias o ejecutada en un fixture de módulo diferente. Dos ejecuciones del mismo commit en distintos proyectos de Gradle se tratan como variantes de ejecución separadas y no se marcarán mutuamente como inestables.
+El proyecto de Gradle forma parte de la clave de comparación porque el mismo test puede comportarse de forma determinista diferente entre proyectos; por ejemplo, una clase de test compartida compilada con distintas dependencias o ejecutada en un fixture de módulo diferente. Dos ejecuciones del mismo commit en distintos proyectos de Gradle se tratan como variantes de ejecución separadas y no se marcarán mutuamente como inestables.
 
-Esto es especialmente útil para detectar tests inestables que no fallan con la suficiente consistencia como para ser capturados por los reintentos, pero aún así provocan fallos intermitentes en CI.
+Esto es especialmente útil para capturar tests inestables que no fallan con la suficiente consistencia como para ser detectados por los reintentos, pero aun así provocan fallos intermitentes en CI.
 
 <!-- @snippet: ./_managing -->
 
-## Poner en cuarentena los tests inestables {#quarantining}
+## Poner en cuarentena tests inestables {#quarantining}
 
 <!-- @snippet: ./_quarantine-intro -->
 
 Un test en cuarentena está en uno de estos dos modos:
 
-- **Silenciado**: el test sigue ejecutándose, pero el plugin establece `ignoreFailures = true` y solo vuelve a fallar la build por fallos no puestos en cuarentena. Los fallos siguen alimentando el detector de tests inestables, así que puedes seguir monitorizando el test sin romper la build. Elige esta opción para un test que estés investigando activamente.
+- **Silenciado**: el test sigue ejecutándose, pero el plugin establece `ignoreFailures = true` y solo hace fallar la compilación por fallos no puestos en cuarentena. Los fallos siguen alimentando el detector de tests inestables, así que puedes seguir monitorizando el test sin romper la compilación. Elige esta opción para un test que estés investigando activamente.
 - **Omitido**: el plugin filtra el test mediante `excludeTestsMatching` de Gradle, por lo que nunca llega a iniciarse. No genera nuevos resultados y desaparece del panel de tests inestables hasta que lo vuelvas a habilitar. Elige esta opción cuando el test esté roto, sea lento o tan persistentemente inestable que ejecutarlo solo suponga un desperdicio de minutos de CI.
 
 <!-- @snippet: ./_quarantined-passing -->
 
 ### Habilitar la cuarentena {#enabling-quarantine}
 
-La cuarentena se **habilita automáticamente en CI** (cuando la variable de entorno `CI` está definida) y se deshabilita para builds locales. El plugin obtiene la lista de tests en cuarentena del servidor de Tuist antes de cada tarea de test; los tests silenciados se ejecutan con normalidad y sus fallos se enmascaran, mientras que los tests omitidos se filtran.
+La cuarentena se **habilita automáticamente en CI** (cuando la variable de entorno `CI` está definida) y se deshabilita para compilaciones locales. El plugin obtiene la lista de tests en cuarentena del servidor de Tuist antes de cada tarea de test; los tests silenciados se ejecutan con normalidad y sus fallos se ocultan, mientras que los tests omitidos se filtran.
 
 Puedes controlar esto explícitamente en tu `settings.gradle.kts`:
 
@@ -79,17 +79,17 @@ tuist {
 }
 ```
 
-Cuando `enabled` no está definido, el valor predeterminado es la autodetección: habilitado en CI, deshabilitado localmente.
+Cuando `enabled` no está definido, el valor predeterminado es la autodetección: habilitado en CI, deshabilitado en local.
 
 ## Pruebas de estrés para tests nuevos {#stress-testing-new-tests}
 
 <!-- @snippet: ./_stress-intro -->
 
-Un caso de test se considera nuevo cuando no se ha ejecutado en CI en los últimos 90 días en la rama predeterminada del proyecto, o en un commit que ya se haya integrado en ella. Con una cola de merge, un caso de test ejecutado por la cola se conoce una vez que el commit de la cola se integra, y permanece como nuevo si la cola lo descarta. Los commits se emparejan a través del <.localized_link href="/guides/features/test-insights/gradle#git-history">historial de Git</.localized_link> que Tuist recopila en CI.
+Un caso de test se considera nuevo cuando no se ha ejecutado en CI en los últimos 90 días en la rama por defecto del proyecto, o en un commit que desde entonces se haya integrado en ella. Con una cola de merge, un caso de test ejecutado por la cola se conoce una vez que el commit de la cola se integra, y sigue siendo nuevo si la cola lo descarta. Los commits se emparejan a través del <.localized_link href="/guides/features/test-insights/gradle#git-history">historial de Git</.localized_link> que Tuist recopila en CI.
 
 <!-- @snippet: ./_stress-modes -->
 
-Decláralo en `settings.gradle.kts`, o define `TUIST_TEST_STRESS_NEW_TESTS` para variar el modo según la lane de CI:
+Decláralo en `settings.gradle.kts`, o define `TUIST_TEST_STRESS_NEW_TESTS` para variar el modo por canal de CI:
 
 ```kotlin
 tuist {
@@ -99,11 +99,11 @@ tuist {
 }
 ```
 
-A diferencia de la cuarentena, la puerta de control no tiene un valor predeterminado sensible a CI. Sin definir `mode`, no se ejecuta en ningún entorno.
+A diferencia de la cuarentena, la puerta de control no tiene un valor predeterminado consciente de CI. Si no se define `mode`, no se ejecuta en ningún sitio.
 
 <!-- @snippet: ./_stress-reruns -->
 
-Cada reintento es una build de Gradle anidada filtrada para ese único caso de test, de modo que cada reinteto dispone de una JVM de test nueva.
+Cada reintento es una compilación anidada de Gradle filtrada para ese único caso de test, de modo que cada reinteto obtiene una JVM de test nueva.
 
 <!-- @snippet: ./_stress-skipped -->
 

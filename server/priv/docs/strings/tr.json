@@ -26,7 +26,7 @@
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixir önbelleği" },
-      "entire": { "text": "Tümü" },
+      "entire": { "text": "Entire" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -36,11 +36,11 @@
       "iphone-app": { "text": "iPhone uygulaması" },
       "macos-app": { "text": "macOS uygulaması" },
       "new-project": { "text": "Yeni proje" },
-      "once": { "text": "Once" },
-      "once-cache": { "text": "Once önbelleği" },
-      "once-project": { "text": "Once projesi" },
-      "once-remote-execution": { "text": "Once uzak yürütme" },
-      "origin": { "text": "Kaynak" },
+      "once": { "text": "Struo" },
+      "once-cache": { "text": "Struo önbelleği" },
+      "once-project": { "text": "Struo projesi" },
+      "once-remote-execution": { "text": "Struo uzaktan yürütme" },
+      "origin": { "text": "Origin" },
       "profiles": { "text": "Profiller" },
       "project-description": { "text": "Proje açıklaması" },
       "release": { "text": "Sürüm" },
@@ -67,10 +67,10 @@
         "text": "Diller 🌍"
       },
       "description": {
-        "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfadaki dil rehberliğini iyileştirmesine yardımcı olabilirsiniz."
+        "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfadaki dil yönergelerini iyileştirmesine yardımcı olabilirsiniz."
       },
       "cta": {
-        "text": "Katkıda bulun"
+        "text": "Katkıda bulunun"
       }
     }
   },
@@ -117,7 +117,7 @@
   },
   "navbar": {
     "guides": {
-      "text": "Rehberler"
+      "text": "Kılavuzlar"
     },
     "cli": {
       "text": "CLI"
@@ -150,7 +150,7 @@
         "cli": {
           "items": {
             "debugging": {
-              "text": "Hata ayıklama"
+              "text": "Hata Ayıklama"
             },
             "directories": {
               "text": "Dizinler"
@@ -290,7 +290,7 @@
           }
         },
         "api-documentation": {
-          "text": "API belgeleri"
+          "text": "API belgelendirmesi"
         },
         "status": {
           "text": "Durum"
@@ -304,14 +304,14 @@
           "text": "Xcode",
           "items": {
             "create-a-generated-project": {
-              "text": "Oluşturulan bir proje oluşturun"
+              "text": "Oluşturulmuş bir proje oluşturun"
             }
           }
         }
       }
     },
     "guides": {
-      "text": "Rehberler",
+      "text": "Kılavuzlar",
       "items": {
         "get-started": {
           "text": "Başlangıç",
@@ -379,7 +379,7 @@
                   "text": "Benimseme",
                   "items": {
                     "new-project": {
-                      "text": "Yeni proje oluştur"
+                      "text": "Yeni bir proje oluştur"
                     },
                     "swift-package": {
                       "text": "Swift Paketi ile deneyin"
@@ -434,10 +434,10 @@
                   "text": "Hashing"
                 },
                 "inspect": {
-                  "text": "İnceleme",
+                  "text": "İncele",
                   "items": {
                     "implicit-imports": {
-                      "text": "Örtük içe aktarmalar"
+                      "text": "Örtük importlar"
                     }
                   }
                 },
@@ -507,6 +507,14 @@
             },
             "test-sharding": {
               "text": "Parçalama",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "Oluşturulan Xcode projesi"
+                }
+              }
+            },
+            "snapshots": {
+              "text": "Anlık görüntüler",
               "items": {
                 "generated-xcode-project": {
                   "text": "Oluşturulan Xcode projesi"
@@ -604,7 +612,7 @@
               "text": "Ağ"
             },
             "self-hosting": {
-              "text": "Kendi sunucunuzda barındırma",
+              "text": "Kendi kendine barındırma",
               "items": {
                 "server": {
                   "text": "Sunucu"
@@ -620,7 +628,7 @@
           }
         },
         "share": {
-          "text": "Paylaşım",
+          "text": "Paylaş",
           "items": {
             "previews": {
               "text": "Önizlemeler"

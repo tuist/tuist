@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "d4e3f83e1cbb06bcf2fd717534d869314cf7a6107174f8336d2125cd5d4b651c",
+  "hash": "aaa1e737b0d29901a7434fc7507b2b7060da613b8880924e1dfed88be270bd82",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "bbb14cfac86918e87d51181c9de7fcc18e80ef65c459ab457c85f897ecba66ef"
                 },
                 "## Connect Amp {#connect}": {
-                  "content_hash": "94a7e0b747b57566d205ab897bdb97d15f3ba384ad907a8af451bf097ae66277"
+                  "content_hash": "d07a939d8e1d7fae98333177c3a9146d62ac4d4665a60bbf7168ef440cc82eca"
                 },
                 "## Pausing and retention {#retention}": {
                   "content_hash": "112ff088a0fe019c510829062ffa469d865a454e90337716be13ea51a94c43c8"
@@ -23,7 +23,7 @@
                   "content_hash": "493cf0909437617b88d541066f5944632deeba209946bc2b80e1d2ba87d3e33e"
                 },
                 "## Use a Mac from any Amp thread {#remote-mac}": {
-                  "content_hash": "710b0b0e1a4375c293eb932faf718a7ecfbd920a32ab945ce1deb7965299a76b"
+                  "content_hash": "215e2d561bdad47ddecb9d51e856a8b5304ae539081a2bc4d3bcdee6b8d02c49"
                 },
                 "### Choose an Xcode {#xcode}": {
                   "content_hash": "efbe8c892e6ce0cedfd9c48457ab6146eef528cf59e524331ad0713868796ad7"
@@ -41,11 +41,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "83816979435c6089fdfa83003b872bd17f34582ace15c1b1b5e91ad9e3503be9",
+          "hash": "63144083231cbab7dfe39fce68f1442ffb2f57191683a42dd77ff30e27f54660",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/sandboxes/amp.md",
           "metadata": {
-            "content_hash": "8cf665ad2cc1261fea116c80c2d3f72a5f6798f053f27280435cb23d1da76450"
+            "content_hash": "a7e2132af5b23e45182c452b680c6818eeda1e195d5e07016d6b57f2938e0935"
           }
         },
         {
@@ -106,7 +106,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -119,13 +119,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -154,11 +148,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -235,21 +229,21 @@
             }
           ],
           "details": {},
-          "hash": "bdec6dbc6dbe67fe750a40d923e82d2dff9b4ee2bb187e857da19e8a4fa8b6cb",
+          "hash": "6b279c12e24f428469575dbe96bf6a61467d057b0353cf08eb5db7b8cb7bde26",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "d4e3f83e1cbb06bcf2fd717534d869314cf7a6107174f8336d2125cd5d4b651c",
+      "hash": "aaa1e737b0d29901a7434fc7507b2b7060da613b8880924e1dfed88be270bd82",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/sandboxes/amp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "b0c5a0acb65ef24b91c87e1b11d6244670034e8591962fb912b40cfa90cf7cb3",
+  "output_hash": "67e0a2a53b6cc28faeb48d830b48fe577ed3d6955087b97312f9af6ae52743b2",
   "output_path": "server/priv/docs/ru/guides/features/sandboxes/amp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -269,8 +263,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1c5f2719555ef6a364756c8b4816d6bfaa654288",
+  "source_commit_sha": "0b9170c316005321d83391a75993a3bfc04c2e7e",
   "source_path": "server/priv/docs/en/guides/features/sandboxes/amp.md",
-  "translated_at": "2026-11-18T22:51:12.617245Z",
-  "translation_session_id": "01a1f0d5-0649-7925-a79d-a6aef802c1ae"
+  "translated_at": "2026-11-20T09:26:43.956616Z",
+  "translation_session_id": "01a1f83a-f112-750b-b469-cdebb2c0d4d4"
 }

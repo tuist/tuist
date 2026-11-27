@@ -29,7 +29,7 @@ msgstr "გაუქმება"
 #: lib/tuist_web/live/sandboxes_live.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "Created"
-msgstr "შექმნილია"
+msgstr "შეიქმნა"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:72
 #, elixir-autogen, elixir-format
@@ -62,13 +62,13 @@ msgstr "დისკი"
 #: lib/tuist_web/live/sandboxes_live.ex:894
 #, elixir-autogen, elixir-format
 msgid "Failed"
-msgstr "ვერ მოხერხდა"
+msgstr "შეცდომა"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:133
 #: lib/tuist_web/live/sandboxes_live.ex:889
 #, elixir-autogen, elixir-format
 msgid "Idle"
-msgstr "მოლოდინის რეჟიმში"
+msgstr "უქმად"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:171
 #: lib/tuist_web/live/sandbox_live.html.heex:127
@@ -87,7 +87,7 @@ msgstr "მეხსიერება"
 #: lib/tuist_web/live/sandbox_live.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Pause"
-msgstr "შეჩერება"
+msgstr "პაუზა"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:136
 #: lib/tuist_web/live/sandbox_live.html.heex:133
@@ -99,28 +99,28 @@ msgstr "შეჩერებულია"
 #: lib/tuist_web/live/sandbox_live.html.heex:26
 #, elixir-autogen, elixir-format
 msgid "Pausing…"
-msgstr "ჩერდება…"
+msgstr "იჩერდება…"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Resume"
-msgstr "გაგრძელება"
+msgstr "განახლება"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:135
 #: lib/tuist_web/live/sandboxes_live.ex:891
 #, elixir-autogen, elixir-format
 msgid "Resuming"
-msgstr "გაგრძელება…"
+msgstr "აღდგენა"
 
 #: lib/tuist_web/live/sandbox_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "Resuming would exceed this account's vCPU or memory limit."
-msgstr "გაგრძელებამ გადააჭარბებდა ამ ანგარიშის vCPU-ს ან მეხსიერების ლიმიტს."
+msgstr "აღდგენა გადააჭარბებს ამ ანგარიშის vCPU-ს ან მეხსიერების ლიმიტს."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Resuming…"
-msgstr "გაგრძელება…"
+msgstr "აღდგენა…"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -137,7 +137,7 @@ msgstr "სენდბოქსის ID"
 msgid "Sandbox deleted."
 msgstr "სენდბოქსი წაიშალა."
 
-#: lib/tuist_web/components/dashboard_navigation.ex:42
+#: lib/tuist_web/components/dashboard_navigation.ex:43
 #: lib/tuist_web/live/sandbox_live.ex:41
 #: lib/tuist_web/live/sandboxes_live.ex:32
 #, elixir-autogen, elixir-format
@@ -148,7 +148,7 @@ msgstr "სენდბოქსები"
 #: lib/tuist_web/live/sandbox_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please retry."
-msgstr "რაღაც შეცდა. გთხოვთ, სცადოთ ხელახლა."
+msgstr "რაღაც არასწორად წავიდა. გთხოვთ, სცადოთ ხელახლა."
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:134
 #: lib/tuist_web/live/sandboxes_live.ex:890
@@ -165,7 +165,7 @@ msgstr "სტატუსი"
 #: lib/tuist_web/live/sandbox_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "The machine running it reported an error."
-msgstr "მანქანამ, რომელიც მას აწარმოებს, შეცდომის შესახებ მოგვაწოდა ინფორმაცია."
+msgstr "მანქანამ, რომელიც მას აწარმოებს, შეცდომა დააფიქსირა."
 
 #: lib/tuist_web/live/sandbox_live.ex:143
 #, elixir-autogen, elixir-format
@@ -180,17 +180,17 @@ msgstr "სენდბოქსის მდგომარეობა ამ 
 #: lib/tuist_web/live/sandbox_live.ex:85
 #, elixir-autogen, elixir-format
 msgid "The sandbox is busy with an agent task and was not paused."
-msgstr "სენდბოქსი დაკავებულია აგენტის ამოცანით და არ იყო შეჩერებული."
+msgstr "სენდბოქსი დაკავებულია აგენტის ამოცანით და არ შეჩერებულა."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
-msgstr "სენდბოქსი ჩერდება და მისი დისკი იშლება. სამუშაოები, რომლებიც არ აიტვირთა, დაიკარგება."
+msgstr "სენდბოქსი ჩერდება და მისი დისკი იშლება. სამუშაო, რომელიც არ აიტვირთა, დაიკარგება."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "This sandbox failed"
-msgstr "ამ სენდბოქსმა ვერ მოახერხა"
+msgstr "ეს სენდბოქსი ვერ შესრულდა"
 
 #: lib/tuist_web/live/sandbox_live.ex:154
 #, elixir-autogen, elixir-format
@@ -203,7 +203,7 @@ msgstr "ეს სენდბოქსი წაიშალა."
 #: lib/tuist_web/live/sandboxes_live.ex:839
 #, elixir-autogen, elixir-format
 msgid "vCPUs"
-msgstr "vCPUs"
+msgstr "vCPU"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:137
 #: lib/tuist_web/live/sandbox_live.html.heex:139
@@ -216,7 +216,7 @@ msgstr "დაარქივებული"
 #: lib/tuist_web/live/sandboxes_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "%{count} of %{limit} in use now"
-msgstr "%{count} %{limit}-დან ახლა გამოიყენება"
+msgstr "ახლა გამოყენებულია %{count} %{limit}-დან"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:77
 #, elixir-autogen, elixir-format
@@ -246,7 +246,7 @@ msgstr "მორგებული"
 #: lib/tuist_web/live/sandboxes_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "How long a sandbox runs before it is paused, archived, deleted or fails."
-msgstr "რამდენი ხანი მუშაობს სენდბოქსი, სანამ შეჩერდება, დაარქივდება, წაიშლება ან ვერ შესრულდება."
+msgstr "რამდენ ხანს მუშაობს სენდბოქსი, სანამ შეჩერდება, არქივირდება, წაიშლება ან ჩავარდება."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -281,52 +281,52 @@ msgstr "პიკური მეხსიერება (GB)"
 #: lib/tuist_web/live/sandboxes_live.ex:167
 #, elixir-autogen, elixir-format
 msgid "Peak vCPUs"
-msgstr "პიკური vCPU"
+msgstr "პიკური vCPU-ები"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Sandboxes agents started in the selected window."
-msgstr "არჩეულ პერიოდში გაშვებული სენდბოქსის აგენტები."
+msgstr "არჩეულ ფანჯარაში გაშვებული Sandbox-ის აგენტები."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Sandboxes created"
-msgstr "შექმნილი სენდბოქსები"
+msgstr "შექმნილი Sandbox-ები"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "p50 session duration"
-msgstr "p50 სესიის ხანგრძლივობა"
+msgstr "სესიის ხანგრძლივობა (p50)"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "p90 session duration"
-msgstr "p90 სესიის ხანგრძლივობა"
+msgstr "სესიის ხანგრძლივობა (p90)"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "p99 session duration"
-msgstr "p99 სესიის ხანგრძლივობა"
+msgstr "სესიის ხანგრძლივობა (p99)"
 
 #: lib/tuist_web/live/sandboxes_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "გასული თვიდან"
+msgstr "გასული თვის შემდეგ"
 
 #: lib/tuist_web/live/sandboxes_live.ex:128
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "გასული პერიოდიდან"
+msgstr "გასული პერიოდის შემდეგ"
 
 #: lib/tuist_web/live/sandboxes_live.ex:126
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "გასული კვირიდან"
+msgstr "ბოლო კვირის განმავლობაში"
 
 #: lib/tuist_web/live/sandboxes_live.ex:127
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "გასული წლიდან"
+msgstr "ბოლო წლის განმავლობაში"
 
 #: lib/tuist_web/live/sandboxes_live.ex:125
 #, elixir-autogen, elixir-format
@@ -336,12 +336,12 @@ msgstr "გუშინდელი დღიდან"
 #: lib/tuist_web/live/sandboxes_live.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "How long Tuist takes to boot a sandbox, whether from the template, from a project snapshot or by restoring it from an archive. Setup isn't included."
-msgstr "რამდენ ხანს სჭირდება Tuist-ს სენდბოქსის გაშვება, იქნება ეს შაბლონიდან, პროექტის სნეპშოტიდან თუ არქივიდან აღდგენით. Setup არ შედის."
+msgstr "რამდენ ხანს სჭირდება Tuist-ს სენდბოქსის გაშვება, იქნება ეს შაბლონიდან, პროექტის სნეპშოტიდან თუ არქივიდან აღდგენით. Setup ამ დროში არ შედის."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
-msgstr "რამდენ ხანს გრძელდება თქვენი პროექტის .agents/setup Amp Orb-ში, რომელიც შაბლონიდან გაეშვა. ორბები, რომლებიც პროექტის სნეპშოტიდან იწყება, ამას ტოვებს, ასე რომ აქ ჩანს თქვენი საკუთარი setup სამუშაო."
+msgstr "რამდენ ხანს გრძელდება თქვენი პროექტის .agents/setup Amp Orb-ში, რომელიც შაბლონიდან გაეშვა. პროექტის სნეპშოტიდან გაშვებული Orbs ამ ეტაპს ტოვებენ, ამიტომ აქ ჩანს თქვენი პირადი setup სამუშაო."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -361,17 +361,17 @@ msgstr "p50 Setup"
 #: lib/tuist_web/live/sandboxes_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "p50 Time to start"
-msgstr "p50 დრო გაშვებამდე"
+msgstr "p50 გაშვებამდე დრო"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "p90 Setup"
-msgstr "p90 Setup"
+msgstr "p90 გარემოს მომზადება"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "p90 Time to start"
-msgstr "p90 დრო გაშვებამდე"
+msgstr "p90 გაშვებამდე დრო"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:154
 #, elixir-autogen, elixir-format
@@ -401,14 +401,14 @@ msgstr "წინა"
 #: lib/tuist_web/live/sandboxes_live.html.heex:347
 #, elixir-autogen, elixir-format
 msgid "Recent sandboxes"
-msgstr "ბოლო სენდბოქსები"
+msgstr "ბოლოდროინდელი სენდბოქსები"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr "მეტის ნახვა"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:45
+#: lib/tuist_web/components/dashboard_navigation.ex:46
 #: lib/tuist_web/live/sandbox_instances_live.ex:27
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:3
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:12
@@ -440,7 +440,7 @@ msgstr "დალაგება:"
 #: lib/tuist_web/live/sandboxes_live.ex:871
 #, elixir-autogen, elixir-format
 msgid "Try a different search or filter."
-msgstr "სცადეთ სხვა ძიება ან ფილტრი."
+msgstr "ცადეთ სხვა საძიებო ფრაზა ან ფილტრი."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:97
 #, elixir-autogen, elixir-format
@@ -450,22 +450,22 @@ msgstr "სენდბოქსის დეტალები"
 #: lib/tuist_web/live/sandbox_live.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Archive"
-msgstr "არქივი"
+msgstr "არქივირება"
 
 #: lib/tuist_web/live/sandbox_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "Archiving started. The sandbox shows as archived once its disks are uploaded."
-msgstr "არქივაცია დაწყებულია. სენდბოქსი არქივირებულად გამოჩნდება მას შემდეგ, რაც მისი დისკები აიტვირთება."
+msgstr "არქივირება დაწყებულია. სენდბოქსი არქივირებულად გამოჩნდება მას შემდეგ, რაც მისი დისკები აიტვირთება."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Archiving…"
-msgstr "მიმდინარეობს არქივაცია…"
+msgstr "არქივირება…"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Start your first sandbox from your terminal by running:"
-msgstr "პირველი სენდბოქსის დასაწყებად ტერმინალში შეასრულეთ:"
+msgstr "დაიწყეთ თქვენი პირველი სენდბოქსი ტერმინალიდან შემდეგი ბრძანების გაშვებით:"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:105
 #: lib/tuist_web/live/sandboxes_live.ex:836
@@ -482,4 +482,4 @@ msgstr "ინსტანსი"
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "Search by instance..."
-msgstr "ძებნა ინსტანსით..."
+msgstr "მოძებნეთ ინსტანსით..."

@@ -2,20 +2,20 @@
 {
   "title": "安裝 Tuist",
   "titleTemplate": ":title · Guides · Tuist",
-  "description": "透過 mise 或 Homebrew 在 macOS 或 Linux 上安裝 Tuist 命令列介面，並為團隊和持續整合固定版本。"
+  "description": "使用 mise 或 Homebrew 在 macOS 或 Linux 上安裝 Tuist 命令列介面，並為團隊和持續整合固定版本。"
 }
 ---
 # 安裝 Tuist {#install-tuist}
 
-Tuist 命令列介面可在 **macOS** 和 **Linux** 上執行，並將你的 Xcode、生成項目、Gradle、Bazel 和 Rust 項目連接到 Tuist 的快取、洞察和 runner 基礎設施。雖然你可以從[原始碼](https://github.com/tuist/tuist)編譯 Tuist，但我們建議使用以下其中一種安裝方法，以確保安裝有效且可驗證。Elixir 項目則改用 `tuist_ex` Hex 套件，不需要 CLI。
+Tuist 命令列介面可在 **macOS** 和 **Linux** 上執行，並將你的 Xcode、已產生、Gradle、Bazel 及 Rust 專案連接到 Tuist 的快取、洞察與 runner 基礎設施。雖然你可以從 [原始碼](https://github.com/tuist/tuist) 建置 Tuist，但我們建議使用以下其中一種安裝方法，以確保安裝有效且可驗證。Elixir 專案會改用 `tuist_ex` Hex 套件，不需要 CLI。
 
 ## Mise {#recommended-mise}
 
 > [!NOTE]
-> 如果你尚未安裝 Mise，請先參閱[入門指南](https://mise.jdx.dev/getting-started.html)。如果你的團隊或組織需要確保在不同環境中使用確定性的工具版本，Mise 是 [Homebrew](https://brew.sh) 的推薦替代方案。
+> 如果你尚未安裝 Mise，請先參閱 [入門指南](https://mise.jdx.dev/getting-started.html)。如果你的團隊或組織需要確保不同環境中的工具版本具決定性，Mise 是 [Homebrew](https://brew.sh) 的推薦替代方案。
 
 
-與 Homebrew 等工具不同（後者會在全域安裝並啟用單一版本的工具），**Mise 會鎖定版本**，可以是全域鎖定，也可以是針對特定項目鎖定。執行 `mise use` 以安裝並啟用 Tuist：
+與 Homebrew 等工具不同（後者會在全域安裝並啟用單一版本的工具），**Mise 會鎖定版本**，可設為全域或限定於特定專案。執行 `mise use` 以安裝並啟用 Tuist：
 
 ```bash
 mise use tuist@x.y.z          # Install and pin tuist-x.y.z in the current project
@@ -24,15 +24,15 @@ mise use -g tuist@x.y.z       # Install and pin tuist-x.y.z as the global defaul
 mise use -g tuist@system       # Use the system's tuist as the global default
 ```
 
-如果你克隆的項目已在 `mise.toml` 中鎖定了 Tuist 版本，請執行 `mise install` 來安裝它。
+如果你複製的專案已在 `mise.toml` 中鎖定 Tuist 版本，請執行 `mise install` 來安裝。
 
 > [!TIP]
-> `tuist@latest` 會解析為最新的**穩定**版本。Tuist 也會發布預發布的 canary 和 release candidate 構建；這些版本需要手動選擇加入，而且絕不會由 `latest` 解析。請參閱<.localized_link href="/cli/release/channels">發布渠道</.localized_link>，了解如何鎖定你可信賴的穩定版本線，以及如何選擇加入預發布版本。
+> `tuist@latest` 會解析為最新的 **穩定** 版本。Tuist 也會發布預發行版的 canary 和候選版本；這些版本需手動選擇加入，而且絕不會由 `latest` 解析。請參閱 <.localized_link href="/cli/release/channels">發布頻道</.localized_link>，了解如何鎖定你可信賴的穩定分支，以及如何選擇加入預發行版。
 
 <details>
 <summary>Linux 支援</summary>
 
-在 Linux 上，Tuist 僅可透過 Mise 取得。依賴 Xcode 的命令（例如 `tuist generate`）在 Linux 上不可用，但平台無關的命令（如 `tuist inspect bundle`）則可按預期運作。
+在 Linux 上，Tuist 僅可透過 Mise 取得。依賴 Xcode 的命令（例如 `tuist generate`）在 Linux 上不可用，但平台無關的命令如 `tuist inspect bundle` 則可正常運作。
 
 </details>
 
@@ -48,19 +48,19 @@ brew install --formula tuist@x.y.z
 ```
 
 > [!TIP]
-> **驗證二進位檔的真確性**
+> **驗證二進位檔的真偽**
 >
-> 你可以執行以下命令來驗證安裝的二進位檔是否由我們構建，該命令會檢查證書的團隊 ID 是否為 `U6LC622NKF`：
+> 你可以執行以下命令來驗證安裝的二進位檔是否由我們建置，該命令會檢查憑證的團隊是否為 `U6LC622NKF`：
 >
 > ```bash
 > curl -fsSL "https://tuist.dev/verify.sh" | bash
 > ```
 
-## HTTP 代理 {#http-proxy}
+## HTTP proxy {#http-proxy}
 
-如果你的網路將出站流量透過 HTTP 代理路由，請參閱<.localized_link href="/guides/integrations/http-proxy">HTTP 代理指南</.localized_link>。
+如果你的網路將出站流量透過 HTTP proxy 路由，請參閱 <.localized_link href="/guides/integrations/http-proxy">HTTP proxy 指南</.localized_link>。
 
 ## 下一步 {#next-steps}
 
-- 按照<.localized_link href="/guides/get-started">入門指南</.localized_link>將你的項目連接到 Tuist。
-- 探索[Tuist 為工程團隊和編碼代理提供的構建基礎設施](https://tuist.dev)，以了解更廣泛的產品背景。
+- 按照 <.localized_link href="/guides/get-started">入門指南</.localized_link> 將你的專案連接到 Tuist。
+- 探索 [Tuist 為工程團隊和編碼代理提供的建置基礎設施](https://tuist.dev)，以更全面了解產品背景。

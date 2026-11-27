@@ -19,7 +19,7 @@ msgstr "アカウントを確認しました！"
 #: lib/tuist_web/live/user_registration_live.ex:460
 #, elixir-autogen, elixir-format
 msgid "Account created successfully! Please log in."
-msgstr "アカウントが作成されました。ログインしてください。"
+msgstr "アカウントが正常に作成されました！ログインしてください。"
 
 #: lib/tuist_web/live/user_registration_live.ex:474
 #, elixir-autogen, elixir-format
@@ -56,7 +56,7 @@ msgstr "メールをご確認ください"
 #: lib/tuist_web/live/user_registration_live.ex:268
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
-msgstr "確認メールのリンクをクリックして続行してください。"
+msgstr "受信トレイで確認メールを確認し、リンクをクリックして続行してください。"
 
 #: lib/tuist_web/live/choose_username_live.ex:57
 #, elixir-autogen, elixir-format
@@ -66,7 +66,7 @@ msgstr "ユーザー名を選択"
 #: lib/tuist_web/live/user_reset_password_live.ex:66
 #, elixir-autogen, elixir-format
 msgid "Confirm password"
-msgstr "パスワードを確認"
+msgstr "パスワードの確認"
 
 #: lib/tuist_web/live/user_registration_live.ex:266
 #, elixir-autogen, elixir-format
@@ -105,7 +105,7 @@ msgstr "接続に成功しました"
 msgid "Contact us"
 msgstr "お問い合わせ"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:26
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:48
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:119
 #: lib/tuist_web/live/choose_username_live.ex:100
 #, elixir-autogen, elixir-format
@@ -122,7 +122,7 @@ msgstr "ダッシュボード"
 #: lib/tuist_web/live/user_login_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
-msgstr "アカウントをお持ちでない場合"
+msgstr "アカウントをお持ちでないですか？"
 
 #: lib/tuist_web/live/sso_login_live.ex:99
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:72
@@ -141,43 +141,43 @@ msgstr "このメールアドレスはすでに使用されています"
 #: lib/tuist_web/live/connect_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
-msgstr "バイナリキャッシュや選択的テストなど、Tuist の機能を活用して開発を加速しましょう。"
+msgstr "バイナリキャッシュや選択的テストなどのTuistの機能を活用して、開発を高速化しましょう。"
 
 #: lib/tuist_web/live/user_login_live.ex:211
 #, elixir-autogen, elixir-format
 msgid "Forgot password?"
-msgstr "パスワードを忘れましたか？"
+msgstr "パスワードを忘れた場合"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Forgot your password?"
-msgstr "パスワードをお忘れですか？"
+msgstr "パスワードをお忘れですか?"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
-msgstr "メールアドレスが登録されている場合、リセット手順をすぐに送信します。"
+msgstr "メールアドレスが記録に存在する場合、まもなくリセット手順をお送りします。"
 
 #: lib/tuist_web/live/connect_live.ex:104
 #: lib/tuist_web/live/connect_live.ex:166
 #, elixir-autogen, elixir-format
 msgid "Install Tuist CLI"
-msgstr "Tuist CLI をインストール"
+msgstr "Tuist CLIをインストール"
 
 #: lib/tuist_web/live/user_registration_live.ex:79
 #, elixir-autogen, elixir-format
 msgid "Instantly share your app using a URL."
-msgstr "URL でアプリを即座に共有。"
+msgstr "URLを使ってアプリをすぐに共有"
 
 #: lib/tuist_web/live/sso_login_live.ex:111
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
-msgstr "SSO に関心がありますか？"
+msgstr "SSOに関心がありますか?"
 
 #: lib/tuist_web/live/user_login_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
-msgstr "ログイン状態を保持"
+msgstr "ログイン状態を維持"
 
 #: lib/tuist_web/live/sso_login_live.ex:107
 #: lib/tuist_web/live/user_login_live.ex:21
@@ -234,7 +234,7 @@ msgstr "Previews"
 #: lib/tuist_web/live/connect_live.ex:70
 #, elixir-autogen, elixir-format
 msgid "Project Ready? Proceed to dashboard"
-msgstr "プロジェクトの準備はできましたか？ ダッシュボードへ進む"
+msgstr "プロジェクトの準備は完了しましたか？ダッシュボードに進む"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:62
 #: lib/tuist_web/live/user_reset_password_live.ex:74
@@ -245,7 +245,7 @@ msgstr "パスワードをリセット"
 #: lib/tuist_web/live/connect_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "Run the following command to install Tuist CLI."
-msgstr "Tuist CLI をインストールするには、次のコマンドを実行してください。"
+msgstr "Tuist CLIをインストールするには、次のコマンドを実行してください。"
 
 #: lib/tuist_web/live/connect_live.ex:124
 #, elixir-autogen, elixir-format
@@ -267,7 +267,7 @@ msgstr "サインアップ"
 #: lib/tuist_web/live/user_registration_live.ex:108
 #, elixir-autogen, elixir-format
 msgid "Sign up for Tuist"
-msgstr "Tuist にサインアップ"
+msgstr "Tuistにサインアップ"
 
 #: lib/tuist_web/live/choose_username_live.ex:236
 #, elixir-autogen, elixir-format
@@ -319,7 +319,7 @@ msgstr "Tuistが接続されました！"
 #: lib/tuist_web/live/user_confirmation_live.ex:53
 #, elixir-autogen, elixir-format
 msgid "User confirmation link is invalid or it has expired."
-msgstr "ユーザー確認リンクが無効か、有効期限が切れています。"
+msgstr "ユーザー確認リンクが無効か、期限切れです。"
 
 #: lib/tuist_web/live/choose_username_live.ex:72
 #: lib/tuist_web/live/user_registration_live.ex:203
@@ -336,12 +336,12 @@ msgstr "ユーザー名には英数字のみを使用できます"
 #: lib/tuist_web/live/connect_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Waiting for connection"
-msgstr "接続を待機しています"
+msgstr "接続を待機中"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "We'll send a password reset link to your inbox"
-msgstr "パスワードリセットのリンクをメールでお送りします"
+msgstr "パスワードリセット用のリンクをメールでお送りします"
 
 #: lib/tuist_web/live/user_login_live.ex:56
 #, elixir-autogen, elixir-format
@@ -386,7 +386,7 @@ msgstr "アカウントが確認されました。まもなくリダイレクト
 #: lib/tuist_web/live/user_reset_password_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Your new password must be different to previously used passwords."
-msgstr "新しいパスワードは以前使用したパスワードとは異なる必要があります。"
+msgstr "新しいパスワードは、以前使用したパスワードとは異なる必要があります。"
 
 #: lib/tuist_web/live/connect_live.ex:116
 #: lib/tuist_web/live/connect_live.ex:134
@@ -433,7 +433,7 @@ msgstr "テストユーザーとしてログイン"
 #: lib/tuist_web/live/choose_username_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "Choose a username for your account"
-msgstr "アカウントのユーザー名を選択"
+msgstr "アカウントのユーザー名を選択してください"
 
 #: lib/tuist_web/live/user_login_live.ex:111
 #, elixir-autogen, elixir-format
@@ -443,17 +443,17 @@ msgstr "SSOでログイン"
 #: lib/tuist_web/live/sso_login_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
-msgstr "このメールアドレスにはSSO組織が設定されていません。アドレスを確認し、組織の管理者にSSOドメインの設定を確認してください。"
+msgstr "このメールアドレスにはSSO組織が設定されていません。アドレスを確認し、組織の管理者にSSOドメインの設定を確認してもらってください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:782
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
-msgstr "このメールアドレスのアカウントは既に存在します。代わりにログインしてください。"
+msgstr "このメールアドレスのアカウントはすでに存在します。代わりにログインしてください。"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:22
 #, elixir-autogen, elixir-format
 msgid "Confirm your email"
-msgstr "メールアドレスの確認"
+msgstr "メールアドレスを確認"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:24
 #, elixir-autogen, elixir-format
@@ -463,7 +463,7 @@ msgstr "ログインを完了するには、メールアドレスを確認して
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "If your email is registered and not yet confirmed, you'll receive a confirmation link shortly."
-msgstr "登録済みで未確認のメールアドレスの場合、まもなく確認リンクが届きます。"
+msgstr "登録済みで未確認のメールアドレスの場合、まもなく確認用リンクが届きます。"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:60
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:81
@@ -474,7 +474,7 @@ msgstr "確認メールを再送信"
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "We'll send a new confirmation link to %{email}."
-msgstr "%{email} に新しい確認リンクを送信します。"
+msgstr "%{email} に新しい確認用リンクを送信します。"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:48
 #, elixir-autogen, elixir-format
@@ -531,7 +531,7 @@ msgstr "確認中、しばらくお待ちください..."
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:87
 #, elixir-autogen, elixir-format
 msgid "Just a quick check"
-msgstr "簡単な確認です"
+msgstr "簡単な確認"
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:89
 #, elixir-autogen, elixir-format
@@ -541,7 +541,7 @@ msgstr "公開ダッシュボードは自動スクレイピングから保護さ
 #: lib/tuist_web/controllers/public_page_challenge_controller.ex:137
 #, elixir-autogen, elixir-format
 msgid "Too many attempts. Please wait a moment and try again."
-msgstr "試行回数が多すぎます。しばらく待ってからもう一度お試しください。"
+msgstr "試行回数が多すぎます。しばらく待ってから、もう一度お試しください。"
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:110
 #, elixir-autogen, elixir-format
@@ -556,7 +556,7 @@ msgstr "認証に失敗しました。もう一度お試しください。"
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:26
 #, elixir-autogen, elixir-format
 msgid "Verify you're human"
-msgstr "あなたが人間であることを確認してください"
+msgstr "人間であることを確認してください"
 
 #: lib/tuist_web/controllers/auth_controller.ex:104
 #, elixir-autogen, elixir-format
@@ -574,7 +574,7 @@ msgstr "すでにリンク済み"
 #: lib/tuist_web/components/user_security.ex:278
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:38
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:38
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:34
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:57
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:189
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:58
@@ -597,7 +597,7 @@ msgstr "リンクの有効期限が切れました"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account."
-msgstr "%{organization} があなたの組織である場合のみリンクしてください。この ID プロバイダーアカウントにサインインできるユーザーは、Tuist アカウント全体にサインインできます。"
+msgstr "%{organization} があなたの組織である場合にのみリンクしてください。この ID プロバイダーアカウントにサインインできるユーザーは、Tuist アカウント全体にサインインできます。"
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:129
 #, elixir-autogen, elixir-format
@@ -617,10 +617,9 @@ msgstr "Tuist アカウントにログインして、組織のシングルサイ
 #: lib/tuist_web/controllers/sso_link_controller.ex:122
 #, elixir-autogen, elixir-format
 msgid "Sign in with single sign-on again to link your account."
-msgstr "アカウントをリンクするには、再度シングルサインオンでサインインしてください。"
+msgstr "シングルサインオンで再度サインインして、アカウントを連携してください。"
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:18
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:15
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
 #: lib/tuist_web/live/device_authorization_live.ex:37
 #, elixir-autogen, elixir-format
@@ -630,15 +629,15 @@ msgstr "%{email} として Tuist にサインインしました"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "The %{organization} identity provider account that will sign in to your Tuist account."
-msgstr "Tuist アカウントへのサインインに使用される %{organization} の ID プロバイダーアカウント。"
+msgstr "Tuist アカウントにサインインする %{organization} の ID プロバイダーアカウントです。"
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:65
 #, elixir-autogen, elixir-format
 msgid "This identity provider account is already linked to another Tuist account."
-msgstr "この ID プロバイダーアカウントはすでに別の Tuist アカウントにリンクされています。"
+msgstr "この ID プロバイダーアカウントはすでに別の Tuist アカウントに連携されています。"
 
 #: lib/tuist_web/controllers/device_code_html.ex:19
-#: lib/tuist_web/controllers/sso_link_html.ex:34
+#: lib/tuist_web/controllers/sso_link_html.ex:35
 #, elixir-autogen, elixir-format
 msgid "Tuist logo"
 msgstr "Tuist ロゴ"
@@ -651,7 +650,7 @@ msgstr "%{organization} の ID プロバイダーを使用して Tuist アカウ
 #: lib/tuist_web/live/connect_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "Add it to the dependencies in your mix.exs, then run mix deps.get."
-msgstr "mix.exs の依存関係に追加し、mix deps.get を実行してください。"
+msgstr "mix.exs の依存関係に追加し、mix deps.get を実行します。"
 
 #: lib/tuist_web/live/connect_live.ex:205
 #, elixir-autogen, elixir-format
@@ -661,7 +660,7 @@ msgstr "Tuist パッケージを追加"
 #: lib/tuist_web/live/connect_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Add this to the project options in the same file."
-msgstr "同じファイル内のプロジェクトオプションにこれを追加してください。"
+msgstr "同じファイルのプロジェクトオプションにこれを追加します。"
 
 #: lib/tuist_web/live/connect_live.ex:182
 #: lib/tuist_web/live/connect_live.ex:230
@@ -688,17 +687,17 @@ msgstr "テスト実行が完了すると、ダッシュボードに表示され
 #: lib/tuist_web/live/connect_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "using Mix"
-msgstr "Mixを使用"
+msgstr "Mix を使用"
 
 #: lib/tuist_web/live/connect_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Add a tuist.toml file at your repository root."
-msgstr "リポジトリのルートにtuist.tomlファイルを追加してください。"
+msgstr "リポジトリのルートに tuist.toml ファイルを追加してください。"
 
 #: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format
 msgid "using Cargo"
-msgstr "Cargoを使用"
+msgstr "Cargo を使用"
 
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:10
 #, elixir-autogen, elixir-format
@@ -733,7 +732,7 @@ msgstr "インテグレーションを接続するには管理者権限が必要
 #: lib/tuist_web/live/sso_login_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
-msgstr "このログインドメインを使用している組織が複数あります。組織の SSO サインインリンクを使用するか、管理者に DNS でドメインを検証するよう依頼してください。"
+msgstr "このログインドメインは複数の組織で使用されています。組織の SSO サインインリンクを使用するか、管理者に依頼して DNS でドメインを検証してください。"
 
 #: lib/tuist_web/live/user_registration_live.ex:55
 #, elixir-autogen, elixir-format
@@ -753,7 +752,7 @@ msgstr "キャッシュ"
 #: lib/tuist_web/live/user_registration_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Cut build times by caching and reusing binaries."
-msgstr "バイナリのキャッシュと再利用によりビルド時間を短縮します。"
+msgstr "バイナリのキャッシュと再利用により、ビルド時間を短縮します。"
 
 #: lib/tuist_web/live/user_registration_live.ex:67
 #, elixir-autogen, elixir-format
@@ -768,7 +767,7 @@ msgstr "不安定なテスト"
 #: lib/tuist_web/live/user_registration_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Speed up CI by testing only what changed."
-msgstr "変更された部分のみをテストしてCIを高速化"
+msgstr "変更された部分のみをテストしてCIを高速化します。"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:121
 #: lib/tuist_web/live/authentication_settings_live.html.heex:161
@@ -782,12 +781,12 @@ msgstr "認証コード"
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:36
 #, elixir-autogen, elixir-format
 msgid "Authentication or recovery code"
-msgstr "認証コードまたはリカバリーコード"
+msgstr "認証またはリカバリーコード"
 
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Back to sign in"
-msgstr "ログインに戻る"
+msgstr "サインインに戻る"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:182
 #, elixir-autogen, elixir-format
@@ -799,34 +798,34 @@ msgstr "セットアップをキャンセル"
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "Disable two-factor authentication"
-msgstr "二要素認証を無効にする"
+msgstr "二段階認証を無効にする"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "Enable two-factor authentication"
-msgstr "二要素認証を有効にする"
+msgstr "二段階認証を有効にする"
 
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Enter a code from your authenticator app or an unused recovery code."
-msgstr "認証アプリのコードまたは未使用の回復コードを入力してください。"
+msgstr "認証アプリのコード、または未使用のリカバリーコードを入力してください。"
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "I saved my recovery codes"
-msgstr "回復コードを保存しました"
+msgstr "リカバリーコードを保存しました"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:4
 #: lib/tuist_web/live/user_security_settings_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Protect your account with an authenticator app and recovery codes."
-msgstr "認証アプリと回復コードを使ってアカウントを保護しましょう。"
+msgstr "認証アプリとリカバリーコードを使ってアカウントを保護しましょう。"
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:2
 #: lib/tuist_web/live/authentication_settings_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Save your recovery codes"
-msgstr "回復コードを保存"
+msgstr "リカバリーコードを保存"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:172
 #: lib/tuist_web/live/user_security_settings_live.html.heex:61
@@ -837,7 +836,7 @@ msgstr "認証アプリを設定"
 #: lib/tuist_web/controllers/user_mfa_controller.ex:201
 #, elixir-autogen, elixir-format
 msgid "The code is invalid, already used, or too many attempts were made. Try a new code later."
-msgstr "コードが無効か、すでに使用済み、または試行回数が多すぎます。後で新しいコードを試してください。"
+msgstr "コードが無効、すでに使用済み、または試行回数が多すぎます。後で新しいコードをお試しください。"
 
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:2
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:2
@@ -885,7 +884,7 @@ msgstr "パスキーを確認できませんでした。もう一度お試しく
 msgid "This passkey is already registered."
 msgstr "このパスキーはすでに登録されています。"
 
-#: lib/tuist_web/authentication.ex:865
+#: lib/tuist_web/authentication.ex:904
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "各組織で独自のシングルサインオンが必要であるため、このセッションではTuist CLI、アプリ、またはMCPクライアントにサインインできません。組織の管理者にお問い合わせください。"
@@ -919,7 +918,7 @@ msgstr "パスキーによるサインインがキャンセルされました。
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "Passkey verification was cancelled."
-msgstr "パスキーの検証がキャンセルされました。"
+msgstr "パスキーの確認がキャンセルされました。"
 
 #: lib/tuist_web/live/user_security_settings_live.ex:20
 #, elixir-autogen, elixir-format
@@ -963,7 +962,7 @@ msgstr "このメールアドレスのアカウントはすでに存在します
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:8
 #, elixir-autogen, elixir-format
 msgid "Continue only if you just started this sign-in from your terminal or app."
-msgstr "ターミナルまたはアプリからこのサインインを開始した場合のみ、続行してください。"
+msgstr "ターミナルまたはアプリからこのサインインを開始した場合のみ続行してください。"
 
 #: lib/tuist_web/live/device_authorization_live.ex:31
 #, elixir-autogen, elixir-format
@@ -973,34 +972,34 @@ msgstr "ターミナルに表示されたコードを入力してください。
 #: lib/tuist_web/live/device_authorization_live.ex:72
 #, elixir-autogen, elixir-format
 msgid "Only enter a code from a terminal you are using. Never enter a code someone sent you."
-msgstr "現在使用しているターミナルから表示されたコードのみを入力してください。他人から送られたコードを絶対に入力しないでください。"
+msgstr "使用中のターミナルに表示されたコードのみを入力してください。他人から送られたコードを絶対に入力しないでください。"
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:32
 #: lib/tuist_web/live/device_authorization_live.ex:65
 #, elixir-autogen, elixir-format
 msgid "Sign in"
-msgstr "サインイン"
+msgstr "ログイン"
 
 #: lib/tuist_web/controllers/auth_controller.ex:674
 #: lib/tuist_web/live/device_authorization_live.ex:19
 #, elixir-autogen, elixir-format
 msgid "Sign in to Tuist"
-msgstr "Tuistにサインイン"
+msgstr "Tuist にサインイン"
 
 #: lib/tuist_web/live/device_authorization_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Sign in to the Tuist CLI"
-msgstr "Tuist CLIにサインイン"
+msgstr "Tuist CLI にサインイン"
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Sign in to the Tuist CLI?"
-msgstr "Tuist CLIにサインインしますか？"
+msgstr "Tuist CLI にサインインしますか？"
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Sign in to the Tuist app?"
-msgstr "Tuistアプリにサインインしますか？"
+msgstr "Tuist アプリにサインインしますか？"
 
 #: lib/tuist_web/controllers/auth_controller.ex:722
 #: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:2
@@ -1011,17 +1010,17 @@ msgstr "サインインリンクの有効期限が切れました"
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "Signing in gives whoever started it access to your Tuist account. If you did not start it, cancel."
-msgstr "サインインすると、開始した人があなたのTuistアカウントにアクセスできます。開始していない場合は、キャンセルしてください。"
+msgstr "サインインを開始したユーザーが、あなたの Tuist アカウントにアクセスできるようになります。開始していない場合は、キャンセルしてください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:704
 #, elixir-autogen, elixir-format
 msgid "That code is incorrect or has expired. Check it and try again."
-msgstr "そのコードは正しくないか、有効期限が切れています。確認してもう一度お試しください。"
+msgstr "コードが正しくないか、有効期限が切れています。確認して再試行してください。"
 
 #: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "This sign-in link has expired or was already used. Start the sign-in again."
-msgstr "このサインインリンクは有効期限が切れているか、すでに使用されています。サインインをやり直してください。"
+msgstr "このサインインリンクは有効期限切れか、すでに使用されています。サインインを最初からやり直してください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:710
 #, elixir-autogen, elixir-format
@@ -1043,7 +1042,7 @@ msgstr "QRコードをスキャンできませんか？"
 #: lib/tuist_web/controllers/user_reset_password_controller.ex:30
 #, elixir-autogen, elixir-format
 msgid "Check that your passwords match and meet the password requirements."
-msgstr "パスワードが一致し、パスワード要件を満たしていることを確認してください。"
+msgstr "パスワードが一致しており、パスワード要件を満たしていることを確認してください。"
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:32
 #, elixir-autogen, elixir-format
@@ -1068,7 +1067,7 @@ msgstr "自動的にコピーできませんでした。リカバリーコード
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Enter this setup key in your authenticator app."
-msgstr "認証アプリにこのセットアップキーを入力してください。"
+msgstr "この設定キーを認証アプリに入力してください。"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:163
 #, elixir-autogen, elixir-format
@@ -1079,7 +1078,7 @@ msgstr "新しいリカバリーコードを生成"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "JavaScript is required to use passkeys."
-msgstr "パスキーを利用するにはJavaScriptが必要です。"
+msgstr "パスキーを使用するにはJavaScriptが必要です。"
 
 #: lib/tuist_web/components/user_security.ex:23
 #, elixir-autogen, elixir-format
@@ -1138,12 +1137,12 @@ msgstr "パスワードリセットリンクが無効か、期限切れです。
 #: lib/tuist_web/live/authentication_settings_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Setup key"
-msgstr "設定キー"
+msgstr "セットアップキー"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Setup key copied"
-msgstr "設定キーをコピーしました"
+msgstr "セットアップキーをコピーしました"
 
 #: lib/tuist_web/live/user_security_settings_live.html.heex:37
 #, elixir-autogen, elixir-format
@@ -1154,7 +1153,7 @@ msgstr "まだパスキーを追加していません。"
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Your other sessions will be signed out"
-msgstr "他のセッションはすべてサインアウトされます"
+msgstr "他のセッションはサインアウトされます"
 
 #: lib/tuist_web/controllers/user_passkey_controller.ex:39
 #, elixir-autogen, elixir-format
@@ -1174,7 +1173,7 @@ msgstr "この変更を確認するために、認証コードまたはリカバ
 #: lib/tuist_web/components/user_security.ex:18
 #, elixir-autogen, elixir-format
 msgid "Last used"
-msgstr "最終使用日時"
+msgstr "最終使用"
 
 #: lib/tuist_web/components/user_security.ex:59
 #, elixir-autogen, elixir-format
@@ -1189,23 +1188,23 @@ msgstr "保存"
 #: lib/tuist_web/components/user_security.ex:257
 #, elixir-autogen, elixir-format
 msgid "Your account will no longer require an authenticator code at sign-in."
-msgstr "アカウントのログイン時に認証アプリのコードが不要になります。"
+msgstr "アカウントのサインイン時に認証コードが不要になります。"
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Each code can be used once if you lose access to your authenticator."
-msgstr "認証アプリへのアクセスを失った場合、各コードは1回のみ使用できます。"
+msgstr "認証アプリにアクセスできなくなった場合、各コードは1回だけ使用できます。"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Open the browser extension, select your Tuist login, then choose Scan 2FA QR code from the three-dot menu. Save it, then enter the generated code."
-msgstr "ブラウザ拡張機能を開き、Tuistのログイン情報を選択してから、三点リーダーメニューで「2FA QRコードをスキャン」を選択してください。保存後、生成されたコードを入力してください。"
+msgstr "ブラウザ拡張機能を開き、Tuistのログイン情報を選択してから、三点リーダーメニューで「2FA QRコードをスキャン」を選択します。保存後、生成されたコードを入力してください。"
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:4
 #: lib/tuist_web/live/authentication_settings_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Save these codes somewhere safe. You won't see them again."
-msgstr "これらのコードは安全な場所に保管してください。二度と表示されません。"
+msgstr "これらのコードは安全な場所に保管してください。再度表示されることはありません。"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:46
 #: lib/tuist_web/live/authentication_settings_live.html.heex:113
@@ -1216,7 +1215,7 @@ msgstr "QRコードをスキャンし、6桁のコードを入力してくださ
 #: lib/tuist_web/live/user_security_settings_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Sign in without a password."
-msgstr "パスワードなしでサインインします。"
+msgstr "パスワードなしでサインイン。"
 
 #: lib/tuist_web/components/user_security.ex:127
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:21
@@ -1249,14 +1248,14 @@ msgstr "パスワードマネージャーまたはセキュリティキーを使
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "Using 1Password?"
-msgstr "1Passwordをお使いですか？"
+msgstr "1Passwordをご利用ですか？"
 
 #: lib/tuist_web/components/user_security.ex:190
 #, elixir-autogen, elixir-format
 msgid "Your old codes will stop working and other sessions will be signed out."
 msgstr "以前のコードは使用できなくなり、他のセッションはサインアウトされます。"
 
-#: lib/tuist_web/controllers/sso_link_html.ex:80
+#: lib/tuist_web/controllers/sso_link_html.ex:82
 #, elixir-autogen, elixir-format
 msgid "Sign in again"
 msgstr "再度サインイン"
@@ -1264,14 +1263,14 @@ msgstr "再度サインイン"
 #: lib/tuist_web/controllers/user_passkey_controller.ex:178
 #, elixir-autogen, elixir-format
 msgid "Sign in again to continue changing passkeys."
-msgstr "パスキーの変更を続けるには、再度サインインしてください。"
+msgstr "パスキーの変更を続行するには、再度サインインしてください。"
 
 #: lib/tuist_web/controllers/user_mfa_controller.ex:195
 #, elixir-autogen, elixir-format
 msgid "Sign in again to continue changing two-factor authentication."
-msgstr "二段階認証の設定変更を続けるには、再度サインインしてください。"
+msgstr "二段階認証の変更を続行するには、再度サインインしてください。"
 
-#: lib/tuist_web/controllers/sso_link_html.ex:65
+#: lib/tuist_web/controllers/sso_link_html.ex:67
 #, elixir-autogen, elixir-format
 msgid "To protect your account, confirm your identity before changing security settings. You'll return here after signing in."
 msgstr "アカウントを保護するため、セキュリティ設定を変更する前に本人確認を行います。サインイン後、このページに戻ります。"
@@ -1323,7 +1322,7 @@ msgstr "有効化"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Enable 2FA"
-msgstr "2FAを有効化"
+msgstr "2FAを有効にする"
 
 #: lib/tuist_web/components/user_security.ex:180
 #, elixir-autogen, elixir-format
@@ -1345,22 +1344,22 @@ msgstr "再生成"
 msgid "Manage 2FA"
 msgstr "2FAの管理"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:4
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:15
 #, elixir-autogen, elixir-format
 msgid "%{client} will be able to use your Tuist account as you, including your threads and AI subscriptions."
 msgstr "%{client}は、スレッドやAIサブスクリプションを含め、あなたとしてTuistアカウントを使用できるようになります。"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:45
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Continue only if you just started signing in to %{client} yourself."
-msgstr "ご自身で%{client}へのサインインを始めた場合のみ、続行してください。"
+msgstr "ご自身で%{client}へのサインインを開始した場合のみ続行してください。"
 
-#: lib/tuist_web/controllers/oauth/authorize_controller.ex:146
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:248
 #, elixir-autogen, elixir-format
 msgid "Sign in to %{client} · Tuist"
 msgstr "%{client}にサインイン · Tuist"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:2
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Sign in to %{client}?"
 msgstr "%{client} にサインインしますか？"
@@ -1383,4 +1382,54 @@ msgstr "%{github_organization} GitHub 組織に接続する Tuist 組織を選�
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Only organizations you administer are listed. Create one, or ask an admin to promote you."
-msgstr "管理している組織のみが表示されます。新しい組織を作成するか、管理者に権限を付与してもらうよう依頼してください。"
+msgstr "管理している組織のみが表示されます。新しい組織を作成するか、管理者に権限を付与してもらってください。"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Anyone can register an application with any name, so check where access goes. The application can read your projects and use Tuist's agent tools as you, including tools that change organizations and projects you can change. If you did not start this, cancel."
+msgstr "誰でも任意の名前でアプリケーションを登録できるため、アクセス先を確認してください。このアプリケーションはあなたのプロジェクトを読み取り、組織やプロジェクトを変更できるツールなど、Tuist のエージェントツールをあなたとして実行できます。自分で開始した操作でない場合は、キャンセルしてください。"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Application"
+msgstr "アプリケーション"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Authorize"
+msgstr "許可"
+
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:247
+#, elixir-autogen, elixir-format
+msgid "Authorize application · Tuist"
+msgstr "アプリケーションの許可 · Tuist"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Authorize this application?"
+msgstr "このアプリケーションを許可しますか？"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Continue only if you just connected this application to Tuist yourself."
+msgstr "このアプリケーションを自身で Tuist に接続した場合のみ続行してください。"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Sends access to"
+msgstr "アクセス送信先"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:32
+#, elixir-autogen, elixir-format
+msgid "Signed in as"
+msgstr "ログイン中のアカウント"
+
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:234
+#, elixir-autogen, elixir-format
+msgid "Unnamed application"
+msgstr "名前のないアプリケーション"
+
+#: lib/tuist_web/authentication.ex:926
+#, elixir-autogen, elixir-format
+msgid "%{organization} requires two-factor authentication. Set up an authenticator app, or sign in again with a passkey, to continue."
+msgstr "%{organization} では二段階認証が必要です。続行するには、認証アプリを設定するか、パスキーで再度サインインしてください。"

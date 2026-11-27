@@ -1,22 +1,22 @@
 ---
 {
-  "title": "HTTP proxy",
+  "title": "HTTP vekil sunucusu",
   "titleTemplate": ":title | Entegrasyonlar | Kılavuzlar | Tuist",
-  "description": "HTTPS_PROXY veya HTTP_PROXY ayarlandığında Tuist'in HTTP trafiğini kurumsal bir proxy üzerinden nasıl yönlendirdiğini öğrenin."
+  "description": "HTTPS_PROXY veya HTTP_PROXY ayarlandığında Tuist'in HTTP trafiğini kurumsal bir vekil sunucu üzerinden nasıl yönlendirdiğini öğrenin."
 }
 ---
 # HTTP proxy {#http-proxy}
 
 Ortamda `HTTPS_PROXY` veya `HTTP_PROXY` ayarlandığında, Tuist yönettiği HTTP bağlantılarını otomatik olarak bu proxy üzerinden yönlendirir. Bu durum, ek yapılandırma gerektirmeden hem Tuist CLI hem de Tuist Gradle eklentisi için geçerlidir.
 
-Davranış, `curl`, `git` ve çoğu geliştirici aracı tarafından kullanılan kurala uyar; bu nedenle bu değişkenleri diğer araçlar için zaten ayarlayan herhangi bir ortam, Tuist ile kutudan çıkar çıkmaz çalışır.
+Davranış, `curl`, `git` ve çoğu geliştirici aracının kullandığı gelenekle eşleşir; bu nedenle bu değişkenleri diğer araçlar için zaten ayarlayan herhangi bir ortam, Tuist ile kutudan çıkar çıkmaz çalışır.
 
-## Neler proxy üzerinden geçer {#what-is-proxied}
+## Proxy üzerinden geçenler {#what-is-proxied}
 
-Yalnızca Tuist’e ait olan HTTP istemcileri proxy üzerinden yönlendirilir:
+Yalnızca Tuist’in sahibi olduğu HTTP istemcileri proxy üzerinden yönlendirilir:
 
 - önbellek, önizlemeler, analitik ve kayıt defteri uç noktaları,
-- ve Gradle eklentisinin Tuist hizmetlerine yaptığı çağrılar (uzak derleme önbelleği, derleme içgörileri, test içgörileri, test karantinası, test parçalama).
+- ve Gradle eklentisinin Tuist hizmetlerine yaptığı çağrılar (uzak derleme önbelleği, derleme içgörüler, test içgörüler, test karantinası, test parçalama).
 
 ## Değişken arama sırası {#variable-lookup-order}
 

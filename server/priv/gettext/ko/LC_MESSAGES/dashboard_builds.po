@@ -22,7 +22,7 @@ msgstr "%{hit_rate}%"
 #: lib/tuist_web/live/mix_build_live.ex:489
 #, elixir-autogen, elixir-format
 msgid "%{message} in %{link}"
-msgstr "%{link}에서 %{message}"
+msgstr "%{link}의 %{message}"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:238
 #, elixir-autogen, elixir-format
@@ -94,8 +94,8 @@ msgid "Branch"
 msgstr "브랜치"
 
 #: lib/tuist_web/live/bazel_build_invocation_live.ex:13
-#: lib/tuist_web/live/bazel_invocation_live.ex:67
-#: lib/tuist_web/live/bazel_invocation_live.ex:95
+#: lib/tuist_web/live/bazel_invocation_live.ex:74
+#: lib/tuist_web/live/bazel_invocation_live.ex:104
 #: lib/tuist_web/live/build_run_live.html.heex:226
 #: lib/tuist_web/live/cargo_build_live.html.heex:47
 #: lib/tuist_web/live/mix_build_live.html.heex:383
@@ -120,7 +120,7 @@ msgstr "빌드 실행"
 msgid "Build Runs"
 msgstr "빌드 실행"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:620
+#: lib/tuist_web/live/bazel_invocation_live.ex:761
 #: lib/tuist_web/live/bazel_invocations_live.ex:460
 #: lib/tuist_web/live/bazel_invocations_live.ex:472
 #: lib/tuist_web/live/build_run_live.ex:1222
@@ -183,7 +183,7 @@ msgstr "빌드 가능 폴더"
 msgid "Builds"
 msgstr "빌드"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:629
+#: lib/tuist_web/live/bazel_invocation_live.ex:770
 #: lib/tuist_web/live/build_run_live.html.heex:293
 #: lib/tuist_web/live/cargo_build_live.html.heex:87
 #: lib/tuist_web/live/mix_build_live.html.heex:427
@@ -192,7 +192,7 @@ msgstr "빌드"
 msgid "Built at"
 msgstr "빌드 시간"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:615
+#: lib/tuist_web/live/bazel_invocation_live.ex:756
 #: lib/tuist_web/live/build_run_live.html.heex:282
 #: lib/tuist_web/live/cargo_build_live.html.heex:74
 #: lib/tuist_web/live/mix_build_live.html.heex:416
@@ -204,38 +204,38 @@ msgstr "빌드 주체"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:317
 #, elixir-autogen, elixir-format
 msgid "Bundle ID"
-msgstr "번들 ID"
+msgstr "Bundle ID"
 
 #: lib/tuist_web/live/build_run_live.html.heex:917
 #: lib/tuist_web/live/cargo_build_live.html.heex:187
 #: lib/tuist_web/live/mix_build_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "CAS Outputs"
-msgstr "CAS 출력"
+msgstr "CAS 출력물"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1177
 #: lib/tuist_web/live/mix_build_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "CAS output"
-msgstr "CAS 출력"
+msgstr "CAS 출력물"
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:281
 #: lib/tuist_web/live/build_run_live.html.heex:1286
 #, elixir-autogen, elixir-format
 msgid "CAS outputs"
-msgstr "CAS 출력"
+msgstr "CAS 출력물"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1513
 #, elixir-autogen, elixir-format
 msgid "CAS outputs will appear here when using Tuist cache"
-msgstr "Tuist 캐시를 사용할 때 CAS 출력이 여기에 표시됩니다"
+msgstr "Tuist 캐시를 사용할 때 CAS 출력물이 여기에 표시됩니다"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:79
 #: lib/tuist_web/components/reapi_cache_outputs.ex:90
 #: lib/tuist_web/live/build_run_live.html.heex:1238
 #, elixir-autogen, elixir-format
 msgid "CAS outputs:"
-msgstr "CAS 출력:"
+msgstr "CAS 출력물:"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:100
 #: lib/tuist_web/live/xcode_builds_live.ex:401
@@ -325,7 +325,7 @@ msgstr "캐시 가능한 작업"
 #: lib/tuist_web/live/build_run_live.html.heex:861
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were not found in cache."
-msgstr "캐시에서 찾을 수 없었던 캐시 가능한 작업입니다."
+msgstr "캐시에서 찾지 못한 캐시 가능한 작업입니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:850
 #, elixir-autogen, elixir-format
@@ -362,8 +362,9 @@ msgstr "정리"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:89
 #: lib/tuist_web/helpers/build_entity_labels.ex:92
-#: lib/tuist_web/live/bazel_invocation_live.ex:251
-#: lib/tuist_web/live/bazel_invocation_live.ex:596
+#: lib/tuist_web/live/bazel_invocation_live.ex:379
+#: lib/tuist_web/live/bazel_invocation_live.ex:737
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:246
 #: lib/tuist_web/live/build_run_live.html.heex:234
 #: lib/tuist_web/live/cargo_build_live.html.heex:55
 #: lib/tuist_web/live/cargo_build_runs_live.ex:25
@@ -418,7 +419,7 @@ msgstr "압축 크기"
 #: lib/tuist_web/live/build_run_live.ex:1447
 #, elixir-autogen, elixir-format
 msgid "Compressed Size (MB)"
-msgstr "압축 크기(MB)"
+msgstr "압축 크기 (MB)"
 
 #: lib/tuist_web/components/build_timeline.ex:346
 #: lib/tuist_web/live/build_run_live.html.heex:242
@@ -507,9 +508,10 @@ msgstr "다운로드 처리량"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:281
 #: lib/tuist_web/helpers/build_entity_labels.ex:98
 #: lib/tuist_web/helpers/cargo_cache.ex:88
-#: lib/tuist_web/live/bazel_invocation_live.ex:1442
+#: lib/tuist_web/live/bazel_invocation_live.ex:1596
 #: lib/tuist_web/live/bazel_invocations_live.ex:520
 #: lib/tuist_web/live/bazel_invocations_live.ex:537
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:158
 #: lib/tuist_web/live/cargo_build_live.ex:131
 #: lib/tuist_web/live/cargo_build_live.html.heex:323
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:13
@@ -521,21 +523,22 @@ msgstr "다운로드 처리량"
 #: lib/tuist_web/live/generate_runs_live.html.heex:92
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:49
 #: lib/tuist_web/live/once_runs_live.ex:1002
-#: lib/tuist_web/live/remote_execution_live.ex:709
+#: lib/tuist_web/live/remote_execution_live.ex:693
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:14
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:30
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:117
 #: lib/tuist_web/live/xcode_builds_live.html.heex:933
 #, elixir-autogen, elixir-format
 msgid "Duration"
-msgstr "지속 시간"
+msgstr "소요 시간"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:417
 #, elixir-autogen, elixir-format
 msgid "Entitlements"
-msgstr "권한"
+msgstr "권한(Entitlements)"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:395
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:350
 #: lib/tuist_web/live/build_entity_live.ex:1158
 #: lib/tuist_web/live/build_entity_live.ex:1220
 #: lib/tuist_web/live/cargo_build_runs_live.ex:62
@@ -555,6 +558,8 @@ msgstr "환경"
 msgid "Environment:"
 msgstr "환경:"
 
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:214
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:220
 #: lib/tuist_web/live/build_run_live.html.heex:196
 #: lib/tuist_web/live/build_run_live.html.heex:361
 #: lib/tuist_web/live/build_run_live.html.heex:788
@@ -587,6 +592,8 @@ msgstr "외부"
 #: lib/tuist_web/components/build_timeline.ex:358
 #: lib/tuist_web/helpers/build_entity_labels.ex:105
 #: lib/tuist_web/helpers/cargo_cache.ex:66
+#: lib/tuist_web/live/bazel_invocation_live.ex:269
+#: lib/tuist_web/live/bazel_remote_action_live.ex:235
 #: lib/tuist_web/live/build_entity_live.ex:517
 #: lib/tuist_web/live/build_entity_live.ex:1193
 #: lib/tuist_web/live/build_entity_live.html.heex:438
@@ -622,7 +629,7 @@ msgstr "실패"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:837
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
-msgstr "실패한 빌드"
+msgstr "빌드 실패"
 
 #: lib/tuist_web/live/build_run_live.ex:998
 #, elixir-autogen, elixir-format
@@ -643,7 +650,7 @@ msgstr "XIB 파일 %{path} 컴파일 실패"
 #: lib/tuist_web/live/build_run_live.ex:1016
 #, elixir-autogen, elixir-format
 msgid "Failed compiling assets catalog %{path}"
-msgstr "자산 카탈로그 %{path} 컴파일 실패"
+msgstr "애셋 카탈로그 %{path} 컴파일 실패"
 
 #: lib/tuist_web/live/build_run_live.ex:1019
 #, elixir-autogen, elixir-format
@@ -688,7 +695,7 @@ msgstr "Swift 모듈 %{path} 병합 실패"
 #: lib/tuist_web/live/build_run_live.ex:1040
 #, elixir-autogen, elixir-format
 msgid "Failed precompiling bridging header %{path}"
-msgstr "브릿징 헤더 %{path} 사전 컴파일 실패"
+msgstr "브리지 헤더 %{path} 사전 컴파일 실패"
 
 #: lib/tuist_web/live/build_run_live.ex:1052
 #, elixir-autogen, elixir-format
@@ -726,7 +733,7 @@ msgstr "파일"
 #: lib/tuist_web/live/mix_build_live.html.heex:575
 #, elixir-autogen, elixir-format
 msgid "File Breakdown"
-msgstr "파일 분석"
+msgstr "파일 세부 정보"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:187
 #: lib/tuist_web/components/reapi_cache_outputs.ex:167
@@ -787,7 +794,7 @@ msgstr "히트율"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Incremental"
-msgstr "증분 빌드"
+msgstr "증분"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:411
 #, elixir-autogen, elixir-format
@@ -835,7 +842,7 @@ msgstr "로컬"
 #: lib/tuist_web/live/mix_build_live.html.heex:756
 #, elixir-autogen, elixir-format
 msgid "Looks like you're having a great day!"
-msgstr "좋은 하루 보내고 계신 것 같네요!"
+msgstr "좋은 하루 보내고 계신 것 같습니다!"
 
 #: lib/tuist_web/live/build_run_live.html.heex:339
 #, elixir-autogen, elixir-format
@@ -899,14 +906,14 @@ msgstr "이름"
 #: lib/tuist_web/live/build_run_live.html.heex:1511
 #, elixir-autogen, elixir-format
 msgid "No CAS outputs found"
-msgstr "CAS 출력을 찾을 수 없습니다"
+msgstr "CAS 출력 없음"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:309
 #: lib/tuist_web/live/build_run_live.html.heex:1210
 #: lib/tuist_web/live/mix_build_live.html.heex:336
 #, elixir-autogen, elixir-format
 msgid "No cacheable tasks found"
-msgstr "캐시 가능한 작업을 찾을 수 없습니다"
+msgstr "캐시 가능 작업 없음"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:102
 #: lib/tuist_web/components/cargo_cache_inspection.ex:118
@@ -953,13 +960,13 @@ msgstr "오류가 감지되지 않았습니다"
 #: lib/tuist_web/live/build_run_live.html.heex:717
 #, elixir-autogen, elixir-format
 msgid "No files found"
-msgstr "파일을 찾을 수 없습니다"
+msgstr "파일이 없습니다"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:275
 #: lib/tuist_web/live/build_run_live.html.heex:585
 #, elixir-autogen, elixir-format
 msgid "No modules found"
-msgstr "모듈을 찾을 수 없습니다"
+msgstr "모듈이 없습니다"
 
 #: lib/tuist_web/live/build_run_live.html.heex:778
 #: lib/tuist_web/live/cargo_build_live.html.heex:417
@@ -978,6 +985,7 @@ msgstr "경고가 감지되지 않았습니다"
 msgid "None"
 msgstr "없음"
 
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:126
 #: lib/tuist_web/live/build_entity_live.html.heex:41
 #: lib/tuist_web/live/build_run_live.html.heex:168
 #: lib/tuist_web/live/cargo_build_live.html.heex:33
@@ -988,7 +996,9 @@ msgid "Overview"
 msgstr "개요"
 
 #: lib/tuist_web/components/build_status_filter.ex:43
-#: lib/tuist_web/live/bazel_invocation_live.ex:1335
+#: lib/tuist_web/live/bazel_invocation_live.ex:268
+#: lib/tuist_web/live/bazel_invocation_live.ex:1476
+#: lib/tuist_web/live/bazel_remote_action_live.ex:234
 #: lib/tuist_web/live/build_entity_live.ex:516
 #: lib/tuist_web/live/build_entity_live.ex:1192
 #: lib/tuist_web/live/build_entity_live.html.heex:433
@@ -1020,7 +1030,7 @@ msgstr "통과"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:68
 #, elixir-autogen, elixir-format
 msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "캐시에서 성공적으로 가져온 모듈의 비율입니다."
+msgstr "캐시에서 성공적으로 검색된 모듈의 비율입니다."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:306
 #, elixir-autogen, elixir-format
@@ -1060,7 +1070,7 @@ msgstr "프로젝트 설정"
 #: lib/tuist_web/live/generate_runs_live.html.heex:108
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:76
 #: lib/tuist_web/live/once_runs_live.ex:1003
-#: lib/tuist_web/live/remote_execution_live.ex:715
+#: lib/tuist_web/live/remote_execution_live.ex:699
 #: lib/tuist_web/live/run_detail_live.html.heex:156
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:15
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:38
@@ -1114,6 +1124,7 @@ msgid "Resources"
 msgstr "리소스"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:90
+#: lib/tuist_web/live/remote_execution_live.ex:482
 #: lib/tuist_web/live/run_detail_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Run"
@@ -1122,7 +1133,7 @@ msgstr "실행"
 #: lib/tuist_web/live/run_detail_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Run duration"
-msgstr "실행 시간"
+msgstr "실행 지속 시간"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:91
 #: lib/tuist_web/live/xcode_build_runs_live.ex:200
@@ -1142,7 +1153,7 @@ msgstr "스키마:"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:163
 #: lib/tuist_web/components/reapi_cache_outputs.ex:139
 #: lib/tuist_web/components/runs/module_cache_tab.ex:203
-#: lib/tuist_web/live/bazel_invocation_live.ex:967
+#: lib/tuist_web/live/bazel_invocation_live.ex:1108
 #: lib/tuist_web/live/build_entity_live.html.heex:509
 #: lib/tuist_web/live/build_run_live.html.heex:461
 #: lib/tuist_web/live/build_run_live.html.heex:615
@@ -1181,7 +1192,7 @@ msgstr "크기 (MB)"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:171
 #: lib/tuist_web/components/reapi_cache_outputs.ex:152
-#: lib/tuist_web/live/bazel_invocation_live.ex:468
+#: lib/tuist_web/live/bazel_invocation_live.ex:608
 #: lib/tuist_web/live/bazel_invocations_live.ex:524
 #: lib/tuist_web/live/build_entity_live.html.heex:370
 #: lib/tuist_web/live/build_entity_live.html.heex:521
@@ -1193,7 +1204,7 @@ msgstr "크기 (MB)"
 #: lib/tuist_web/live/generate_runs_live.html.heex:17
 #: lib/tuist_web/live/mix_build_live.html.heex:601
 #: lib/tuist_web/live/once_runs_live.ex:846
-#: lib/tuist_web/live/remote_execution_live.ex:456
+#: lib/tuist_web/live/remote_execution_live.ex:433
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
@@ -1214,9 +1225,11 @@ msgstr "소스"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:268
 #: lib/tuist_web/components/reapi_cache_outputs.ex:198
-#: lib/tuist_web/live/bazel_invocation_live.ex:259
-#: lib/tuist_web/live/bazel_invocation_live.ex:347
-#: lib/tuist_web/live/bazel_invocation_live.ex:605
+#: lib/tuist_web/live/bazel_invocation_live.ex:387
+#: lib/tuist_web/live/bazel_invocation_live.ex:487
+#: lib/tuist_web/live/bazel_invocation_live.ex:746
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:41
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:146
 #: lib/tuist_web/live/build_entity_live.ex:511
 #: lib/tuist_web/live/build_entity_live.ex:1157
 #: lib/tuist_web/live/build_entity_live.ex:1219
@@ -1234,7 +1247,7 @@ msgstr "소스"
 #: lib/tuist_web/live/mix_build_live.html.heex:399
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:23
 #: lib/tuist_web/live/once_run_live.ex:319
-#: lib/tuist_web/live/remote_execution_live.ex:714
+#: lib/tuist_web/live/remote_execution_live.ex:698
 #: lib/tuist_web/live/run_detail_live.html.heex:134
 #: lib/tuist_web/live/xcode_build_runs_live.ex:221
 #: lib/tuist_web/live/xcode_builds_live.ex:451
@@ -1293,14 +1306,14 @@ msgstr "작업"
 #: lib/tuist_web/live/mix_build_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "Task hits"
-msgstr "작업 캐시 히트"
+msgstr "태스크 히트"
 
 #: lib/tuist_web/live/build_run_live.html.heex:859
 #: lib/tuist_web/live/cargo_build_live.html.heex:140
 #: lib/tuist_web/live/mix_build_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Task misses"
-msgstr "작업 캐시 미스"
+msgstr "태스크 미스"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:107
 #, elixir-autogen, elixir-format
@@ -1310,7 +1323,7 @@ msgstr "테스트 세부 정보"
 #: lib/tuist_web/live/run_detail_live.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
-msgstr "테스트 실행 횟수"
+msgstr "테스트 실행"
 
 #: lib/tuist_web/live/build_run_live.html.heex:55
 #, elixir-autogen, elixir-format
@@ -1321,7 +1334,7 @@ msgstr "테스트: %{scheme}"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "개별 백분위 구간을 포함한 평균 빌드 소요 시간입니다."
+msgstr "개별 백분위수 구간이 포함된 평균 빌드 지속 시간입니다."
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:121
 #: lib/tuist_web/live/xcode_builds_live.html.heex:255
@@ -1338,23 +1351,23 @@ msgstr "성공한 빌드의 비율입니다."
 #: lib/tuist_web/live/build_run_live.html.heex:872
 #, elixir-autogen, elixir-format
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "캐시 가능한 작업 중 캐시 히트(로컬 + 원격) 비율입니다."
+msgstr "캐시 가능 작업 중 캐시 히트(로컬 + 원격)의 비율입니다."
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:89
 #: lib/tuist_web/live/xcode_builds_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "The total number of builds."
-msgstr "총 빌드 수입니다."
+msgstr "빌드 총 횟수입니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:964
 #, elixir-autogen, elixir-format
 msgid "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
-msgstr "캐시 가능한 작업을 고유하게 식별하는 캐시 키를 캐시에서 읽는 데 걸린 시간입니다."
+msgstr "캐시 가능 작업을 고유하게 식별하는 캐시 키를 캐시에서 읽는 데 걸린 시간입니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1020
 #, elixir-autogen, elixir-format
 msgid "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
-msgstr "캐시 가능한 작업을 고유하게 식별하는 캐시 키를 캐시에 쓰는 데 걸린 시간입니다."
+msgstr "캐시 가능 작업을 고유하게 식별하는 캐시 키를 캐시에 쓰는 데 걸린 시간입니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1342
 #, elixir-autogen, elixir-format
@@ -1380,7 +1393,7 @@ msgstr "로컬 또는 원격 캐시에서 가져온 모듈의 총 개수입니�
 #: lib/tuist_web/components/runs/module_cache_tab.ex:57
 #, elixir-autogen, elixir-format
 msgid "Total number of modules that could have been taken from the cache if it was fully populated."
-msgstr "캐시가 완전히 채워져 있었다면 캐시에서 가져올 수 있었던 모듈의 총 개수입니다."
+msgstr "캐시가 완전히 채워져 있었다면 캐시에서 가져올 수 있었을 모듈의 총 개수입니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:895
 #, elixir-autogen, elixir-format
@@ -1434,6 +1447,7 @@ msgstr "유형:"
 #: lib/tuist_web/components/build_timeline.ex:74
 #: lib/tuist_web/components/runs/module_cache_tab.ex:266
 #: lib/tuist_web/helpers/build_entity_labels.ex:115
+#: lib/tuist_web/live/bazel_remote_action_live.ex:250
 #: lib/tuist_web/live/build_entity_live.html.heex:607
 #: lib/tuist_web/live/build_run_live.html.heex:58
 #: lib/tuist_web/live/build_run_live.html.heex:245
@@ -1494,7 +1508,7 @@ msgstr "업로드 처리량"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:803
 #, elixir-autogen, elixir-format
 msgid "View more"
-msgstr "더 보기"
+msgstr "자세히 보기"
 
 #: lib/tuist_web/live/build_run_live.ex:1056
 #, elixir-autogen, elixir-format
@@ -1515,7 +1529,7 @@ msgstr "XIB 파일 %{path} 컴파일 시 경고"
 #: lib/tuist_web/live/build_run_live.ex:1074
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling assets catalog %{path}"
-msgstr "자산 카탈로그 %{path} 컴파일 시 경고"
+msgstr "에셋 카탈로그 %{path} 컴파일 시 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:1077
 #, elixir-autogen, elixir-format
@@ -1632,7 +1646,7 @@ msgstr "p50"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "p50 build duration"
-msgstr "p50 빌드 지속 시간"
+msgstr "p50 빌드 시간"
 
 #: lib/tuist_web/live/build_run_live.html.heex:960
 #, elixir-autogen, elixir-format
@@ -1653,7 +1667,7 @@ msgstr "p90"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:272
 #, elixir-autogen, elixir-format
 msgid "p90 build duration"
-msgstr "p90 빌드 지속 시간"
+msgstr "p90 빌드 시간"
 
 #: lib/tuist_web/live/build_run_live.html.heex:959
 #, elixir-autogen, elixir-format
@@ -1674,7 +1688,7 @@ msgstr "p99"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "p99 build duration"
-msgstr "빌드 지속 시간 p99"
+msgstr "빌드 소요 시간 p99"
 
 #: lib/tuist_web/live/build_run_live.html.heex:958
 #, elixir-autogen, elixir-format
@@ -1701,8 +1715,9 @@ msgstr "지난주 이후"
 #: lib/tuist_web/live/xcode_builds_live.ex:395
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "작년부터"
+msgstr "지난 1년 동안"
 
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:221
 #: lib/tuist_web/live/build_run_live.html.heex:364
 #: lib/tuist_web/live/build_run_live.html.heex:401
 #: lib/tuist_web/live/build_run_live.html.heex:747
@@ -1842,7 +1857,7 @@ msgstr "처리 중"
 #: lib/tuist_web/live/build_run_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Your build is being processed"
-msgstr "빌드를 처리하고 있습니다"
+msgstr "빌드를 처리하는 중입니다"
 
 #: lib/tuist_web/live/build_run_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -1852,7 +1867,7 @@ msgstr "새로 고침"
 #: lib/tuist_web/live/build_run_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
-msgstr "보통 몇 초 정도 소요됩니다. 페이지가 자동으로 업데이트되지 않으면 새로 고침 버튼을 클릭하세요."
+msgstr "보통 몇 초가 걸립니다. 페이지가 자동으로 업데이트되지 않으면 새로 고침 버튼을 클릭하세요."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:75
 #, elixir-autogen, elixir-format
@@ -1862,7 +1877,7 @@ msgstr "세션 다운로드"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:522
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme, configuration, or other properties to narrow down the dataset."
-msgstr "10,000개 항목 제한에 도달했습니다. 데이터는 %{date}까지만 포함됩니다. 스키마, 구성 또는 기타 속성으로 필터링하여 데이터 세트를 좁혀보세요."
+msgstr "10,000개 항목 제한에 도달했으며, %{date}까지의 데이터만 포함됩니다. 스키마, 구성 또는 기타 속성으로 필터링하여 데이터 세트를 좁혀보세요."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:78
 #, elixir-autogen, elixir-format
@@ -1872,12 +1887,12 @@ msgstr "다운로드됨"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:168
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average download throughput from the remote cache during this run."
-msgstr "이번 실행 중 원격 캐시에서 다운로드한 시간 가중 평균 처리량입니다."
+msgstr "이 실행 중 원격 캐시에서 다운로드한 시간 가중 평균 처리량입니다."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:184
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average upload throughput to the remote cache during this run."
-msgstr "이번 실행 중 원격 캐시에 업로드한 시간 가중 평균 처리량입니다."
+msgstr "이 실행 중 원격 캐시에 업로드한 시간 가중 평균 처리량입니다."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:91
 #, elixir-autogen, elixir-format
@@ -1887,12 +1902,12 @@ msgstr "업로드됨"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:80
 #, elixir-autogen, elixir-format
 msgid "Total data downloaded from the remote cache during this run (%{count} artifacts)."
-msgstr "이번 실행 중 원격 캐시에서 다운로드한 총 데이터(%{count}개 아티팩트)입니다."
+msgstr "이 실행 중 원격 캐시에서 다운로드한 총 데이터량(%{count}개 아티팩트)."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:93
 #, elixir-autogen, elixir-format
 msgid "Total data uploaded to the remote cache during this run (%{count} artifacts)."
-msgstr "이 실행 동안 원격 캐시에 업로드된 총 데이터량(%{count}개 아티팩트)."
+msgstr "이번 실행 중 원격 캐시에 업로드된 총 데이터량(%{count}개 아티팩트)."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:469
 #, elixir-autogen, elixir-format
@@ -1902,7 +1917,7 @@ msgstr "추가 해싱 입력값"
 #: lib/tuist_web/components/build_timeline.ex:206
 #, elixir-autogen, elixir-format
 msgid "Build steps. Drag across a time range to focus. Press Escape to cancel a drag. Use the left and right arrow keys to inspect steps. Use plus and minus to zoom, and Home to reset."
-msgstr "빌드 단계. 시간 범위를 드래그하여 집중하세요. 드래그를 취소하려면 Esc 키를 누르세요. 좌우 방향키로 단계를 확인하세요. 확대/축소는 더하기와 빼기 키를, 초기화는 Home 키를 사용하세요."
+msgstr "빌드 단계입니다. 시간 범위를 드래그하여 집중하세요. 드래그를 취소하려면 Esc 키를 누르세요. 왼쪽 및 오른쪽 화살표 키로 단계를 검사하세요. 확대/축소하려면 더하기 및 빼기 키를 사용하고, 초기화하려면 Home 키를 사용하세요."
 
 #: lib/tuist_web/components/build_timeline.ex:316
 #: lib/tuist_web/components/build_timeline.ex:327
@@ -1959,7 +1974,7 @@ msgstr "시작 시간 이후"
 msgid "Succeeded"
 msgstr "성공"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:429
+#: lib/tuist_web/live/bazel_invocation_live.ex:569
 #: lib/tuist_web/live/build_run_live.html.heex:174
 #: lib/tuist_web/live/gradle_build_live.html.heex:76
 #: lib/tuist_web/live/mix_build_live.html.heex:60
@@ -1993,12 +2008,12 @@ msgstr "빌드 타임라인"
 #: lib/tuist_web/components/build_timeline.ex:296
 #, elixir-autogen, elixir-format
 msgid "No steps in this time range match your filters."
-msgstr "이 시간 범위의 단계가 필터와 일치하지 않습니다."
+msgstr "선택한 시간 범위에서 필터와 일치하는 단계가 없습니다."
 
 #: lib/tuist_web/components/build_timeline.ex:80
 #, elixir-autogen, elixir-format
 msgid "Loading log…"
-msgstr "로그 로드 중…"
+msgstr "로그 로딩 중…"
 
 #: lib/tuist_web/components/build_timeline.ex:284
 #, elixir-autogen, elixir-format
@@ -2013,7 +2028,7 @@ msgstr "이 단계에 대한 로그가 기록되지 않았습니다."
 #: lib/tuist_web/components/build_timeline.ex:288
 #, elixir-autogen, elixir-format
 msgid "This log was truncated."
-msgstr "이 로그는 일부가 생략되었습니다."
+msgstr "이 로그는 일부만 표시되었습니다."
 
 #: lib/tuist_web/components/build_timeline.ex:83
 #, elixir-autogen, elixir-format
@@ -2037,6 +2052,7 @@ msgid "In"
 msgstr "입력"
 
 #: lib/tuist_web/components/build_timeline.ex:117
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "Memory"
 msgstr "메모리"
@@ -2104,12 +2120,12 @@ msgstr "대상"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:445
 #, elixir-autogen, elixir-format
 msgid "Dependencies hash"
-msgstr "종속성 해시"
+msgstr "의존성 해시"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:425
 #, elixir-autogen, elixir-format
 msgid "No direct target dependencies recorded"
-msgstr "직접적인 타겟 의존성이 기록되지 않았습니다"
+msgstr "직접적인 타겟 의존성 기록 없음"
 
 #: lib/tuist_web/components/build_timeline.ex:338
 #, elixir-autogen, elixir-format
@@ -2171,7 +2187,7 @@ msgstr "단계, 타겟 또는 카테고리 검색…"
 #: lib/tuist_web/helpers/build_entity_labels.ex:113
 #, elixir-autogen, elixir-format
 msgid "Skipped"
-msgstr "생략됨"
+msgstr "건너뜀"
 
 #: lib/tuist_web/components/build_timeline.ex:344
 #, elixir-autogen, elixir-format
@@ -2317,7 +2333,7 @@ msgstr "인프라 / 툴링"
 #: lib/tuist_web/components/build_health.ex:223
 #, elixir-autogen, elixir-format
 msgid "Unclassified"
-msgstr "미분류"
+msgstr "분류되지 않음"
 
 #: lib/tuist_web/components/build_health.ex:221
 #, elixir-autogen, elixir-format
@@ -2341,7 +2357,7 @@ msgstr "실패 카테고리"
 #: lib/tuist_web/components/build_health.ex:202
 #, elixir-autogen, elixir-format
 msgid "The recorded build data does not contain enough evidence for Tuist to classify this failure as verification or infrastructure and tooling."
-msgstr "기록된 빌드 데이터에 Tuist가 이 실패를 검증 또는 인프라 및 툴링으로 분류할 충분한 증거가 포함되어 있지 않습니다."
+msgstr "기록된 빌드 데이터에 Tuist가 이 실패를 검증 또는 인프라 및 툴링으로 분류하기에 충분한 증거가 포함되어 있지 않습니다."
 
 #: lib/tuist_web/components/build_health.ex:175
 #, elixir-autogen, elixir-format
@@ -2351,17 +2367,17 @@ msgstr "실패 카테고리 정보"
 #: lib/tuist_web/components/build_health.ex:195
 #, elixir-autogen, elixir-format
 msgid "Inferred from recorded build data. Infrastructure and tooling covers configuration, dependency resolution, and execution infrastructure failures."
-msgstr "기록된 빌드 데이터에서 추론됨. 인프라 및 툴링은 구성, 의존성 해결 및 실행 인프라 실패를 포함합니다."
+msgstr "기록된 빌드 데이터로부터 추론됨. 인프라 및 툴링은 구성, 의존성 해결 및 실행 인프라 실패를 다룹니다."
 
 #: lib/tuist_web/components/build_health.ex:188
 #, elixir-autogen, elixir-format
 msgid "Inferred from recorded build data. Verification covers compilation, test, lint, and check failures."
-msgstr "기록된 빌드 데이터에서 추론됨. 검증은 컴파일, 테스트, 린트 및 검사 실패를 포함합니다."
+msgstr "기록된 빌드 데이터로부터 추론됨. 검증은 컴파일, 테스트, 린트 및 검사 실패를 다룹니다."
 
 #: lib/tuist_web/live/mix_build_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "Avg. latency reading cache artifacts"
-msgstr "캐시 아티팩트 읽기 평균 지연 시간"
+msgstr "캐시 아티팩트 읽기의 평균 지연 시간"
 
 #: lib/tuist_web/live/mix_build_live.ex:330
 #, elixir-autogen, elixir-format
@@ -2378,7 +2394,7 @@ msgstr "의존성 컴파일"
 #: lib/tuist_web/live/mix_build_live.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Mix cache"
-msgstr "Mix 캐시"
+msgstr "믹스 캐시"
 
 #: lib/tuist_web/live/mix_build_live.ex:329
 #, elixir-autogen, elixir-format
@@ -2408,23 +2424,23 @@ msgstr "캐시 아티팩트 읽기 p99 지연 시간"
 #: lib/tuist_web/live/mix_build_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "p99 latency writing cache artifacts"
-msgstr "캐시 아티팩트 기록의 p99 지연 시간"
+msgstr "캐시 아티팩트 쓰기 p99 지연 시간"
 
 #: lib/tuist_web/live/mix_build_live.html.heex:316
 #: lib/tuist_web/live/mix_build_live.html.heex:362
 #, elixir-autogen, elixir-format
 msgid "Dependency bundle"
-msgstr "종속성 번들"
+msgstr "의존성 번들"
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:237
 #, elixir-autogen, elixir-format
 msgid "Only actual CAS transfers reported by Kura appear here. Local snapshot copies are not remote CAS outputs; compressed sizes are unavailable."
-msgstr "Kura가 보고한 실제 CAS 전송만 여기에 표시됩니다. 로컬 스냅샷 복사본은 원격 CAS 출력이 아니며, 압축된 크기는 사용할 수 없습니다."
+msgstr "여기에는 Kura가 보고한 실제 CAS 전송만 표시됩니다. 로컬 스냅샷 복사본은 원격 CAS 출력이 아니므로 압축 크기를 사용할 수 없습니다."
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:113
 #, elixir-autogen, elixir-format
 msgid "Time-weighted CAS transfer throughput reported by Kura through the shared REAPI analytics pipeline, excluding action-cache metadata and local copies."
-msgstr "공유 REAPI 분석 파이프라인을 통해 Kura가 보고한 시간 가중치 CAS 전송 처리량으로, 액션 캐시 메타데이터와 로컬 복사본은 제외됩니다."
+msgstr "공유 REAPI 분석 파이프라인을 통해 Kura가 보고한 시간 가중 CAS 전송 처리량으로, 액션 캐시 메타데이터와 로컬 복사본은 제외됩니다."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:16
 #: lib/tuist_web/helpers/build_entity_labels.ex:17
@@ -2477,7 +2493,7 @@ msgstr "커밋"
 #: lib/tuist_web/live/build_entity_live.ex:623
 #, elixir-autogen, elixir-format
 msgid "Compilations"
-msgstr "컴파일 횟수"
+msgstr "컴파일"
 
 #: lib/tuist_web/live/build_entity_live.ex:612
 #, elixir-autogen, elixir-format
@@ -2485,18 +2501,19 @@ msgid "Declared action index"
 msgstr "선언된 작업 인덱스"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:65
-#: lib/tuist_web/live/bazel_invocation_live.ex:327
-#: lib/tuist_web/live/bazel_invocation_live.ex:446
+#: lib/tuist_web/live/bazel_invocation_live.ex:455
+#: lib/tuist_web/live/bazel_invocation_live.ex:586
 #: lib/tuist_web/live/build_entity_live.ex:625
-#: lib/tuist_web/live/remote_execution_live.ex:241
+#: lib/tuist_web/live/remote_execution_live.ex:239
+#: lib/tuist_web/live/remote_execution_live.ex:833
 #, elixir-autogen, elixir-format
 msgid "Executions"
-msgstr "실행 횟수"
+msgstr "실행"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:95
 #, elixir-autogen, elixir-format
 msgid "File compilation duration"
-msgstr "파일 컴파일 소요 시간"
+msgstr "파일 컴파일 시간"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:10
 #, elixir-autogen, elixir-format
@@ -2539,7 +2556,7 @@ msgstr "다음"
 #: lib/tuist_web/live/build_entity_live.ex:1094
 #, elixir-autogen, elixir-format
 msgid "No data in this period"
-msgstr "해당 기간 데이터 없음"
+msgstr "이 기간 동안 데이터 없음"
 
 #: lib/tuist_web/live/build_entity_live.ex:1006
 #: lib/tuist_web/live/build_entity_live.ex:1092
@@ -2558,7 +2575,11 @@ msgstr "기록된 조회 없음"
 msgid "Not found in this project."
 msgstr "이 프로젝트에서 찾을 수 없습니다."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1483
+#: lib/tuist_web/live/bazel_invocation_live.ex:286
+#: lib/tuist_web/live/bazel_invocation_live.ex:506
+#: lib/tuist_web/live/bazel_invocation_live.ex:1639
+#: lib/tuist_web/live/bazel_remote_action_live.ex:258
+#: lib/tuist_web/live/bazel_remote_action_live.ex:261
 #: lib/tuist_web/live/build_entity_live.ex:518
 #: lib/tuist_web/live/build_entity_live.ex:586
 #: lib/tuist_web/live/build_entity_live.ex:675
@@ -2569,7 +2590,7 @@ msgstr "이 프로젝트에서 찾을 수 없습니다."
 #: lib/tuist_web/live/build_entity_live.html.heex:443
 #: lib/tuist_web/live/build_entity_live.html.heex:455
 #: lib/tuist_web/live/build_entity_live.html.heex:594
-#: lib/tuist_web/live/remote_execution_live.ex:685
+#: lib/tuist_web/live/remote_execution_live.ex:669
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
 msgstr "기록되지 않음"
@@ -2585,7 +2606,7 @@ msgstr "보고되지 않음"
 #: lib/tuist_web/live/build_entity_live.html.heex:461
 #, elixir-autogen, elixir-format
 msgid "Nothing recorded for these filters"
-msgstr "이 필터에 대한 기록이 없습니다."
+msgstr "선택한 필터에 대한 기록이 없습니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:613
 #, elixir-autogen, elixir-format
@@ -2623,7 +2644,7 @@ msgstr "루트 프로젝트"
 #: lib/tuist_web/live/build_entity_live.ex:997
 #, elixir-autogen, elixir-format
 msgid "Showing the latest 10,000 measured durations since %{date}. Narrow the period or environment to see other observations."
-msgstr "%{date} 이후 측정된 최근 10,000개의 지속 시간을 표시합니다. 다른 관찰 결과를 확인하려면 기간이나 환경을 좁혀보세요."
+msgstr "%{date} 이후 측정된 최신 10,000개 지속 시간을 표시합니다. 다른 관측치를 확인하려면 기간이나 환경을 좁혀보세요."
 
 #: lib/tuist_web/live/build_entity_live.ex:603
 #, elixir-autogen, elixir-format
@@ -2643,7 +2664,7 @@ msgstr "태스크"
 #: lib/tuist_web/live/build_entity_live.html.heex:637
 #, elixir-autogen, elixir-format
 msgid "This page remains available independently of individual build history."
-msgstr "이 페이지는 개별 빌드 기록과 무관하게 계속 사용할 수 있습니다."
+msgstr "개별 빌드 기록과 무관하게 이 페이지는 계속 제공됩니다."
 
 #: lib/tuist_web/live/build_entity_live.html.heex:462
 #, elixir-autogen, elixir-format
@@ -2658,12 +2679,12 @@ msgstr "보고된 이름"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:329
 #, elixir-autogen, elixir-format
 msgid "%{percentile} latency reading cache keys"
-msgstr "캐시 키 읽기 지연 시간 %{percentile} 백분위수"
+msgstr "%{percentile} 레이턴시 캐시 키 읽기"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:332
 #, elixir-autogen, elixir-format
 msgid "%{percentile} latency writing cache keys"
-msgstr "캐시 키 쓰기 지연 시간 %{percentile} 백분위수"
+msgstr "%{percentile} 레이턴시 캐시 키 쓰기"
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:244
 #: lib/tuist_web/live/cargo_build_live.html.heex:256
@@ -2699,7 +2720,7 @@ msgstr "빌드 스크립트"
 #: lib/tuist_web/live/cargo_build_live.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "Bytes downloaded from the remote cache, including protocol metadata."
-msgstr "프로토콜 메타데이터를 포함하여 원격 캐시에서 다운로드한 바이트 수입니다."
+msgstr "프로토콜 메타데이터를 포함한 원격 캐시에서 다운로드한 바이트 수입니다."
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:176
 #, elixir-autogen, elixir-format
@@ -2719,12 +2740,12 @@ msgstr "캐시 검사가 불완전합니다"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:50
 #, elixir-autogen, elixir-format
 msgid "Cache verification detected divergent outputs"
-msgstr "캐시 검증에서 출력이 일치하지 않는 것이 감지되었습니다"
+msgstr "캐시 검증에서 분기된 출력이 감지되었습니다"
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that compiled instead of reusing cached outputs, including cold builds and verification rebuilds."
-msgstr "캐시된 출력을 재사용하는 대신 컴파일한 캐시 가능 작업(콜드 빌드 및 검증 재빌드 포함)."
+msgstr "캐시된 출력을 재사용하지 않고 컴파일한 캐시 가능 작업(콜드 빌드 및 검증 재빌드 포함)."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:41
 #, elixir-autogen, elixir-format
@@ -2739,7 +2760,7 @@ msgstr "캐시를 확인했지만 캐시된 출력을 재사용할 수 없었습
 #: lib/tuist_web/live/cargo_build_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Compilation actions restored from the local or remote cache."
-msgstr "로컬 또는 원격 캐시에서 복원된 컴파일 작업입니다."
+msgstr "컴파일러 작업이 로컬 또는 원격 캐시에서 복원되었습니다."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
@@ -2766,12 +2787,12 @@ msgstr "컴파일러 작업을 로드할 수 없습니다."
 #: lib/tuist_web/components/cargo_cache_inspection.ex:127
 #, elixir-autogen, elixir-format
 msgid "Completed remote CAS bytes divided by their summed operation durations, including connection, retry and verification time. Operations can overlap; this is not whole-build network throughput."
-msgstr "연결, 재시도 및 검증 시간을 포함한 전체 작업 지속 시간의 합으로 나눈 완료된 원격 CAS 바이트 수입니다. 작업은 중복될 수 있으며, 이는 전체 빌드 네트워크 처리량이 아닙니다."
+msgstr "완료된 원격 CAS 바이트를 연결, 재시도 및 검증 시간을 포함한 총 작업 지속 시간으로 나눈 값입니다. 작업은 겹칠 수 있으며, 이는 전체 빌드 네트워크 처리량이 아닙니다."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:140
 #, elixir-autogen, elixir-format
 msgid "Completed remote CAS bytes divided by their summed upload-attempt durations, including presence checks. Already-present blobs and failed attempts are excluded. Operations can overlap."
-msgstr "존재 확인을 포함한 전체 업로드 시도 지속 시간의 합으로 나눈 완료된 원격 CAS 바이트 수입니다. 이미 존재하는 블롭과 실패한 시도는 제외됩니다. 작업은 중복될 수 있습니다."
+msgstr "완료된 원격 CAS 바이트를 존재 확인을 포함한 총 업로드 시도 지속 시간으로 나눈 값입니다. 이미 존재하는 블롭과 실패한 시도는 제외됩니다. 작업은 겹칠 수 있습니다."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:20
 #: lib/tuist_web/live/cargo_build_live.html.heex:298
@@ -2792,7 +2813,7 @@ msgstr "상세 캐시 기록이 수집되지 않았습니다"
 #: lib/tuist_web/live/cargo_build_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "Each row is one rustc invocation for a crate, which can contain many source files. The path is its crate root. A crate can have multiple jobs for different targets or configurations. Durations can overlap. Started after is relative to the Cargo command."
-msgstr "각 행은 크레이트에 대한 하나의 rustc 호출을 나타내며, 이는 여러 소스 파일을 포함할 수 있습니다. 경로는 해당 크레이트의 루트입니다. 크레이트는 서로 다른 타겟이나 구성에 대해 여러 작업을 가질 수 있습니다. 지속 시간은 중복될 수 있습니다. 'Started after'는 Cargo 명령 기준 상대 시간입니다."
+msgstr "각 행은 크레이트에 대한 하나의 rustc 호출을 나타내며, 여러 소스 파일을 포함할 수 있습니다. 경로는 해당 크레이트의 루트입니다. 크레이트는 서로 다른 타겟이나 구성에 대해 여러 작업을 가질 수 있습니다. 지속 시간은 겹칠 수 있습니다. 시작 후 시간은 Cargo 명령 기준입니다."
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:336
 #, elixir-autogen, elixir-format
@@ -2802,22 +2823,22 @@ msgstr "최신 Cargo 아티팩트는 rustc를 호출하지 않습니다. 이에 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:52
 #, elixir-autogen, elixir-format
 msgid "Fresh compiler outputs were retained instead of the divergent cached outputs."
-msgstr "발생한 차이의 캐시 출력 대신 최신 컴파일러 출력이 유지되었습니다."
+msgstr "발생한 차이가 있는 캐시된 출력 대신 최신 컴파일러 출력이 유지되었습니다."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:65
 #, elixir-autogen, elixir-format
 msgid "Inspection records are bounded and best-effort. The tables, charts and measurements below cover only captured records; the summary above retains the aggregate totals."
-msgstr "검사 기록은 제한적이며 최선을 다해 제공됩니다. 아래 표, 차트 및 측정값은 캡처된 기록만 포함하며, 위 요약에는 집계 총계가 유지됩니다."
+msgstr "검사 기록은 제한적이며 최선의 노력을 기반으로 합니다. 아래 표, 차트 및 측정값은 캡처된 기록만 포함하며, 위의 요약은 집계 총계를 유지합니다."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:92
 #, elixir-autogen, elixir-format
 msgid "Measured per-key cache-agent lookup latency for recorded tasks, including local and remote resolution. Repeated reads of a key are averaged; cumulative build timings are not used as latency samples."
-msgstr "로컬 및 원격 해결을 포함한 기록된 작업의 키별 캐시 에이전트 조회 지연 시간을 측정합니다. 동일한 키의 반복 읽기는 평균값으로 처리되며, 누적 빌드 시간은 지연 시간 샘플로 사용되지 않습니다."
+msgstr "로컬 및 원격 해결을 포함하여 기록된 작업의 키별 캐시 에이전트 조회 대기 시간을 측정했습니다. 키의 반복 읽기는 평균화되며, 누적 빌드 시간은 대기 시간 샘플로 사용되지 않습니다."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:108
 #, elixir-autogen, elixir-format
 msgid "Measured per-key cache-agent store latency for recorded tasks. This includes local storage and queueing, not completion of background remote publication. Repeated writes of a key are averaged."
-msgstr "기록된 작업의 키별 캐시 에이전트 저장 지연 시간을 측정합니다. 여기에는 로컬 저장 및 대기열 추가가 포함되며, 백그라운드 원격 게시 완료는 포함되지 않습니다. 동일한 키의 반복 쓰기는 평균값으로 처리됩니다."
+msgstr "기록된 작업의 키별 캐시 에이전트 저장 대기 시간을 측정했습니다. 여기에는 백그라운드 원격 게시 완료는 제외되고 로컬 저장 및 큐잉이 포함됩니다. 키의 반복 쓰기는 평균화됩니다."
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:332
 #, elixir-autogen, elixir-format
@@ -2827,22 +2848,22 @@ msgstr "컴파일러 작업을 찾을 수 없습니다"
 #: lib/tuist_web/live/cargo_builds_live.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Only the 10,000 most recent builds are shown. Narrow the date range or filters to see the full dataset."
-msgstr "최근 10,000개의 빌드만 표시됩니다. 전체 데이터셋을 확인하려면 날짜 범위나 필터를 좁혀주세요."
+msgstr "최근 10,000개의 빌드만 표시됩니다. 전체 데이터 세트를 보려면 날짜 범위나 필터를 좁혀주세요."
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "Percentage of cacheable tasks that reused cached outputs instead of compiling."
-msgstr "캐시 가능한 작업 중 컴파일 대신 캐시된 출력을 재사용한 비율입니다."
+msgstr "캐싱 가능한 작업 중 컴파일 대신 캐시된 출력을 재사용한 비율입니다."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:80
 #, elixir-autogen, elixir-format
 msgid "Queried actions:"
-msgstr "쿼리된 액션:"
+msgstr "쿼리된 작업:"
 
 #: lib/tuist_web/helpers/cargo_cache.ex:78
 #, elixir-autogen, elixir-format
 msgid "Rebuilt to compare fresh outputs with cached outputs and verify cache correctness."
-msgstr "새로운 출력과 캐시된 출력을 비교하고 캐시 정확성을 검증하기 위해 다시 빌드했습니다."
+msgstr "새로운 출력과 캐시된 출력을 비교하고 캐시 정확성을 검증하기 위해 다시 빌드되었습니다."
 
 #: lib/tuist_web/helpers/cargo_cache.ex:69
 #, elixir-autogen, elixir-format
@@ -2867,12 +2888,12 @@ msgstr "Rust 버전:"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:257
 #, elixir-autogen, elixir-format
 msgid "Showing the first 50 recorded CAS references."
-msgstr "처음 50개의 기록된 CAS 참조를 표시합니다."
+msgstr "처음으로 기록된 50개의 CAS 참조를 표시합니다."
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:224
 #, elixir-autogen, elixir-format
 msgid "Showing the first 500 compiler jobs"
-msgstr "처음 500개의 컴파일러 작업을 표시합니다"
+msgstr "처음으로 기록된 500개의 컴파일러 작업을 표시합니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:473
 #: lib/tuist_web/live/build_entity_live.ex:918
@@ -2894,7 +2915,7 @@ msgstr "%{percentile} 실행 시간"
 #: lib/tuist_web/live/build_entity_live.ex:922
 #, elixir-autogen, elixir-format
 msgid "%{percentile} file compilation duration"
-msgstr "%{percentile} 파일 컴파일 시간"
+msgstr "%{percentile} 파일 컴파일 지속 시간"
 
 #: lib/tuist_web/live/build_entity_live.ex:774
 #, elixir-autogen, elixir-format
@@ -2904,7 +2925,7 @@ msgstr "액션 실행 횟수"
 #: lib/tuist_web/live/build_entity_live.ex:954
 #, elixir-autogen, elixir-format
 msgid "Each module contributes its containing file's measured compilation duration. Sibling modules share that measurement; their durations are not additive."
-msgstr "각 모듈은 포함된 파일의 측정된 컴파일 시간을 기여합니다. 형제 모듈은 해당 측정값을 공유하며, 이들의 시간은 합산되지 않습니다."
+msgstr "각 모듈은 포함하는 파일의 측정된 컴파일 지속 시간을 기여합니다. 형제 모듈은 해당 측정값을 공유하며, 이들의 지속 시간은 합산되지 않습니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:791
 #, elixir-autogen, elixir-format
@@ -2914,7 +2935,7 @@ msgstr "실패한 액션 실행 횟수"
 #: lib/tuist_web/live/build_entity_live.ex:792
 #, elixir-autogen, elixir-format
 msgid "Failed compilations"
-msgstr "실패한 컴파일"
+msgstr "실패한 컴파일 횟수"
 
 #: lib/tuist_web/live/build_entity_live.ex:790
 #, elixir-autogen, elixir-format
@@ -2924,12 +2945,12 @@ msgstr "실패한 작업 실행 횟수"
 #: lib/tuist_web/live/build_entity_live.ex:777
 #, elixir-autogen, elixir-format
 msgid "File compilations"
-msgstr "파일 컴파일"
+msgstr "파일 컴파일 횟수"
 
 #: lib/tuist_web/live/build_entity_live.ex:780
 #, elixir-autogen, elixir-format
 msgid "Module compilations"
-msgstr "모듈 컴파일"
+msgstr "모듈 컴파일 횟수"
 
 #: lib/tuist_web/live/build_entity_live.ex:1093
 #, elixir-autogen, elixir-format
@@ -2944,32 +2965,32 @@ msgstr "태스크 실행"
 #: lib/tuist_web/live/build_entity_live.ex:836
 #, elixir-autogen, elixir-format
 msgid "Module compilation records derived from compiled files, including those without measured timing. A file defining multiple modules contributes one record per module, not independent compilation work."
-msgstr "측정된 시간이 없는 파일을 포함해 컴파일된 파일에서 파생된 모듈 컴파일 기록입니다. 여러 모듈을 정의하는 파일은 독립적인 컴파일 작업이 아닌 모듈당 하나의 기록으로 계산됩니다."
+msgstr "측정된 시간이 없는 경우를 포함해 컴파일된 파일에서 파생된 모듈 컴파일 기록입니다. 여러 모듈을 정의하는 파일은 독립적인 컴파일 작업이 아닌 모듈당 하나의 기록을 기여합니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:832
 #, elixir-autogen, elixir-format
 msgid "Reported file compilations, including those without a measured duration."
-msgstr "측정된 지속 시간이 없는 파일을 포함해 보고된 파일 컴파일 수입니다."
+msgstr "측정된 지속 시간이 없는 경우를 포함해 보고된 파일 컴파일입니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:819
 #, elixir-autogen, elixir-format
 msgid "Task executions with a recorded success or failure. Cache hits, skipped, up-to-date and no-source tasks are excluded, regardless of timing availability."
-msgstr "성공 또는 실패가 기록된 태스크 실행입니다. 캐시 히트, 건너뜀, 최신 상태 및 소스 없음 태스크는 시간 측정 가능 여부와 관계없이 제외됩니다."
+msgstr "성공 또는 실패가 기록된 태스크 실행입니다. 타이밍 가용성과 관계없이 캐시 히트, 건너뜀, 최신 상태 및 소스 없는 태스크는 제외됩니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:826
 #, elixir-autogen, elixir-format
 msgid "Uncached action executions with a recorded success or failure. Cached, skipped, cancelled and unknown outcomes are excluded, regardless of timing availability."
-msgstr "성공 또는 실패가 기록된 캐시되지 않은 액션 실행입니다. 캐시됨, 건너뜀, 취소됨 및 알 수 없는 결과는 시간 측정 가능 여부와 관계없이 제외됩니다."
+msgstr "성공 또는 실패가 기록된 캐시되지 않은 액션 실행입니다. 타이밍 가용성과 관계없이 캐시됨, 건너뜀, 취소됨 및 알 수 없는 결과는 제외됩니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:812
 #, elixir-autogen, elixir-format
 msgid "BEP-reported action executions, not cache lookups. Reporting must publish all actions for complete execution coverage; missing timing remains unavailable."
-msgstr "BEP로 보고된 액션 실행이며 캐시 조회는 포함하지 않습니다. 완전한 실행 범위를 위해 모든 액션을 게시해야 하며, 누락된 타이밍 데이터는 사용할 수 없습니다."
+msgstr "BEP로 보고된 액션 실행이며 캐시 조회는 아닙니다. 완전한 실행 범위를 위해 모든 액션을 게시해야 하며, 누락된 타이밍은 사용할 수 없습니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:600
 #, elixir-autogen, elixir-format
 msgid "Primary output"
-msgstr "주요 출력물"
+msgstr "주요 출력"
 
 #: lib/tuist_web/live/build_entity_live.ex:463
 #: lib/tuist_web/live/build_entity_live.html.heex:448
@@ -2985,27 +3006,27 @@ msgstr "마지막 상태"
 #: lib/tuist_web/live/build_entity_live.ex:897
 #, elixir-autogen, elixir-format
 msgid "Distinct actions with recorded activity during the selected period. The chart shows distinct actions per day, not a cumulative total."
-msgstr "선택한 기간 동안 활동 기록이 있는 고유 액션 수입니다. 차트는 누적 합계가 아닌 일별 고유 액션 수를 표시합니다."
+msgstr "선택한 기간 동안 활동이 기록된 고유 액션 수입니다. 차트는 누적 합계가 아닌 일별 고유 액션 수를 표시합니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:903
 #, elixir-autogen, elixir-format
 msgid "Distinct files with recorded activity during the selected period. The chart shows distinct files per day, not a cumulative total."
-msgstr "선택한 기간 동안 활동 기록이 있는 고유 파일 수입니다. 차트는 누적 합계가 아닌 일별 고유 파일 수를 표시합니다."
+msgstr "선택한 기간 동안 활동이 기록된 고유 파일 수입니다. 차트는 누적 합계가 아닌 일별 고유 파일 수를 표시합니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:909
 #, elixir-autogen, elixir-format
 msgid "Distinct modules with recorded activity during the selected period. The chart shows distinct modules per day, not a cumulative total."
-msgstr "선택한 기간 동안 활동 기록이 있는 고유 모듈 수입니다. 차트는 누적 합계가 아닌 일별 고유 모듈 수를 표시합니다."
+msgstr "선택한 기간 동안 활동이 기록된 고유 모듈 수입니다. 차트는 누적 합계가 아닌 일별 고유 모듈 수를 표시합니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:891
 #, elixir-autogen, elixir-format
 msgid "Distinct tasks with recorded activity during the selected period. The chart shows distinct tasks per day, not a cumulative total."
-msgstr "선택한 기간 동안 활동 기록이 있는 고유 작업 수입니다. 차트는 누적 합계가 아닌 일별 고유 작업 수를 표시합니다."
+msgstr "선택한 기간 동안 활동이 기록된 고유 작업 수입니다. 차트는 누적 합계가 아닌 일별 고유 작업 수를 표시합니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:975
 #, elixir-autogen, elixir-format
 msgid "Measured file compilation durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
-msgstr "선택한 기간 동안 측정된 파일 컴파일 소요 시간입니다. 측정값이 없는 데이터는 제외되며, 실제로 측정된 0은 포함됩니다."
+msgstr "선택한 기간 동안 측정된 파일 컴파일 지속 시간입니다. 측정되지 않은 값은 제외되며, 실제로 측정된 0은 포함됩니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:863
 #, elixir-autogen, elixir-format
@@ -3015,27 +3036,27 @@ msgstr "선택한 기간 동안 기록된 액션 실행 실패 횟수입니다. 
 #: lib/tuist_web/live/build_entity_live.ex:869
 #, elixir-autogen, elixir-format
 msgid "Recorded file compilation failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "선택한 기간 동안 기록된 파일 컴파일 실패입니다. 알 수 없는 결과는 성공이나 실패로 집계되지 않습니다."
+msgstr "선택한 기간 동안 기록된 파일 컴파일 실패 횟수입니다. 알 수 없는 결과는 성공이나 실패로 집계되지 않습니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:875
 #, elixir-autogen, elixir-format
 msgid "Recorded module compilation failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "선택한 기간 동안 기록된 모듈 컴파일 실패입니다. 알 수 없는 결과는 성공이나 실패로 집계되지 않습니다."
+msgstr "선택한 기간 동안 기록된 모듈 컴파일 실패 횟수입니다. 알 수 없는 결과는 성공이나 실패로 집계되지 않습니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:857
 #, elixir-autogen, elixir-format
 msgid "Recorded task execution failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "선택한 기간 동안 기록된 작업 실행 실패입니다. 알 수 없는 결과는 성공이나 실패로 집계되지 않습니다."
+msgstr "선택한 기간 동안 기록된 태스크 실행 실패 횟수입니다. 알 수 없는 결과는 성공이나 실패로 집계되지 않습니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:968
 #, elixir-autogen, elixir-format
 msgid "Measured action durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
-msgstr "선택한 기간 동안 측정된 액션 지속 시간입니다. 누락된 측정은 제외되며, 실제로 측정된 0은 포함됩니다."
+msgstr "선택한 기간 동안 측정된 액션 지속 시간입니다. 측정값이 누락된 항목은 제외되며, 실제로 측정된 0초는 포함됩니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:961
 #, elixir-autogen, elixir-format
 msgid "Measured task durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
-msgstr "선택한 기간 동안 측정된 작업 지속 시간입니다. 누락된 측정은 제외되며, 실제로 측정된 0은 포함됩니다."
+msgstr "선택한 기간 동안 측정된 태스크 지속 시간입니다. 측정값이 누락된 항목은 제외되며, 실제로 측정된 0초는 포함됩니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:925
 #, elixir-autogen, elixir-format
@@ -3050,12 +3071,12 @@ msgstr "실패한 모듈 빌드"
 #: lib/tuist_web/live/build_entity_live.ex:947
 #, elixir-autogen, elixir-format
 msgid "Measured compilation time for module builds, not total build time. Cache resolutions and modules without compilation work do not contribute timing samples."
-msgstr "모듈 빌드의 컴파일 시간을 측정하며, 전체 빌드 시간이 아닙니다. 캐시 해결 및 컴파일 작업이 없는 모듈은 타이밍 샘플에 기여하지 않습니다."
+msgstr "모듈 빌드의 컴파일 시간을 측정한 것으로, 전체 빌드 시간이 아닙니다. 캐시 해결된 경우와 컴파일 작업이 없는 모듈은 시간 샘플에 포함되지 않습니다."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:94
 #, elixir-autogen, elixir-format
 msgid "Module build duration"
-msgstr "모듈 빌드 소요 시간"
+msgstr "모듈 빌드 기간"
 
 #: lib/tuist_web/live/build_entity_live.ex:624
 #: lib/tuist_web/live/build_entity_live.ex:768
@@ -3066,17 +3087,17 @@ msgstr "모듈 빌드"
 #: lib/tuist_web/live/build_entity_live.ex:805
 #, elixir-autogen, elixir-format
 msgid "Module builds with recorded compilation work during the selected period. Module-cache resolutions and modules without compilation work are excluded."
-msgstr "선택한 기간 동안 컴파일 작업이 기록된 모듈 빌드입니다. 모듈 캐시 해결 및 컴파일 작업이 없는 모듈은 제외됩니다."
+msgstr "선택한 기간 동안 컴파일 작업이 기록된 모듈 빌드입니다. 모듈 캐시 해결과 컴파일 작업이 없는 모듈은 제외됩니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "Recorded module build failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "선택한 기간 동안 기록된 모듈 빌드 실패입니다. 알 수 없는 결과는 성공 또는 실패로 계산되지 않습니다."
+msgstr "선택한 기간 동안 기록된 모듈 빌드 실패입니다. 알 수 없는 결과는 성공이나 실패로カウント되지 않습니다."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:23
 #, elixir-autogen, elixir-format
 msgid "Search actions..."
-msgstr "액션 검색..."
+msgstr "작업 검색..."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:24
 #, elixir-autogen, elixir-format
@@ -3101,28 +3122,28 @@ msgstr "작업 유형"
 #: lib/tuist_web/helpers/build_entity_labels.ex:67
 #, elixir-autogen, elixir-format
 msgid "No builds in this period"
-msgstr "이 기간 동안 빌드가 없습니다"
+msgstr "이 기간에 빌드 없음"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:69
 #: lib/tuist_web/helpers/build_entity_labels.ex:71
 #, elixir-autogen, elixir-format
 msgid "No compilations in this period"
-msgstr "이 기간 동안 컴파일이 없습니다"
+msgstr "이 기간에 컴파일 없음"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:73
 #, elixir-autogen, elixir-format
 msgid "No executions in this period"
-msgstr "이 기간 동안 실행이 없습니다"
+msgstr "이 기간에 실행 없음"
 
 #: lib/tuist_web/live/build_entity_live.ex:703
 #, elixir-autogen, elixir-format
 msgid "No reported default-branch graph"
-msgstr "보고된 기본 브랜치 그래프가 없습니다"
+msgstr "보고된 기본 브랜치 그래프 없음"
 
 #: lib/tuist_web/live/build_entity_live.ex:667
 #, elixir-autogen, elixir-format
 msgid "Not configured"
-msgstr "구성되지 않음"
+msgstr "설정되지 않음"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:75
 #, elixir-autogen, elixir-format
@@ -3143,7 +3164,7 @@ msgstr "최근 실행"
 #: lib/tuist_web/live/build_entity_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "Latest recorded module count from a generated-project graph on the default branch (%{branch}) before the end of the selected period, independent of environment. The chart carries that reported count forward until another scoped snapshot arrives. Historical graphs without scoped count metadata remain unavailable."
-msgstr "선택한 기간 종료 전 기본 브랜치(%{branch})에서 생성된 프로젝트 그래프의 최신 기록 모듈 수로, 환경과 무관합니다. 차트는 범위 지정 스냅샷이 새로 도착할 때까지 이 보고된 수치를 유지합니다. 범위 지정 개수 메타데이터가 없는 과거 그래프는 사용할 수 없습니다."
+msgstr "선택한 기간 종료 전 기본 브랜치(%{branch})의 생성된 프로젝트 그래프에서 기록된 최신 모듈 수로, 환경과 무관합니다. 차트는 범위 지정 스냅샷이 새로 도착할 때까지 해당 보고된 수치를 유지합니다. 범위 지정 카운트 메타데이터가 없는 과거 그래프는 사용할 수 없습니다."
 
 #: lib/tuist_web/components/build_metadata.ex:121
 #, elixir-autogen, elixir-format
@@ -3270,7 +3291,7 @@ msgstr "Tuist 생성기 버전"
 #: lib/tuist_web/live/build_entity_live.ex:783
 #, elixir-autogen, elixir-format
 msgid "Crate compilations"
-msgstr "크레이트 컴파일 수"
+msgstr "크레이트 컴파일 횟수"
 
 #: lib/tuist_web/live/build_entity_live.ex:617
 #, elixir-autogen, elixir-format
@@ -3295,22 +3316,22 @@ msgstr "크레이트"
 #: lib/tuist_web/live/build_entity_live.ex:885
 #, elixir-autogen, elixir-format
 msgid "Distinct crates with recorded activity during the selected period. The chart shows distinct crates per day, not a cumulative total. Identity uses recorded root, name and kind, not a complete workspace inventory. Paths are not normalized; build configurations are not distinguished. Missing observations do not establish removals."
-msgstr "선택한 기간 동안 활동이 기록된 고유 크레이트입니다. 차트는 누적 합계가 아닌 일별 고유 크레이트 수를 보여줍니다. 식별은 전체 워크스페이스 인벤토리가 아닌 기록된 루트, 이름 및 종류를 사용합니다. 경로는 정규화되지 않으며 빌드 구성은 구분되지 않습니다. 관측값이 누락되었다고 해서 제거된 것으로 간주하지 않습니다."
+msgstr "선택한 기간 동안 활동이 기록된 고유 크레이트 수입니다. 차트는 누적 합계가 아닌 일별 고유 크레이트 수를 보여줍니다. 식별은 전체 워크스페이스 인벤토리가 아닌 기록된 루트, 이름 및 종류를 사용합니다. 경로는 정규화되지 않으며 빌드 구성은 구분되지 않습니다. 관측 데이터가 누락되었다고 해서 제거된 것으로 간주하지 않습니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:940
 #, elixir-autogen, elixir-format
 msgid "Measured duration of each rustc invocation, not per-source-file timing, total build time or cache-hit time. Genuine measured zeros are included."
-msgstr "각 rustc 호출의 측정된 지속 시간입니다. 소스 파일별 타이밍, 총 빌드 시간 또는 캐시 히트 시간이 아닙니다. 실제 측정된 0초 값도 포함됩니다."
+msgstr "각 rustc 호출의 측정된 지속 시간이며, 소스 파일별 타이밍, 총 빌드 시간 또는 캐시 히트 시간이 아닙니다. 실제로 측정된 0값도 포함됩니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:851
 #, elixir-autogen, elixir-format
 msgid "Recorded rustc invocation failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "선택한 기간 동안 기록된 rustc 호출 실패 횟수입니다. 알 수 없는 결과는 성공이나 실패로カウント되지 않습니다."
+msgstr "선택한 기간 동안 기록된 rustc 호출 실패입니다. 알 수 없는 결과는 성공이나 실패로カウント되지 않습니다."
 
 #: lib/tuist_web/live/build_entity_live.ex:798
 #, elixir-autogen, elixir-format
 msgid "Recorded rustc invocations, not per-file compilations or cache hits. Only crates with a reported root, name and kind are included."
-msgstr "기록된 rustc 호출 횟수이며, 파일별 컴파일이나 캐시 히트가 아닙니다. 루트, 이름 및 종류가 보고된 크레이트만 포함됩니다."
+msgstr "파일별 컴파일이나 캐시 히트가 아닌 기록된 rustc 호출입니다. 루트, 이름 및 종류가 보고된 크레이트만 포함됩니다."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:26
 #, elixir-autogen, elixir-format
@@ -3320,7 +3341,7 @@ msgstr "크레이트 검색..."
 #: lib/tuist_web/components/build_timeline.ex:105
 #, elixir-autogen, elixir-format
 msgid "Download trace"
-msgstr "추적 데이터 다운로드"
+msgstr "추적 다운로드"
 
 #: lib/tuist_web/components/build_status_filter.ex:58
 #, elixir-autogen, elixir-format
@@ -3352,244 +3373,491 @@ msgstr "사용됨"
 msgid "Compiled without consulting the cache because it could not be cached."
 msgstr "캐시할 수 없어 캐시를 참조하지 않고 컴파일되었습니다."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1448
+#: lib/tuist_web/live/bazel_invocation_live.ex:1602
+#: lib/tuist_web/live/bazel_remote_action_live.ex:254
 #, elixir-autogen, elixir-format
 msgid "Execution"
 msgstr "실행"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1447
+#: lib/tuist_web/live/bazel_invocation_live.ex:1601
+#: lib/tuist_web/live/bazel_remote_action_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Input fetch"
 msgstr "입력 가져오기"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1449
+#: lib/tuist_web/live/bazel_invocation_live.ex:1603
+#: lib/tuist_web/live/bazel_remote_action_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "Output upload"
 msgstr "출력 업로드"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1446
+#: lib/tuist_web/live/bazel_invocation_live.ex:1600
+#: lib/tuist_web/live/bazel_remote_action_live.ex:252
 #, elixir-autogen, elixir-format
 msgid "Queue"
-msgstr "큐"
+msgstr "대기열"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:439
+#: lib/tuist_web/live/bazel_invocation_live.ex:579
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:8
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Remote execution"
 msgstr "원격 실행"
 
-#: lib/tuist_web/live/remote_execution_live.ex:401
-#, elixir-autogen, elixir-format
-msgid "Execution diagnostics"
-msgstr "실행 진단"
-
-#: lib/tuist_web/live/remote_execution_live.ex:426
-#, elixir-autogen, elixir-format
-msgid "Open build runs"
-msgstr "빌드 실행 열기"
-
-#: lib/tuist_web/live/remote_execution_live.ex:562
-#: lib/tuist_web/live/remote_execution_live.ex:711
+#: lib/tuist_web/live/remote_execution_live.ex:542
+#: lib/tuist_web/live/remote_execution_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Avg. execution"
 msgstr "평균 실행 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:680
+#: lib/tuist_web/live/remote_execution_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "Avg. execution time"
 msgstr "평균 실행 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:676
+#: lib/tuist_web/live/remote_execution_live.ex:660
 #, elixir-autogen, elixir-format
 msgid "Avg. queue time"
 msgstr "평균 대기 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:388
+#: lib/tuist_web/live/remote_execution_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "No remote execution timings in this period"
-msgstr "이 기간에는 원격 실행 시간이 없습니다"
+msgstr "이 기간 동안 원격 실행 시간이 없습니다"
 
-#: lib/tuist_web/live/remote_execution_live.ex:552
-#: lib/tuist_web/live/remote_execution_live.ex:710
-#: lib/tuist_web/live/remote_execution_live.ex:754
+#: lib/tuist_web/live/remote_execution_live.ex:532
+#: lib/tuist_web/live/remote_execution_live.ex:694
+#: lib/tuist_web/live/remote_execution_live.ex:738
 #, elixir-autogen, elixir-format
 msgid "Remote actions"
-msgstr "원격 액션"
+msgstr "원격 작업"
 
-#: lib/tuist_web/live/remote_execution_live.ex:311
+#: lib/tuist_web/live/remote_execution_live.ex:308
 #, elixir-autogen, elixir-format
 msgid "Time actions ran on a remote worker. This is per-action work, not build wall time or billed VM time."
-msgstr "액션이 원격 워커에서 실행된 시간입니다. 이는 액션별 작업 시간이며, 빌드 경과 시간이나 청구 대상 VM 시간이 아닙니다."
+msgstr "원격 작업자에서 작업이 실행된 시간입니다. 이는 작업별 작업 시간이며, 빌드 벽시계 시간이나 청구 대상 VM 시간이 아닙니다."
 
-#: lib/tuist_web/live/remote_execution_live.ex:287
+#: lib/tuist_web/live/remote_execution_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "Time actions waited for a remote worker. Actions without a recorded queue phase are excluded."
-msgstr "액션이 원격 워커를 기다린 시간입니다. 대기 단계가 기록되지 않은 액션은 제외됩니다."
+msgstr "원격 작업자를 기다린 시간입니다. 대기 단계가 기록되지 않은 작업은 제외됩니다."
 
-#: lib/tuist_web/live/remote_execution_live.ex:679
+#: lib/tuist_web/live/remote_execution_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "p50 execution time"
 msgstr "p50 실행 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:675
+#: lib/tuist_web/live/remote_execution_live.ex:659
 #, elixir-autogen, elixir-format
 msgid "p50 queue time"
 msgstr "p50 대기열 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:678
+#: lib/tuist_web/live/remote_execution_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "p90 execution time"
 msgstr "p90 실행 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:674
+#: lib/tuist_web/live/remote_execution_live.ex:658
 #, elixir-autogen, elixir-format
 msgid "p90 queue time"
 msgstr "p90 대기열 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:677
+#: lib/tuist_web/live/remote_execution_live.ex:661
 #, elixir-autogen, elixir-format
 msgid "p99 execution time"
 msgstr "p99 실행 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:673
+#: lib/tuist_web/live/remote_execution_live.ex:657
 #, elixir-autogen, elixir-format
 msgid "p99 queue time"
 msgstr "p99 대기열 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:436
+#: lib/tuist_web/live/remote_execution_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "Invocations"
-msgstr "호출 횟수"
+msgstr "실행 횟수"
 
-#: lib/tuist_web/live/remote_execution_live.ex:481
-#, elixir-autogen, elixir-format
-msgid "Invocations could not be loaded."
-msgstr "호출 횟수를 불러올 수 없습니다."
-
-#: lib/tuist_web/live/remote_execution_live.ex:609
+#: lib/tuist_web/live/remote_execution_live.ex:588
 #, elixir-autogen, elixir-format
 msgid "No invocations match your search"
-msgstr "검색 조건과 일치하는 호출이 없습니다"
+msgstr "검색 조건과 일치하는 실행이 없습니다"
 
-#: lib/tuist_web/live/remote_execution_live.ex:605
+#: lib/tuist_web/live/remote_execution_live.ex:584
 #, elixir-autogen, elixir-format
 msgid "No invocations with remote execution timings in this period"
 msgstr "이 기간에는 원격 실행 시간이 기록된 호출이 없습니다"
 
-#: lib/tuist_web/live/remote_execution_live.ex:448
+#: lib/tuist_web/live/remote_execution_live.ex:425
 #, elixir-autogen, elixir-format
 msgid "Search invocations..."
 msgstr "호출 검색..."
 
-#: lib/tuist_web/live/remote_execution_live.ex:712
+#: lib/tuist_web/live/remote_execution_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "p50 execution"
 msgstr "p50 실행"
 
-#: lib/tuist_web/live/remote_execution_live.ex:713
+#: lib/tuist_web/live/remote_execution_live.ex:697
 #, elixir-autogen, elixir-format
 msgid "p90 execution"
 msgstr "p90 실행"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:560
+#: lib/tuist_web/live/bazel_invocation_live.ex:701
 #, elixir-autogen, elixir-format
 msgid "A profile with unambiguous action and server phase intervals is required. Older or incomplete profiles may not contain these timings. Upload a new profile to see them."
-msgstr "작업 및 서버 단계 간격이 명확하게 구분된 프로파일이 필요합니다. 이전 버전이거나 불완전한 프로파일에는 이러한 시간이 포함되지 않을 수 있습니다. 새로운 프로파일을 업로드하여 확인하세요."
+msgstr "명확한 액션 및 서버 페이즈 구간이 포함된 프로파일이 필요합니다. 이전 또는 불완전한 프로파일에는 이러한 시간이 포함되지 않을 수 있습니다. 새 프로파일을 업로드하여 확인하세요."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:558
+#: lib/tuist_web/live/bazel_invocation_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "No remote action timings"
-msgstr "원격 작업 시간 없음"
+msgstr "원격 액션 시간 없음"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:511
+#: lib/tuist_web/live/bazel_invocation_live.ex:652
 #, elixir-autogen, elixir-format
 msgid "Phases"
-msgstr "단계"
+msgstr "페이즈"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:505
-#: lib/tuist_web/live/bazel_invocation_live.ex:1441
+#: lib/tuist_web/live/bazel_invocation_live.ex:646
+#: lib/tuist_web/live/bazel_invocation_live.ex:1595
 #, elixir-autogen, elixir-format
 msgid "Started at"
 msgstr "시작 시간"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:365
-#: lib/tuist_web/live/remote_execution_live.ex:803
+#: lib/tuist_web/live/bazel_invocation_live.ex:289
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "%{vcpus} vCPU · %{memory} GB"
 msgstr "%{vcpus} vCPU · %{memory} GB"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:363
+#: lib/tuist_web/live/bazel_invocation_live.ex:495
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:58
 #, elixir-autogen, elixir-format
 msgid "Machine"
 msgstr "머신"
 
-#: lib/tuist_web/live/remote_execution_live.ex:358
+#: lib/tuist_web/live/remote_execution_live.ex:362
 #, elixir-autogen, elixir-format
 msgid "No remote executions in this period"
-msgstr "이 기간 동안 원격 실행이 없습니다"
+msgstr "이 기간 동안 원격 실행 없음"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:352
+#: lib/tuist_web/live/bazel_invocation_live.ex:240
+#: lib/tuist_web/live/bazel_remote_action_live.ex:239
 #, elixir-autogen, elixir-format
 msgid "Queued"
 msgstr "대기 중"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:261
-#: lib/tuist_web/live/bazel_invocation_live.ex:351
-#: lib/tuist_web/live/remote_execution_live.ex:518
+#: lib/tuist_web/live/bazel_invocation_live.ex:239
+#: lib/tuist_web/live/bazel_invocation_live.ex:389
+#: lib/tuist_web/live/bazel_remote_action_live.ex:241
+#: lib/tuist_web/live/remote_execution_live.ex:498
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr "실행 중"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:371
-#, elixir-autogen, elixir-format
-msgid "Time in status"
-msgstr "상태별 소요 시간"
-
-#: lib/tuist_web/live/remote_execution_live.ex:419
-#, elixir-autogen, elixir-format
-msgid "Once run telemetry does not yet distinguish remote actions from local ones, so queue and execution times per action and the invocations that ran them are not shown."
-msgstr "런 텔레메트리는 아직 원격 액션과 로컬 액션을 구분하지 않으므로, 액션별 대기 및 실행 시간과 이를 실행한 호출은 표시되지 않습니다."
-
-#: lib/tuist_web/live/remote_execution_live.ex:407
-#, elixir-autogen, elixir-format
-msgid "Per-action remote timings are not available for Once yet"
-msgstr "Per-action 원격 타이밍은 Once에서 아직 사용할 수 없습니다"
-
-#: lib/tuist_web/live/remote_execution_live.ex:261
+#: lib/tuist_web/live/remote_execution_live.ex:259
+#: lib/tuist_web/live/remote_execution_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "Total execution time"
 msgstr "총 실행 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:800
+#: lib/tuist_web/live/remote_execution_live.ex:813
 #, elixir-autogen, elixir-format
 msgid "%{running} running · %{queued} queued"
 msgstr "%{running}개 실행 중 · %{queued}개 대기 중"
 
-#: lib/tuist_web/live/remote_execution_live.ex:793
+#: lib/tuist_web/live/remote_execution_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Invocation %{id}"
 msgstr "호출 %{id}"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:277
+#: lib/tuist_web/live/bazel_invocation_live.ex:405
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Running for"
-msgstr "실행 시간"
+msgstr "실행 중"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:335
+#: lib/tuist_web/live/bazel_invocation_live.ex:462
 #, elixir-autogen, elixir-format
 msgid "No executions are running or queued"
 msgstr "실행 중이거나 대기 중인 실행이 없습니다"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:334
+#: lib/tuist_web/live/bazel_invocation_live.ex:461
+#: lib/tuist_web/live/bazel_invocation_live.ex:479
 #, elixir-autogen, elixir-format
 msgid "Running executions are unavailable"
 msgstr "실행 중인 실행을 사용할 수 없습니다"
 
-#: lib/tuist_web/live/remote_execution_live.ex:244
+#: lib/tuist_web/live/remote_execution_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Remote actions that ran in a VM, as the execution node recorded them. Results served from the cache are not executions."
 msgstr "실행 노드가 기록한 대로 VM에서 실행된 원격 작업입니다. 캐시에서 제공된 결과는 실행으로 간주되지 않습니다."
 
-#: lib/tuist_web/live/remote_execution_live.ex:264
+#: lib/tuist_web/live/remote_execution_live.ex:262
 #, elixir-autogen, elixir-format
 msgid "Time the executor ran in each action's VM, from its start to its exit, summed over executions. It includes fetching inputs and uploading outputs, but not queueing or preparing the VM. The Usage page bills this time per machine shape."
-msgstr "각 작업의 가상 머신에서 실행자가 시작부터 종료까지 실행된 시간을 모든 실행에 대해 합산한 값입니다. 입력 가져오기와 출력 업로드는 포함되지만, 대기열 처리나 가상 머신 준비는 제외됩니다. 사용량 페이지에서는 이 시간을 머신 사양별로 청구합니다."
+msgstr "각 작업의 VM에서 실행자가 시작부터 종료까지 실행한 시간을 모든 실행에 대해 합산한 값입니다. 입력 가져오기와 출력 업로드는 포함되지만, 대기 시간이나 VM 준비 시간은 제외됩니다. 사용량 페이지에서는 이 시간을 머신 유형별로 청구합니다."
+
+#: lib/tuist_web/live/remote_execution_live.ex:301
+#: lib/tuist_web/live/remote_execution_live.ex:331
+#, elixir-autogen, elixir-format
+msgid "Couldn't load"
+msgstr "로드할 수 없습니다"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:300
+#, elixir-autogen, elixir-format
+msgid "%{message} at %{location}"
+msgstr "%{location}에서 %{message}"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:189
+#, elixir-autogen, elixir-format
+msgid "%{size} GB"
+msgstr "%{size} GB"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:34
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:139
+#, elixir-autogen, elixir-format
+msgid "Action Details"
+msgstr "작업 세부 정보"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:66
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:204
+#, elixir-autogen, elixir-format
+msgid "Action digest"
+msgstr "작업 요약"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:267
+#: lib/tuist_web/live/bazel_remote_action_live.ex:233
+#, elixir-autogen, elixir-format
+msgid "Cached"
+msgstr "캐시됨"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:194
+#, elixir-autogen, elixir-format
+msgid "Client"
+msgstr "클라이언트"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:266
+#: lib/tuist_web/live/bazel_remote_action_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "Error"
+msgstr "오류"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Execution path"
+msgstr "실행 경로"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:155
+#, elixir-autogen, elixir-format
+msgid "Exit code"
+msgstr "종료 코드"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:228
+#, elixir-autogen, elixir-format
+msgid "Failed compiling %{path}"
+msgstr "%{path} 컴파일 실패"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:248
+#, elixir-autogen, elixir-format
+msgid "Leased worker"
+msgstr "리스드 워커"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:386
+#, elixir-autogen, elixir-format
+msgid "Load earlier lines"
+msgstr "이전 줄 로드"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:131
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:376
+#, elixir-autogen, elixir-format
+msgid "Logs"
+msgstr "로그"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:311
+#, elixir-autogen, elixir-format
+msgid "No error output was recorded."
+msgstr "오류 출력이 기록되지 않았습니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:404
+#, elixir-autogen, elixir-format
+msgid "No output was recorded."
+msgstr "출력이 기록되지 않았습니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:304
+#, elixir-autogen, elixir-format
+msgid "Outputs"
+msgstr "출력"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:361
+#, elixir-autogen, elixir-format
+msgid "Platform"
+msgstr "플랫폼"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:162
+#, elixir-autogen, elixir-format
+msgid "Queued at"
+msgstr "대기 시작 시간"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:44
+#: lib/tuist_web/live/bazel_remote_action_live.ex:78
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:25
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:116
+#, elixir-autogen, elixir-format
+msgid "Remote action"
+msgstr "원격 작업"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:81
+#, elixir-autogen, elixir-format
+msgid "Remote action not found."
+msgstr "원격 작업을 찾을 수 없습니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:184
+#, elixir-autogen, elixir-format
+msgid "Sandbox"
+msgstr "샌드박스"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:249
+#, elixir-autogen, elixir-format
+msgid "Scheduled"
+msgstr "예약됨"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:186
+#, elixir-autogen, elixir-format
+msgid "Standard error"
+msgstr "표준 오류"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:185
+#, elixir-autogen, elixir-format
+msgid "Standard output"
+msgstr "표준 출력"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:199
+#, elixir-autogen, elixir-format
+msgid "Status message"
+msgstr "상태 메시지"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:368
+#, elixir-autogen, elixir-format
+msgid "The action requested no platform properties."
+msgstr "요청된 작업에 플랫폼 속성이 없습니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:357
+#, elixir-autogen, elixir-format
+msgid "The action set no environment variables."
+msgstr "작업에서 환경 변수를 설정하지 않았습니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:252
+#, elixir-autogen, elixir-format
+msgid "The command exceeded the recorded size and is incomplete."
+msgstr "명령어가 기록된 크기를 초과하여 불완전합니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:307
+#, elixir-autogen, elixir-format
+msgid "The command exited with code %{code}"
+msgstr "명령어가 코드 %{code}로 종료되었습니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:292
+#, elixir-autogen, elixir-format
+msgid "The command was not recorded."
+msgstr "명령어가 기록되지 않았습니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:304
+#, elixir-autogen, elixir-format
+msgid "The execution failed"
+msgstr "실행이 실패했습니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:191
+#, elixir-autogen, elixir-format
+msgid "Timeout"
+msgstr "시간 초과"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:179
+#, elixir-autogen, elixir-format
+msgid "Worker"
+msgstr "작업자"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:298
+#, elixir-autogen, elixir-format
+msgid "Working directory"
+msgstr "작업 디렉터리"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:193
+#, elixir-autogen, elixir-format
+msgid "%{stream}: %{size} skipped. Output over 16 MiB keeps its first 16 KiB and its last 16 MiB."
+msgstr "%{stream}: %{size} 건너뜀. 16 MiB를 초과하는 출력은 처음 16 KiB와 마지막 16 MiB만 유지됩니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:201
+#, elixir-autogen, elixir-format
+msgid "%{stream}: the remaining %{size} is not available. It has not been stored yet, could not be stored, or has expired."
+msgstr "%{stream}: 나머지 %{size}는 사용할 수 없습니다. 아직 저장되지 않았거나, 저장할 수 없었거나, 만료되었습니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:288
+#, elixir-autogen, elixir-format
+msgid "Show full command"
+msgstr "전체 명령어 표시"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:289
+#, elixir-autogen, elixir-format
+msgid "Show less"
+msgstr "간략히 표시"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:271
+#, elixir-autogen, elixir-format
+msgid "Copy command"
+msgstr "명령어 복사"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:339
+#, elixir-autogen, elixir-format
+msgid "Show all %{count} outputs"
+msgstr "모든 %{count}개 출력 표시"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:343
+#, elixir-autogen, elixir-format
+msgid "Show fewer"
+msgstr "간략히 표시"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:308
+#, elixir-autogen, elixir-format
+msgid "Showing %{shown} of %{count} outputs; the rest were not recorded."
+msgstr "%{count}개 중 %{shown}개 출력 표시; 나머지는 기록되지 않았습니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:425
+#, elixir-autogen, elixir-format
+msgid "Empty"
+msgstr "비어 있음"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:284
+#, elixir-autogen, elixir-format
+msgid "%{memory} GB"
+msgstr "%{memory} GB"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:250
+#: lib/tuist_web/live/bazel_remote_action_live.ex:240
+#, elixir-autogen, elixir-format
+msgid "Finishing"
+msgstr "완료 중"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:516
+#, elixir-autogen, elixir-format
+msgid "Showing the latest %{shown} of %{count} finished executions. The invocation's Remote execution tab lists all of them once it finishes."
+msgstr "%{count}개의 완료된 실행 중 최신 %{shown}개를 표시합니다. 호출이 완료되면 원격 실행 탭에 모든 항목이 나열됩니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "The command, output and timings appear here when the action finishes."
+msgstr "작업이 완료되면 명령, 출력 및 시간이 여기에 표시됩니다."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "Waiting for"
+msgstr "대기 중"
+
+#: lib/tuist_web/live/remote_execution_live.ex:411
+#, elixir-autogen, elixir-format
+msgid "Runs"
+msgstr "실행"
+
+#: lib/tuist_web/live/remote_execution_live.ex:796
+#, elixir-autogen, elixir-format
+msgid "Run %{id}"
+msgstr "실행 %{id}"

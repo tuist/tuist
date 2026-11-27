@@ -7,11 +7,11 @@
 ---
 # Proyecto de Xcode generado {#generated-xcode-project-code-coverage}
 
-La cobertura de código te indica qué líneas de tu código han ejecutado tus tests. Tuist sube la cobertura por línea de cada ejecución de `tuist test` y consolida las ejecuciones de un commit en una única cifra, para el proyecto, cada target y cada archivo. La página **Cobertura de código** del dashboard la muestra por commit y como tendencia para cada rama.
+La cobertura de código te indica qué líneas de tu código ejecutaron tus tests. Tuist sube la cobertura por línea de cada ejecución de `tuist test` y consolida las ejecuciones de un commit en una única cifra, para el proyecto, cada target y cada archivo. La página **Cobertura de código** del panel la muestra por commit y como tendencia para cada rama.
 
 <!-- @snippet: ./_xcode-requirements -->
 
-La cifra se mantiene precisa cuando Tuist omite trabajo. Tus targets procedentes de la <.localized_link href="/guides/features/cache/module-cache">caché binaria</.localized_link> se compilan con contadores de cobertura, por lo que su código se mide igual que el código compilado desde fuente. Y cuando los <.localized_link href="/guides/features/selective-testing/generated-xcode-project">tests selectivos</.localized_link> omiten un target de test, el target conserva la cobertura que tenía en una ejecución anterior, gracias a la [cobertura a nivel de target](#target-level-coverage) que Tuist registra en cada ejecución.
+La cifra se mantiene precisa cuando Tuist omite trabajo. Tus targets procedentes de la <.localized_link href="/guides/features/cache/module-cache">caché binaria</.localized_link> se compilan con contadores de cobertura, por lo que su código se mide igual que el código compilado desde el origen. Y cuando los <.localized_link href="/guides/features/selective-testing/generated-xcode-project">tests selectivos</.localized_link> omiten un target de test, el target conserva la cobertura que tenía en una ejecución anterior, gracias a la [cobertura a nivel de target](#target-level-coverage) que Tuist registra en cada ejecución.
 
 ## Configuración {#setup}
 
@@ -34,13 +34,13 @@ let tuist = Tuist(
 
 Con la opción de generación activada:
 
-- La acción de test de cada esquema que genera Tuist recopila cobertura, al igual que la acción de test de cada esquema que definas y deje `coverage` sin establecer. Un esquema con `.options(coverage: false)` o `.options(coverage: true)` mantiene su valor. Los planes de test deciden la cobertura por sí mismos: para los planes de test que genera Tuist, pasa `coverage: true` a `.testPlans(_:coverage:)`.
+- La acción de test de cada esquema que genera Tuist recopila cobertura, al igual que la acción de test de cada esquema que definas y deje `coverage` sin configurar. Un esquema con `.options(coverage: false)` o `.options(coverage: true)` mantiene su valor. Los planes de test deciden la cobertura por sí mismos: para los planes de test que genera Tuist, pasa `coverage: true` a `.testPlans(_:coverage:)`.
 - Los targets propios de tu proyecto se leen y se precargan en la caché binaria con contadores de cobertura en las configuraciones Debug. Consulta [Cómo funciona](#instrumented-binaries).
 
 Las variables de entorno `TUIST_COVERAGE_ENABLED` y `TUIST_COVERAGE_UPLOAD` (`1` o `0`) tienen prioridad sobre `enabled` y `upload`. Configúralas para todo un entorno, como un flujo de CI, en lugar de para un único comando, de modo que los comandos que precargan la caché y los que la leen coincidan.
 
 > [!IMPORTANT] KEEP THE VALUE THE SAME EVERYWHERE
-> La opción de generación cambia las claves de caché de los targets de tu proyecto y los hashes de los tests selectivos de sus targets de test. Usa el mismo valor en todas las máquinas que compartan la caché y no lo derives del entorno (por ejemplo, de `Environment.isCI`). Una ejecución con la cobertura desactivada no reutiliza los binarios ni los resultados de los tests selectivos de las ejecuciones con la cobertura activada.
+> La opción de generación cambia las claves de caché de los targets de tu proyecto y los hashes de tests selectivos de sus targets de test. Usa el mismo valor en todas las máquinas que compartan la caché y no lo derives del entorno (por ejemplo, de `Environment.isCI`). Una ejecución con la cobertura desactivada no reutiliza los binarios ni los resultados de tests selectivos de las ejecuciones con la cobertura activada.
 
 ### Excluir esquemas {#leave-schemes-out}
 
@@ -56,7 +56,7 @@ Algunas suites de test no deben formar parte de tu cobertura. Los tests de acept
 )
 ```
 
-El esquema mantiene la cobertura desactivada independientemente de lo que indiquen la opción `Tuist.swift` o `TUIST_COVERAGE_ENABLED`, y sus ejecuciones no cuentan para la cobertura de un commit. La cobertura se recopila por esquema, así que, para excluir un target de test, muévelo a un esquema propio.
+El esquema mantiene la cobertura desactivada independientemente de lo que indiquen la opción `Tuist.swift` o `TUIST_COVERAGE_ENABLED`, y sus ejecuciones no cuentan para la cobertura de un commit. La cobertura se recopila por esquema, así que para excluir un target de test, muévelo a un esquema propio.
 
 ### Ejecutar tus tests {#run-your-tests}
 
@@ -70,7 +70,7 @@ Tuist sube la cobertura que recopiló la ejecución junto con sus resultados de 
 
 ### Completar cada commit en CI {#complete-each-commit}
 
-La cobertura de un commit suele proceder de varios jobs: uno por esquema, por fragmento o por plataforma. Tuist no sabe cuándo ha informado el último de ellos, así que debes indicárselo. Cuando haya terminado cada job de test de un commit, ejecuta esto en un job que dependa de todos ellos:
+La cobertura de un commit suele provenir de varios jobs: uno por esquema, por fragmento o por plataforma. Tuist no sabe cuándo ha informado el último de ellos, así que debes indicárselo. Cuando haya terminado cada job de test de un commit, ejecuta esto en un job que dependa de todos ellos:
 
 ```sh
 tuist coverage complete
@@ -87,7 +87,7 @@ El comando lee el commit desde el `HEAD` del checkout, el commit sobre el que se
 > tuist test --no-selective-testing
 > ```
 >
-> Lo ideal es hacerlo en cada merge. Diariamente o semanalmente puede ser suficiente para un repositorio con pocos cambios. La cobertura registrada caduca a los 31 días, así que ejecútala con más frecuencia.
+> Una vez en cada merge es lo ideal. Diaria o semanalmente puede ser suficiente para un repositorio con pocos cambios. La cobertura registrada caduca a los 31 días, así que ejecútala con más frecuencia.
 
 La cobertura arrastrada depende de ejecuciones completas. Estas actualizan la cobertura registrada de cada target antes de que caduque y proporcionan a Tuist un estado reciente de los archivos que una ejecución selectiva no compila. Cuanto más cambie un repositorio entre ejecuciones completas, con más frecuencia una ejecución selectiva encontrará un archivo que ha cambiado desde entonces y la cobertura de su commit será **Incompleta**.
 
@@ -104,8 +104,8 @@ Por eso, en cada ejecución, Tuist también registra qué archivos y líneas eje
 Un target de la caché binaria es un binario precompilado, y una ejecución de test solo puede medir su código si el binario se compiló con contadores de cobertura. Con la cobertura activada, la caché binaria conserva una variante instrumentada de los targets propios de tu proyecto, y cada comando lee y precarga esa variante:
 
 - Las **configuraciones Debug** usan la variante instrumentada: `tuist cache` la precarga, y `tuist generate` y `tuist test` la leen.
-- Las **configuraciones Release** usan siempre la variante normal, por lo que lo que publicas nunca lleva contadores de cobertura.
-- Los **paquetes externos** usan siempre la variante normal. Tuist solo mide el código de tu repositorio.
+- Las **configuraciones Release** siempre usan la variante normal, por lo que lo que publicas nunca lleva contadores de cobertura.
+- Los **paquetes externos** siempre usan la variante normal. Tuist solo mide el código de tu repositorio.
 
 Precarga la caché con la cobertura activada, en el mismo entorno que tus jobs de test, para que `tuist test` encuentre binarios instrumentados. Cuando una ejecución recopila cobertura pero obtiene tus targets de la caché como binarios normales, Tuist te avisa y su código no se mide. La <.localized_link href="/guides/features/cache/module-cache#code-coverage">caché de módulos</.localized_link> documenta las variantes en detalle.
 
@@ -123,7 +123,7 @@ La subida de Tuist resuelve las rutas mapeadas, pero el informe de cobertura de 
 
 ### Tests omitidos {#skipped-tests}
 
-Los tests selectivos omiten un target de test cuando una ejecución anterior exitosa ya lo probó con el mismo hash. El hash cubre las fuentes del target, sus tests y todas sus dependencias, por lo que el mismo hash significa los mismos tests sobre el mismo código. Tuist reutiliza la [cobertura a nivel de target](#target-level-coverage) que esa ejecución anterior registró para el target. Si no registró ninguna, por ejemplo porque la cobertura estaba desactivada entonces o la ejecución tiene más de 31 días, no hay nada que arrastrar y el commit está **Incompleto**.
+Los tests selectivos omiten un target de test cuando una ejecución anterior exitosa ya lo probó con el mismo hash. El hash abarca las fuentes del target, sus tests y todas sus dependencias, por lo que el mismo hash significa los mismos tests sobre el mismo código. Tuist reutiliza la [cobertura a nivel de target](#target-level-coverage) que esa ejecución anterior registró para el target. Si no registró ninguna, por ejemplo porque la cobertura estaba desactivada entonces o la ejecución tiene más de 31 días, no hay nada que arrastrar y el commit está **Incompleto**.
 
 Una ejecución selectiva tampoco compila todos los archivos. Para los archivos que no compiló, Tuist toma las líneas de la ejecución completa anterior más cercana, siempre que los archivos no hayan cambiado desde entonces. Por eso importan las [ejecuciones completas](#full-runs) en tu rama por defecto.
 
@@ -136,17 +136,17 @@ Cada commit en el dashboard tiene un estado:
 | Estado | Significado |
 | --- | --- |
 | En progreso | Las ejecuciones han reportado cobertura, pero `tuist coverage complete` aún no se ha ejecutado para el commit. |
-| Completo | Se ejecutaron o se arrastraron todos los tests de los esquemas del commit. |
+| Completo | Se ejecutaron o se arrastraron todos los tests de los schemes del commit. |
 | Incompleto | No se pudo determinar parte de la cobertura, por lo que la cifra es un límite inferior. |
 | No medido | Ninguna ejecución reportó cobertura para el commit. |
 
 La tendencia de una rama solo incluye commits completos. Un commit está incompleto cuando, por ejemplo:
 
-- Los tests selectivos omitieron un target que no se pudo arrastrar: la ejecución anterior no registró cobertura para él, un archivo que la ejecución selectiva no compiló cambió desde la última ejecución completa, o el commit cambió archivos que afectan a todos los targets, como `Package.resolved`, `Project.swift` o un `.xcconfig`.
+- Los tests selectivos omitieron un target que no se pudo arrastrar: la ejecución anterior no registró cobertura para él, un archivo que la ejecución selectiva no compiló cambió desde la última ejecución completa, o el commit modificó archivos que afectan a todos los targets, como `Package.resolved`, `Project.swift` o un `.xcconfig`.
 - Una ejecución omitió tests con `--skip-test-targets` o `-skip-testing`, y ninguna otra ejecución en el commit los ejecutó.
 - Una ejecución obtuvo tus targets de la caché binaria como binarios normales.
-- Cada ejecución de un esquema se restringió con `-only-testing`.
-- La cobertura de un esquema provino únicamente de ejecuciones de CI en un checkout con cambios sin confirmar.
+- Todas las ejecuciones de un scheme se restringieron con `-only-testing`.
+- La cobertura de un scheme provino únicamente de ejecuciones de CI en un checkout con cambios sin confirmar.
 
 ## Impacto en el rendimiento {#performance-impact}
 
@@ -154,9 +154,9 @@ Recopilar cobertura añade sobrecarga, principalmente después de que terminan l
 
 ## Limitaciones {#limitations}
 
-### Compilaciones Release de esquemas que recopilan cobertura {#release-builds}
+### Compilaciones Release de schemes que recopilan cobertura {#release-builds}
 
-Cuando la acción de test de un esquema recopila cobertura, Xcode también instrumenta los targets que `xcodebuild build` compila desde fuente para ese esquema, en cualquier configuración, incluida Release. `xcodebuild archive` ignora la configuración, por lo que los archives nunca se instrumentan. Distribuye archives, o compila productos Release desde un esquema con `.options(coverage: false)`.
+Cuando la acción de test de un scheme recopila cobertura, Xcode también instrumenta los targets que `xcodebuild build` compila desde fuente para ese scheme, en cualquier configuración, incluida Release. `xcodebuild archive` ignora la configuración, por lo que los archives nunca se instrumentan. Distribuye archives, o compila productos Release desde un scheme con `.options(coverage: false)`.
 
 ### Otras herramientas de cobertura {#other-coverage-tools}
 
@@ -170,7 +170,7 @@ tuist test --coverage-output-path coverage
 
 Cada ejecución escribe `coverage/<result bundle name>.lcov`. Fusiona los archivos de una ejecución fragmentada con `lcov -a`. La opción necesita la subida de cobertura activada.
 
-El informe de cobertura propio de Xcode, y las herramientas que lo leen, solo incluyen targets que Xcode compiló en esa ejecución, nunca código que provino de la caché binaria. La subida de Tuist mide ambos. Si quieres la cobertura de un target en el informe de Xcode, genera el proyecto con ese target compilado desde fuente: `tuist generate MyTarget` mantiene `MyTarget` como fuente y toma el resto de la caché.
+El informe de cobertura propio de Xcode, y las herramientas que lo leen, solo incluyen los targets que Xcode compiló en esa ejecución, nunca el código que provino de la caché binaria. La subida de Tuist mide ambos. Si quieres la cobertura de un target en el informe de Xcode, genera el proyecto con ese target compilado desde fuente: `tuist generate MyTarget` mantiene `MyTarget` como fuente y toma el resto de la caché.
 
 ## Consultar cobertura {#querying}
 

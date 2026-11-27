@@ -1,27 +1,27 @@
 ---
 {
-  "title": "Xcode 建置分析",
-  "titleTemplate": ":title · 建置分析 · 功能 · 指南 · Tuist",
-  "description": "在 Tuist 儀表板追蹤 Xcode 建置分析數據，監察本地及 CI 建置效能。"
+  "title": "Xcode 構建洞察",
+  "titleTemplate": ":title · 構建洞察 · 功能 · 指南 · Tuist",
+  "description": "在 Tuist 儀表板追蹤 Xcode 構建分析數據，以監察本地及 CI 構建效能。"
 }
 ---
-# Xcode 編譯分析 {#xcode-build-insights}
+# Xcode 建構分析 {#xcode-build-insights}
 
-處理大型專案時，不應重複編譯相同代碼。Tuist Build Insights 讓你追蹤編譯數據，以便在本地和 CI 編譯時間成為瓶頸之前識別趨勢。
+處理大型專案時，唔應該要重複建構相同嘅代碼。Tuist Build Insights 讓你可以追蹤建構數據分析，喺本地同 CI 建構時間成為瓶頸之前識別趨勢。
 
-編譯分析由 `tuist inspect build` 指令驅動，通常會加入到你 scheme 的 post-action 中。
+建構分析由 `tuist inspect build` 指令驅動，通常會加到你 scheme 嘅 post-action 入面。
 
-要開始追蹤本地編譯時間，你可以將 `tuist inspect build` 指令加入到 scheme 的 post-action 中：
+要開始追蹤本地建構時間，你可以透過將 `tuist inspect build` 指令加到你 scheme 嘅 post-action 嚟利用佢：
 
-![檢查編譯的 Post-action](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
-
-> [!NOTE]
-> 將「Provide build settings from」欄位設定為可執行檔或你的主要編譯目標，以擷取編譯配置。
+![檢查建構嘅 Post-action](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
 > [!NOTE]
-> 當編譯失敗時，不會執行 post-scheme action。
+> 將「Provide build settings from」欄位設定為可執行檔或你嘅主要建構目標，以捕捉建構設定。
+
+> [!NOTE]
+> 當建構失敗時，post-scheme action 唔會執行。
 >
-> 在這種情況下，你可以透過在 scheme 的 `.xcscheme` 檔案中，將 `<BuildAction>` 元素的 `runPostActionsOnFailure` 設定為 `YES` 來執行它：
+> 喺呢種情況下，你可以透過將 scheme 嘅 `.xcscheme` 檔案中 `<BuildAction>` 元素上嘅 `runPostActionsOnFailure` 設定為 `YES` 嚟執行佢：
 >
 > ```diff
 > <BuildAction
@@ -30,7 +30,7 @@
 > +  runPostActionsOnFailure="YES">
 > ```
 
-對於 [Mise](https://mise.jdx.dev/)，請在 post-action 環境中啟用 `tuist`：
+對於 [Mise](https://mise.jdx.dev/)，喺 post-action 環境中啟用 `tuist`：
 
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
@@ -41,21 +41,21 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 > [!TIP]
 > **Mise 路徑解析**
 >
-> 你環境中的 `PATH` 不會被 scheme post action 繼承，因此請使用 Mise 的絕對路徑。這取決於你如何安裝 Mise。編譯設定應從目標繼承，以便 `mise` 可以從 `$SRCROOT` 執行。
+> 你環境嘅 `PATH` 唔會被 scheme post action 繼承，所以要用 Mise 嘅絕對路徑。這取決於你點樣安裝 Mise。建構設定應該從目標繼承，令到 `mise` 可以從 `$SRCROOT` 運行。
 
-對於 [Homebrew](https://brew.sh/)，請將 Homebrew 路徑加入到 post-action 環境中：
+對於 [Homebrew](https://brew.sh/)，將 Homebrew 路徑加到 post-action 環境：
 
 ```sh
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 tuist inspect build
 ```
 
-登入後，本地編譯會被追蹤並可在 Tuist 儀表板中查看：
+登入後，本地建構會被追蹤並可從 Tuist 儀表板查看：
 
 > [!TIP]
-> 若要快速存取儀表板，請從 CLI 執行 `tuist project show --web`。
+> 要快速訪問儀表板，請從 CLI 運行 `tuist project show --web`。
 
-![包含編譯分析的儀表板](/images/guides/features/build-insights/builds-dashboard.png)
+![帶有建構分析嘅儀表板](/images/guides/features/build-insights/builds-dashboard.png)
 
 <!-- @snippet: ./_xcode-ci -->
 

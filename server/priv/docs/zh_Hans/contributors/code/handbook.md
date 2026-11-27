@@ -1,7 +1,7 @@
 ---
 {
   "title": "手册",
-  "titleTemplate": ":title · 代码 · 贡献者 · Tuist",
+  "titleTemplate": ":title · Code · Contributors · Tuist",
   "description": "为 Tuist 手册做出贡献。"
 }
 ---

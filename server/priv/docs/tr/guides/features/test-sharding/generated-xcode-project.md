@@ -11,14 +11,14 @@ Oluşturulan projeler için test parçalama, hem derleme hem de test aşamaları
 
 ## Nasıl çalışır {#how-it-works}
 
-Test parçalama iki aşamalı bir iş akışını izler:
+Test parçalama iki aşamalı bir iş akışı izler:
 
-1. **Derleme aşaması:** Tuist, derlenmiş `.xctestrun` dosyasından test modüllerini okur ve sunucuda bir **parça planı** oluşturur. Sunucu, her parçanın yaklaşık olarak aynı sürede tamamlanması için testleri parçalara dağıtmak amacıyla son 30 güne ait geçmiş test zamanlama verilerini kullanır. Derleme aşaması, CI sisteminizin paralel çalıştırıcıları başlatmak için kullandığı bir **parça matrisi** çıktısı verir.
-2. **Test aşaması:** Her sürekli entegrasyon çalıştırıcısı bir **parça indeksi** ve tam **parça planı tanımlayıcısını** alır, ardından o planın test seçimini yürütür.
+1. **Derleme aşaması:** Tuist, oluşturulan `.xctestrun` dosyasından test modüllerini okur ve sunucuda bir **parça planı** oluşturur. Sunucu, her parçanın yaklaşık olarak aynı süreyi alması için testleri parçalara dağıtmak üzere son 30 güne ait geçmiş test zamanlama verilerini kullanır. Derleme aşaması, CI sisteminizin paralel çalıştırıcıları başlatmak için kullandığı bir **parça matrisi** çıktısı verir.
+2. **Test aşaması:** Her sürekli entegrasyon çalıştırıcısı bir **parça dizini** ve tam **parça planı tanımlayıcısını** alır, ardından o planın test seçimini yürütür.
 
-`--shard-granularity suite` kullanıldığında, sunucu mevcut `.xctestrun` içindeki her modül için dalınızda yapılan son CI çalıştırmalarının bildirdiği paketleri kullanır; dal geçmişi olmayan modüller için projenin varsayılan dalına geri döner. Birden fazla çalıştırmayı birleştirmek, en son raporda yer almayan paketlerin korunmasını sağlar. Sunucu, süre tahmini yapmak için son 30 güne ait paket zamanlamalarını kullanır.
+`--shard-granularity suite` kullanıldığında, sunucu mevcut `.xctestrun` içindeki her modül için dalınızda yapılan son CI çalıştırmalarının bildirdiği paketleri kullanır; dal geçmişi olmayan modüller için projenin varsayılan dalına geri döner. Birden fazla çalıştırmayı birleştirmek, parçalı veya seçici bir çalıştırmanın en son raporda dışarıda bıraktığı paketleri korur. Sunucu, süreleri tahmin etmek için son 30 güne ait paket zamanlamalarını kullanır.
 
-Tuist, bilinen bu paketleri istenen parça sayısı arasında dengeler ve son parçayı yakalayıcı olarak kullanır. Örneğin, `--shard-total 5` `0` ile `4` arasındaki parça indekslerini üretir; burada `4` parça indeksi yakalayıcıdır. Normal parçalar, atanan paketleri için `-only-testing` ile çalışır. Son parça `-only-testing` olmadan çalışır ve önceki parçalara atanmış her paket için `-skip-testing` geçirir; böylece yeni eklenen paketleri, yeniden adlandırılan paketleri veya geçmiş envanterde eksik olan paketleri de çalıştırır. Modül granularity'si için yakalayıcı gerekmez çünkü `.xctestrun` dosyası modül listesini sağlar.
+Tuist, bilinen bu paketleri istenen parça sayısı arasında dengeler ve son parçayı yakalayıcı olarak kullanır. Örneğin, `--shard-total 5` `0` ile `4` arasında parça dizinleri üretir ve yakalayıcı olarak `4` parça dizinini kullanır. Normal parçalar, atanmış paketleri için `-only-testing` ile çalışır. Son parça `-only-testing` olmadan çalışır ve önceki parçalara atanmış her paket için `-skip-testing` geçirir; böylece yeni eklenen paketleri, yeniden adlandırılan paketleri veya geçmiş envanterde eksik olan paketleri de çalıştırır. Modül granülerliği, `.xctestrun` dosyası modül listesini sağladığı için bir yakalayıcıya ihtiyaç duymaz.
 
 ## Derleme aşaması {#build-phase}
 
@@ -31,7 +31,7 @@ tuist test --build-only --shard-total 5
 `--build-only` bayrağı, Tuist'e testleri çalıştırmadan derlemesini söyler. Parça planlama bayraklarını (`--shard-min`/`--shard-max`/`--shard-total`) `--build-only` olmadan geçerseniz Tuist hata verir.
 
 Bu komut:
-1. Manifest'lerinizden Xcode projesini oluşturur
+1. Manifest dosyalarınızdan Xcode projesini oluşturur
 2. Testlerinizi derler
 3. Geçmiş zamanlama verilerini kullanarak Tuist sunucusunda bir parça planı oluşturur
 4. `.xctestproducts` paketini yükler veya parça çalıştırıcılarının kullanımı için bir parça arşivi yazar
@@ -48,7 +48,7 @@ Her parça çalıştırıcısı kendisine atanan testleri yürütür:
 tuist test --without-building
 ```
 
-`--without-building` bayrağı, Tuist'e yeniden derlemek yerine önceden derlenmiş ürünleri kullanarak testleri çalıştırmasını söyler. `TUIST_SHARD_INDEX` / `--shard-index` ayarlandığında `--without-building` olmadan Tuist hata verir.
+`--without-building` bayrağı, Tuist'e testleri yeniden derlemek yerine önceden derlenmiş ürünleri kullanarak çalıştırmasını söyler. `TUIST_SHARD_INDEX` / `--shard-index` ayarlandığında `--without-building` belirtilmezse Tuist hata verir.
 
 <!-- @snippet: ./_xcode-test-options -->
 
@@ -63,7 +63,7 @@ tuist test --without-building
 
 ### GitHub Actions {#github-actions}
 
-Parçaları paralel çalıştırmak için bir matris stratejisi kullanın:
+Parçaları paralel olarak çalıştırmak için bir matris stratejisi kullanın:
 
 ```yaml
 name: Tests
@@ -102,7 +102,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist, bir [alt pipeline](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines) olarak tetikleyebileceğiniz bir `.tuist-shard-child-pipeline.yml` oluşturur. Oluşturulan parça işlerinin genişleteceği bir `.tuist-shard` şablon işi tanımlayın:
+Tuist, bir [alt boru hattı](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines) olarak tetikleyeceğiniz bir `.tuist-shard-child-pipeline.yml` oluşturur. Oluşturulan parça işlerinin genişlettiği bir `.tuist-shard` şablon işi tanımlayın:
 
 ```yaml
 # .gitlab-ci.yml
@@ -141,7 +141,7 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist, [süreklilik orb'ı](https://circleci.com/developer/orbs/orb/circleci/continuation) için parametreler içeren bir `.tuist-shard-continuation.json` oluşturur. `shard-plan-id` parametresinin devam eden yapılandırmanızda bildirilmesi gerekir:
+Tuist, [süreklilik orb'ı](https://circleci.com/developer/orbs/orb/circleci/continuation) için parametreler içeren bir `.tuist-shard-continuation.json` oluşturur. `shard-plan-id` parametresi devam eden yapılandırmanızda bildirilmelidir:
 
 ```yaml
 # .circleci/config.yml
@@ -215,7 +215,7 @@ workflows:
 
 ### Buildkite {#buildkite}
 
-Tuist, parça başına bir adım içeren bir `.tuist-shard-pipeline.yml` oluşturur. Bunu `buildkite-agent pipeline upload` ile yükleyin:
+Tuist, her parça için bir adım içeren bir `.tuist-shard-pipeline.yml` oluşturur. Bunu `buildkite-agent pipeline upload` ile yükleyin:
 
 ```yaml
 # pipeline.yml
@@ -240,7 +240,7 @@ tuist test --without-building
 
 ### Codemagic {#codemagic}
 
-Codemagic dinamik matris işlerini desteklemez, bu nedenle parça başına ayrı bir iş akışı tanımlayın. Tuist, derleme iş akışı içinde kullanım için `TUIST_SHARD_MATRIX` ve `TUIST_SHARD_COUNT` değerlerini `CM_ENV` dosyasına yazar. Codemagic'in `CM_ENV` iş akışı kapsamındadır, bu nedenle tam parça planı tanımlayıcısı iş akışı sınırlarını aşmaz; test iş akışları referans tabanlı parça aramasına geri döner:
+Codemagic dinamik matris işlerini desteklemez, bu nedenle parça başına ayrı bir iş akışı tanımlayın. Tuist, derleme iş akışı içinde kullanılmak üzere `TUIST_SHARD_MATRIX` ve `TUIST_SHARD_COUNT` değerlerini `CM_ENV` dosyasına yazar. Codemagic'in `CM_ENV` iş akışı kapsamındadır, bu nedenle tam parça planı tanımlayıcısı iş akışı sınırlarını aşmaz; test iş akışları referans tabanlı parça aramasına geri döner:
 
 ```yaml
 # codemagic.yaml
@@ -304,7 +304,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-Bitrise'te Tuist, `BITRISE_DEPLOY_DIR` konumuna `.tuist-shard-matrix.json` (`shard_plan_id` dahil) yazar ve bunu alt pipeline aşamaları için bir derleme yapıtı olarak kullanılabilir hale getirir. Her test iş akışı, test komutunun ortamına ulaşması için indirilen yapıttan `envman` kullanarak plan kimliğini çıkarır:
+Bitrise'te Tuist, `BITRISE_DEPLOY_DIR` konumuna (`shard_plan_id` dahil) `.tuist-shard-matrix.json` yazar ve bunu alt boru hattı aşamaları için bir derleme yapıtı olarak kullanılabilir hale getirir. Her test iş akışı, test komutunun ortamına ulaşması için indirilen yapıttan `envman` kullanarak plan kimliğini çıkarır:
 
 ```yaml
 # bitrise.yml
@@ -373,17 +373,17 @@ workflows:
 ```
 
 > [!TIP]
-> Bitrise çalışma zamanında dinamik paralel iş oluşturmayı desteklemez. Pipeline aşamalarınızda sabit sayıda parça iş akışı tanımlayın — bir aşama içindeki iş akışları otomatik olarak paralel çalışır.
+> Bitrise, çalışma zamanında dinamik paralel iş oluşturmayı desteklemez. Boru hattı aşamalarınızda sabit sayıda parça iş akışı tanımlayın — bir aşama içindeki iş akışları otomatik olarak paralel çalışır.
 
 ## Paylaşılan birimler {#shared-volumes}
 
-Varsayılan olarak, derleme aşaması `.xctestproducts` paketini uzak depolamaya yükler ve her parça çalıştırıcısı onu indirir. CI sağlayıcınız **paylaşılan birimleri** (işler arasında monte edilen kalıcı depolama) destekliyorsa, test ürünlerini paylaşılan bir dosya sistemi üzerinden geçirerek bu yükleme/indirme işlemini tamamen atlayabilirsiniz.
+Varsayılan olarak, derleme aşaması `.xctestproducts` paketini uzak depolamaya yükler ve her parça çalıştırıcısı bunu indirir. CI sağlayıcınız **paylaşılan birimleri** (işler arasında monte edilen kalıcı depolama) destekliyorsa, test ürünlerini paylaşılan bir dosya sistemi üzerinden geçirerek bu yükleme/indirme işlemini tamamen atlayabilirsiniz.
 
 Bu, özellikle büyük test paketleri için parça başlatma süresini önemli ölçüde azaltabilir.
 
 Paylaşılan birimleri kullanmak için:
 
-1. **Derleme aşamasında**, paylaşılan birimi işaret eden `-testProductsPath` (`--` sonrası) parametresini geçin ve uzak yüklemeyi atlamak için `--shard-skip-upload` ekleyin:
+1. **Derleme aşamasında**, paylaşılan birimi işaret eden `-testProductsPath` parametresini (`--` sonrasında) iletin ve uzak yüklemeyi atlamak için `--shard-skip-upload` ekleyin:
 
 ```sh
 tuist test \
@@ -394,7 +394,7 @@ tuist test \
   -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
 ```
 
-2. **Test aşamasında**, Tuist'in test ürünlerini indirmek yerine yerel olarak okuması için aynı `-testProductsPath` parametresini geçin:
+2. **Test aşamasında**, Tuist'in test ürünlerini indirmek yerine yerel olarak okuması için aynı `-testProductsPath` parametresini iletin:
 
 ```sh
 tuist test --without-building -- -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
@@ -406,9 +406,9 @@ tuist test --without-building -- -testProductsPath /path/to/shared/volume/$UNIQU
 
 ## Kendi yönettiğiniz yapıtlar {#self-managed-artifacts}
 
-CI sağlayıcınızda zaten yapıt yükleme ve indirme adımları varsa, aracıyı CI'nızın halletmesine bırakırken arşivleme ve çıkarma işlemlerini Tuist'e bırakabilirsiniz.
+CI sağlayıcınızda zaten yapıt yükleme ve indirme adımları varsa, arka plan işlemini CI'nızın halletmesine izin verirken arşivleme ve çıkarma işlemlerini Tuist'e bırakabilirsiniz.
 
-1. **Derleme aşamasında**, Tuist'in test ürünlerini yüklemek yerine optimize edilmiş parça arşivini yerel olarak yazması için `--shard-archive-path` parametresini geçin:
+1. **Derleme aşamasında**, Tuist'in test ürünlerini yüklemek yerine optimize edilmiş parça arşivini yerel olarak yazması için `--shard-archive-path` parametresini iletin:
 
 ```sh
 tuist test \
@@ -417,9 +417,9 @@ tuist test \
   --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
 ```
 
-2. Bu arşivi CI'nızın yerel yapıt adımı kullanarak yükleyin.
+2. Bu arşivi CI sisteminizin yerel yapıt adımı kullanarak yükleyin.
 
-3. Her **test aşaması** işinde arşivi indirin ve aynı yolu tekrar Tuist'e geçirin:
+3. Her **test aşaması** işinde arşivi indirin ve aynı yolu tekrar Tuist'e iletin:
 
 ```sh
 tuist test \
@@ -427,16 +427,16 @@ tuist test \
   --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
 ```
 
-`--shard-archive-path` ayarlandığında, Tuist uzak test ürünü aktarımını atlar ve bunun yerine yerel arşivi kullanır. Ayrıca `--shard-skip-upload` geçirirseniz, arşiv yolu öncelik kazanır.
+`--shard-archive-path` ayarlandığında, Tuist uzak test ürünü aktarımını atlar ve bunun yerine yerel arşivi kullanır. Ayrıca `--shard-skip-upload` parametresini de iletirseniz, arşiv yolu öncelik kazanır.
 
-Örneğin seçici test her test hedefini atladığı için çalıştırılacak test olmadığında, derleme aşaması boş bir parça matrisi çıktılar ve hiçbir arşiv yazmaz. Yükleme adımını yalnızca matriste parçalar olduğunda çalıştırın.
+Örneğin seçici test her test hedefini atladığı için çalıştırılacak test yoksa, derleme aşaması boş bir parça matrisi çıktılar ve hiçbir arşiv yazmaz. Yükleme adımını yalnızca matriste parçalar olduğunda çalıştırın.
 
 > [!IMPORTANT]
-> Eşzamanlı çalıştırmalar arasında çakışmaları önlemek için iş akışı çalıştırması başına benzersiz bir yol kullanın (örneğin CI çalıştırma kimliğini dahil edin). Çalıştırıcıda eski verilerin birikmesini önlemek için parçalama tamamlandıktan sonra parça arşivini de temizlemelisiniz.
+> Eşzamanlı çalıştırmalar arasında çakışmaları önlemek için iş akışı başına benzersiz bir yol kullanın (örneğin CI çalıştırma kimliğini dahil edin). Çalıştırıcıda eski verilerin birikmesini önlemek için parçalama tamamlandıktan sonra parça arşivini de temizlemelisiniz.
 
 ### Namespace {#namespace}
 
-[Namespace](https://namespace.so) çalıştırıcıları GitHub Actions yapıtlarıyla iyi çalışır. Derleme işinin parça arşivini yerel olarak yazması, onu yüklemesi ve `tuist test` çalıştırmadan önce her parça işinde indirmesi için `TUIST_TEST_SHARD_ARCHIVE_PATH` değerini bir kez ayarlayın:
+[Namespace](https://namespace.so) çalıştırıcıları GitHub Actions yapıtlarıyla iyi çalışır. Derleme işinin parça arşivini yerel olarak yazması, yüklemesi ve her parça işinde `tuist test` çalıştırılmadan önce indirmesi için `TUIST_TEST_SHARD_ARCHIVE_PATH` değerini bir kez ayarlayın:
 
 ```yaml
 name: Tests

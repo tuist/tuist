@@ -1,13 +1,13 @@
 ---
 {
   "title": "Android",
-  "titleTemplate": ":title · Bundle insights · ფუნქციები · სახელმძღვანელოები · Tuist",
-  "description": "გააანალიზეთ Android აპლიკაციის ბანდლები (.aab) და ინსტალაციური ფაილები (.apk) Tuist Bundle Insights-ით."
+  "titleTemplate": ":title · ბანდლის ანალიტიკა · ფუნქციები · სახელმძღვანელოები · Tuist",
+  "description": "გააანალიზეთ Android-ის აპლიკაციების ბანდლები (.aab) და ინსტალაციური პაკეტები (.apk) Tuist Bundle Insights-ით."
 }
 ---
 # Android {#bundle-insights-android}
 
-Android ბანდლის ანალიზისთვის მიუთითეთ `tuist inspect bundle` აპლიკაციის ბანდლზე ან ინსტალაციურ ფაილზე:
+გაანალიზეთ Android ბანდლი, მიუთითეთ `tuist inspect bundle` აპის ბანდლზე ან დასაყენებელ ფაილზე:
 
 ::: code-group
 ```bash [Analyze an .aab (recommended)]
@@ -20,7 +20,7 @@ tuist inspect bundle App.apk
 :::
 
 > [!NOTE]
-> **`.apk`-ის ანალიზს სჭირდება `aapt2`**, რომელიც მოყვება Android SDK build tools-თან. დააყენეთ `ANDROID_HOME` ან `ANDROID_SDK_ROOT`, რათა Tuist-მა შეძლოს მისი პოვნა, ან დაამატეთ `aapt2` `PATH`-ზე. `.aab`-ის ანალიზს გარე ხელსაწყოები არ სჭირდება.
+> **`.apk`-ის გასაანალიზებლად საჭიროა `aapt2`**, რომელიც შედის Android SDK build tools-ში. დააყენეთ `ANDROID_HOME` ან `ANDROID_SDK_ROOT`, რათა Tuist-მა იპოვოს ის, ან დაამატეთ `aapt2` `PATH`-ში. `.aab`-ის გასაანალიზებლად გარე ხელსაწყოები არ არის საჭირო.
 
 <!-- @snippet: ./_upload-result -->
 

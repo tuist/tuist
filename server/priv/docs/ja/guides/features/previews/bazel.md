@@ -11,7 +11,7 @@
 
 ## セットアップ
 
-Tuist リポジトリから [`rules_tuist` を追加](https://github.com/tuist/tuist/tree/main/bazel) し、使用するコミットを `MODULE.bazel` にピン留めします:
+[`rules_tuist` from the Tuist repository](https://github.com/tuist/tuist/tree/main/bazel) を `MODULE.bazel` に追加し、使用するコミットを固定します:
 
 ```starlark
 bazel_dep(name = "rules_tuist")
@@ -24,7 +24,7 @@ git_override(
 )
 ```
 
-既存のアプリケーションターゲット、ネイティブ SDK、署名設定はそのまま維持してください。公開ツールは Bazel が提供します。
+既存のアプリケーションターゲット、ネイティブ SDK、署名設定はそのままにしてください。公開ツールは Bazel が提供します。
 
 Bazel から直接サインインします:
 
@@ -32,7 +32,7 @@ Bazel から直接サインインします:
 bazel run @rules_tuist//:login
 ```
 
-これにより、Tuist CLI および Gradle プラグインと認証情報を共有できます。既存のサインイン状態も利用可能です。CI では `TUIST_TOKEN` を使用するか、Tuist の <.localized_link href="/guides/integrations/continuous-integration">OIDC 認証</.localized_link> を使ってログインターゲットを実行してください。BUILD ファイルやルール属性に認証情報を含めないでください。`-- --url https://tuist.example.com` を渡して、セルフホストインスタンスにサインインします。
+これにより、Tuist CLI および Gradle プラグインと認証情報を共有します。既存のサインイン状態も利用できます。CI では `TUIST_TOKEN` を使用するか、Tuist の <.localized_link href="/guides/integrations/continuous-integration">OIDC 認証</.localized_link> でログインターゲットを実行してください。BUILD ファイルやルール属性に認証情報を含めないでください。`-- --url https://tuist.example.com` を渡して、セルフホスト型インスタンスにサインインします。
 
 `BUILD.bazel` で必要なアダプターのみを読み込みます:
 
@@ -72,30 +72,30 @@ bazel run //:preview_macos -- --publish --project acme/app --track review
 bazel run //:preview_cli -- --publish --project acme/app --track review
 ```
 
-アプリケーションおよびシミュレーターのプラットフォームラベルを自身のものに置き換えてください。セルフホストの Tuist オリジンには `--url` を渡し、Git コミットを関連付けるには `--revision` を渡します。
+アプリケーションとシミュレーターのプラットフォームラベルを自身のものに置き換えてください。セルフホスト型の Tuist オリジンには `--url` を渡し、Git コミットを関連付けるには `--revision` を渡します。
 
-成功したビルドを共有するには `--publish --project account/project` を渡します。`--publish` なし、または `--no-publish` の場合、何もアップロードされず、サインインも不要です。通常の `bazel build` は、キャッシュヒット時も含めて決して公開しません。`tuist bazel setup` はキャッシングとインサイトを有効にしますが、公開は行いません。
+正常に完了したビルドを共有するには `--publish --project account/project` を渡します。`--publish` なし、または `--no-publish` の場合、何もアップロードされず、サインインも不要です。通常の `bazel build` は、キャッシュヒット時を含め、決して公開しません。`tuist bazel setup` はキャッシングとインサイトを有効にしますが、公開は行いません。
 
-## 対応する出力
+## サポートされる出力
 
-- **Android:** デバッグビルドを含む、署名済みアプリケーション APK。Android SDK の build-tools およびコマンドラインツールをインストールし、`ANDROID_HOME` または `ANDROID_SDK_ROOT` を設定してください。テスト APK および Android App Bundle はサポートされていません。
-- **Apple:** macOS でビルドおよび検証された、アドホック署名付きのシミュレーターおよび macOS アプリケーション。物理デバイス用ビルド、フレームワーク、エクステンション、テストはサポートされていません。実験的な tree アーカイブではなく、アーカイブ出力を使用してください。
-- **コマンドラインツール:** arm64 または x86_64 向けの macOS または Linux 実行ファイル。ユニバーサル macOS バイナリも含みます。スクリプトには shebang と、受信側のシステム上のインタプリタが必要です。ターゲットでランタイム依存関係を宣言してください。Tuist は不足しているライブラリや言語ランタイムをインストールしません。
+- **Android:** デバッグビルドを含む、署名済みアプリケーション APK。Android SDK の build-tools とコマンドラインツールをインストールし、`ANDROID_HOME` または `ANDROID_SDK_ROOT` を設定してください。テスト APK と Android App Bundle はサポートされていません。
+- **Apple:** macOS でビルドおよび検証された、アドホック署名済みのシミュレーターおよび macOS アプリケーション。物理デバイス向けビルド、フレームワーク、エクステンション、テストはサポートされていません。実験的な tree アーカイブではなく、アーカイブ出力を使用してください。
+- **コマンドラインツール:** arm64 または x86_64 向けの macOS または Linux 実行ファイル。ユニバーサル macOS バイナリも含みます。スクリプトには shebang と、受信側システム上のインタープリターが必要です。ターゲットでランタイム依存関係を宣言してください。Tuist は不足しているライブラリや言語ランタイムをインストールしません。
 
-## キャッシュの再利用、失敗、および保持
+## キャッシュのリプレイ、失敗、および保持
 
-同じ公開を繰り返すと、Bazel がビルドをキャッシュから復元した場合でも、再度アップロードすることなく既存のプレビューが再利用されます。出力、トラック、またはリビジョンを変更すると、新しい公開が作成されます。アップロードに失敗するとコマンドも失敗します。再試行前に公開が完了していたかを確認するため、コマンドを再実行できます。
+同じ公開を繰り返すと、Bazel がビルドをキャッシュから復元する場合でも、既存のプレビューを再アップロードせずに再利用します。出力、トラック、またはリビジョンを変更すると、新しい公開が作成されます。アップロードに失敗するとコマンドは失敗します。再試行する前に、公開が完了していたかどうかを確認するためにもう一度実行できます。
 
-コマンドはプロジェクトのプレビューへのリンクを表示します。処理には時間がかかる場合があります。プレビューはプロジェクトのデフォルトの可視性を使用します。
+コマンドはプロジェクトのプレビューへのリンクを表示します。処理には少し時間がかかる場合があります。プレビューはプロジェクトのデフォルトの可視性を使用します。
 
-ホスト型 Tuist では、アーティファクトの公開は 30 日後に期限切れになります。セルフホストインスタンスでは `TUIST_APP_PREVIEW_RETENTION_DAYS` を使用します。これを未設定のままにすると、このファミリーの有効期限が無効になります。期限切れになった公開レコードは、同じ意図を再実行しても復活できません。
+ホスト型 Tuist では、アーティファクトの公開は 30 日後に期限切れになります。セルフホスト型インスタンスでは `TUIST_APP_PREVIEW_RETENTION_DAYS` を使用します。これを未設定のままにすると、このファミリーの有効期限が無効になります。期限切れになった公開レコードは、同じ意図を再実行しても復活させることはできません。
 
 公開されたビルドの実行、アクセス、トラック、README バッジについては、<.localized_link href="/guides/features/previews#run-a-preview">プレビューを実行する</.localized_link> を参照してください。
 
 ## Apple プレビュー
 
-Apple シミュレーターおよび macOS プレビューについては、<.localized_link href="/guides/features/previews/run/macos">Tuist macOS コンパニオンアプリの手順</.localized_link> を参照してください。これらは Bazel のアプリケーション対象条件や署名要件を変更しません。
+Apple シミュレーターおよび macOS プレビューについては、<.localized_link href="/guides/features/previews/run/macos">Tuist macOS コンパニオンアプリの手順</.localized_link> を参照してください。これらは Bazel のアプリケーション適格性や署名要件を変更しません。
 
 ## 関連するワークフロー {#publish-from-once}
 
-既存の Once 統合には、別の <.localized_link href="/guides/features/previews/once">アーティファクト公開ガイド</.localized_link> があります。どちらのワークフローも、公開をキャッシュされたグラフ実行から分離したままにします。
+既存の Struo 統合には、別の <.localized_link href="/guides/features/previews/struo">アーティファクト公開ガイド</.localized_link> があります。どちらのワークフローも、公開をキャッシュされたグラフ実行から分離したままにします。
