@@ -19,7 +19,7 @@ defmodule Tuist.Sandboxes.Query do
 
   @max_range_seconds 90 * 86_400
   @no_filters %{"search" => nil, "status" => nil, "vcpus" => nil}
-  @create_fields ~w(platform template xcode_version vcpus memory_mb memory_limit_mb workspace_gb lifetime_seconds)
+  @create_fields ~w(platform template xcode_version vcpus memory_mb workspace_gb lifetime_seconds)
   @capacity_wait_ms 25_000
   @creates_per_minute 10
 
@@ -394,7 +394,6 @@ defmodule Tuist.Sandboxes.Query do
       :template_tag,
       :vcpus,
       :memory_mb,
-      :memory_limit_mb,
       :workspace_gb,
       :node_name,
       :hostname,
