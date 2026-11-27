@@ -37,7 +37,7 @@ func TestGrowCustomImageExtendsOnlyTheImageAndNeverShrinks(t *testing.T) {
 }
 
 func TestGrowCustomDiskExtendsOnlyTheASIFImageAndNeverShrinks(t *testing.T) {
-	image := filepath.Join(t.TempDir(), "copy.asif")
+	image := filepath.Join(t.TempDir(), "copy.img")
 	slot := cachevolumes.Slot{Identity: cachevolumes.Identity{Scope: strings.Repeat("a", 64)}}
 	if err := createCustomDisk(context.Background(), slot, image, 1_000_000_000); err != nil {
 		t.Fatal(err)

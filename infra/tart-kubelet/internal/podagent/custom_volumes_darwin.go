@@ -28,13 +28,13 @@ func createCustomImage(ctx context.Context, path string, bytes int64) error {
 	return err
 }
 
-// createCustomDisk formats an empty ASIF image holding one APFS volume named
+// createCustomDisk formats an empty RAW image (sparse on APFS) holding one APFS volume named
 // for its lineage, which the guest mounts once Tart hot-plugs the image.
 func createCustomDisk(ctx context.Context, slot cachevolumes.Slot, path string, bytes int64) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	size := strconv.FormatInt((bytes+999_999_999)/1_000_000_000, 10) + "G"
-	out, err := exec.CommandContext(ctx, "diskutil", "image", "create", "blank", "--fs", "APFS", "--format", "ASIF", "--size", size, "--volumeName", cachevolumes.DiskVolumeName(slot.Scope), path).CombinedOutput()
+	out, err := exec.CommandContext(ctx, "diskutil", "image", "create", "blank", "--fs", "APFS", "--format", "RAW", "--size", size, "--volumeName", cachevolumes.DiskVolumeName(slot.Scope), path).CombinedOutput()
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -54,7 +54,7 @@ func growCustomImage(ctx context.Context, path string, bytes int64) error {
 		"hdiutil", "resize", "-sectors", strconv.FormatInt(bytes/512, 10), "-imageonly", path)
 }
 
-// growCustomDisk is growCustomImage for an ASIF image, which hdiutil cannot
+// growCustomDisk is growCustomImage for a cache disk image, which hdiutil cannot
 // open. --image-only also moves the secondary GPT; the guest grows the
 // container once the disk appears.
 func growCustomDisk(ctx context.Context, path string, bytes int64) error {
@@ -108,7 +108,7 @@ func verifyCustomImage(path string) (int64, error) {
 	return inspectCustomImage(path, runCmd)
 }
 
-// verifyCustomDisk is verifyCustomImage for an ASIF image, which only diskutil
+// verifyCustomDisk is verifyCustomImage for a cache disk image, which only diskutil
 // attaches. hdiutil still detaches it and finds it in detachCustomInspection.
 func verifyCustomDisk(path string) (int64, error) {
 	return inspectImage(runCmd, "diskutil", "image", "attach", "--readOnly", "--noMount", "--nobrowse", path)

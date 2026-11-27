@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -644,7 +645,7 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		if share, e := r.CustomVolumes.Share(pod); e == nil {
 			sharedDirs = append(sharedDirs, "custom-cache:"+share)
 		}
-		if r.CustomVolumes.Disks != nil {
+		if r.CustomVolumes.Disks != nil && guestMacOSMajor(pod) >= 27 {
 			if dir, e := r.CustomVolumes.Disks.RequestDir(pod); e == nil {
 				usbDiskRequests = dir
 			}
@@ -674,9 +675,9 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	r.Store.Put(pod.Namespace, pod.Name, entry)
 
 	handle, err := r.Tart.RunWithOptions(ctx, vmName, tart.RunOptions{
-		SharedDirs:      sharedDirs,
-		VNC:             vncCapableRunnerPod(pod),
-		USBDiskRequests: usbDiskRequests,
+		SharedDirs:        sharedDirs,
+		VNC:               vncCapableRunnerPod(pod),
+		CacheDiskRequests: usbDiskRequests,
 	})
 	if err != nil {
 		// Roll back the Store entry — the VM either never started
@@ -2189,4 +2190,18 @@ func (r *Reconciler) nodeAccessGranted(uid types.UID) {
 	r.accessMu.Lock()
 	defer r.accessMu.Unlock()
 	delete(r.accessWaits, uid)
+}
+
+var guestMacOSPool = regexp.MustCompile(`-macos-([0-9]+)(?:-|$)`)
+
+// guestMacOSMajor is the macOS major version a runner pool names
+// (`<xcode>-macos-27`), or 0 for a pool on the fleet's default macOS. Only
+// guests that lose writes to images on their share get cache disks.
+func guestMacOSMajor(pod *corev1.Pod) int {
+	match := guestMacOSPool.FindStringSubmatch(pod.Labels["tuist.dev/runner-pool"])
+	if match == nil {
+		return 0
+	}
+	major, _ := strconv.Atoi(match[1])
+	return major
 }

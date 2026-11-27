@@ -1,0 +1,392 @@
+From b22dce58f4b1a829bb7bf55e57ee9b264adaa131 Mon Sep 17 00:00:00 2001
+From: Amp <amp@ampcode.com>
+Date: Fri, 27 Nov 2026 10:50:04 +0000
+Subject: [PATCH] Serve cache disks as custom virtio-blk devices
+
+Amp-Thread-ID: https://ampcode.com/threads/T-01a20f7b-ae66-725a-8f49-195b05c3cd6a
+Co-authored-by: Marek Fort <marek@tuist.dev>
+---
+ Sources/tart/Commands/Run.swift     |  26 ++-
+ Sources/tart/VM.swift               |   4 +-
+ Sources/tart/VirtioCacheDisks.swift | 289 ++++++++++++++++++++++++++++
+ 3 files changed, 317 insertions(+), 2 deletions(-)
+ create mode 100644 Sources/tart/VirtioCacheDisks.swift
+
+diff --git a/Sources/tart/Commands/Run.swift b/Sources/tart/Commands/Run.swift
+index 6865d93..5f5f2a9 100644
+--- a/Sources/tart/Commands/Run.swift
++++ b/Sources/tart/Commands/Run.swift
+@@ -306,6 +306,9 @@ struct Run: AsyncParsableCommand {
+   @Option(help: ArgumentHelp("Hot-plug USB disks on request: a host process writes <id>.attach and <id>.detach into this directory (macOS 27 or newer)", valueName: "path"))
+   var usbDiskRequests: String?
+ 
++  @Option(help: ArgumentHelp("Serve cache disks: virtio-blk slots present from boot that a host process binds to RAW disk images by writing <id>.attach and <id>.detach into this directory (macOS 27 or newer)", valueName: "path"))
++  var cacheDiskRequests: String?
++
+   @Flag(help: ArgumentHelp("Disable the keyboard"))
+   var noKeyboard: Bool = false
+ 
+@@ -478,6 +481,16 @@ struct Run: AsyncParsableCommand {
+     let additionalDisks = try additionalDisks()
+     defer { withExtendedLifetime(additionalDisks) {} }
+ 
++    // The slots must exist before the VM is configured; they serve requests once it runs.
++    var cacheDisks: AnyObject? = nil
++    if let cacheDiskRequests = cacheDiskRequests {
++      guard #available(macOS 27, *) else {
++        throw RuntimeError.Generic("--cache-disk-requests needs macOS 27 or newer")
++      }
++      cacheDisks = VirtioCacheDisks(directory: URL(fileURLWithPath: cacheDiskRequests))
++    }
++    defer { withExtendedLifetime(cacheDisks) {} }
++
+     vm = try VM(
+       vmDir: vmDir,
+       network: userSpecifiedNetwork(vmDir: vmDir) ?? NetworkShared(),
+@@ -494,7 +507,12 @@ struct Run: AsyncParsableCommand {
+       noTrackpad: noTrackpad,
+       noPointer: noPointer,
+       noKeyboard: noKeyboard,
+-      usbHotplug: usbDiskRequests != nil
++      usbHotplug: usbDiskRequests != nil,
++      configure: cacheDisks.map { disks in { configuration in
++        if #available(macOS 27, *), let disks = disks as? VirtioCacheDisks {
++          MainActor.assumeIsolated { disks.configure(configuration) }
++        }
++      } }
+     )
+ 
+     let vncImpl: VNC? = try {
+@@ -597,6 +615,12 @@ struct Run: AsyncParsableCommand {
+           }
+         }
+ 
++        if #available(macOS 27, *), let disks = cacheDisks as? VirtioCacheDisks {
++          ErrorReportingTask("Failed to serve cache disk requests") {
++            try await disks.run()
++          }
++        }
++
+         if let usbDiskRequests = usbDiskRequests {
+           guard #available(macOS 27, *) else {
+             throw RuntimeError.Generic("--usb-disk-requests needs macOS 27 or newer")
+diff --git a/Sources/tart/VM.swift b/Sources/tart/VM.swift
+index 7ab6ec7..6634a3f 100644
+--- a/Sources/tart/VM.swift
++++ b/Sources/tart/VM.swift
+@@ -55,7 +55,8 @@ class VM: NSObject, VZVirtualMachineDelegate, ObservableObject {
+        noTrackpad: Bool = false,
+        noPointer: Bool = false,
+        noKeyboard: Bool = false,
+-       usbHotplug: Bool = false
++       usbHotplug: Bool = false,
++       configure: ((VZVirtualMachineConfiguration) -> Void)? = nil
+   ) throws {
+     name = vmDir.name
+     config = try VMConfig.init(fromURL: vmDir.configURL)
+@@ -83,6 +84,7 @@ class VM: NSObject, VZVirtualMachineDelegate, ObservableObject {
+                                                 noKeyboard: noKeyboard,
+                                                 usbHotplug: usbHotplug
+     )
++    configure?(configuration)
+     virtualMachine = VZVirtualMachine(configuration: configuration)
+ 
+     super.init()
+diff --git a/Sources/tart/VirtioCacheDisks.swift b/Sources/tart/VirtioCacheDisks.swift
+new file mode 100644
+index 0000000..a90db9f
+--- /dev/null
++++ b/Sources/tart/VirtioCacheDisks.swift
+@@ -0,0 +1,289 @@
++import Foundation
++import Virtualization
++
++/// Cache disks a host process binds to disk images while the VM runs.
++///
++/// Each slot is a virtio-blk device (macOS 27 `VZCustomVirtioDevice`) present
++/// from boot with no media: capacity 0, and every read or write fails. The host
++/// writes `<id>.attach` (JSON: `image`, a RAW disk image only this VM uses, and
++/// optionally `announce`: `config`, the default, or `reset`) or `<id>.detach`
++/// into a directory only it can write. Tart binds the image to a free slot and
++/// announces the new capacity to the guest, then answers with `<id>.attached`,
++/// `<id>.detached` or `<id>.error`, each published by renaming a complete file
++/// into place. The guest uses its own virtio-blk driver, the one its boot disk
++/// uses, so neither USB nor the guest's disk-image driver is in the data path.
++@available(macOS 27.0, *)
++final class VirtioCacheDiskSlot: NSObject, VZCustomVirtioDeviceConfigurationDelegate, VZCustomVirtioDeviceDelegate {
++  static let sectorSize: UInt64 = 512
++
++  let index: Int
++  let queue: DispatchQueue
++  private var device: VZCustomVirtioDevice?
++  private var fd: Int32 = -1
++  private var sectors: UInt64 = 0
++  private(set) var image: String?
++
++  init(index: Int) {
++    self.index = index
++    self.queue = DispatchQueue(label: "tart.cache-disk.\(index)")
++  }
++
++  func configuration() -> VZCustomVirtioDeviceConfiguration {
++    let configuration = VZCustomVirtioDeviceConfiguration()
++    configuration.deviceID = 2 // virtio-blk
++    configuration.pciClassID = 0x01 // mass storage
++    configuration.pciSubclassID = 0x80
++    configuration.virtioQueueCount = 1
++    // VIRTIO_BLK_F_SEG_MAX, VIRTIO_BLK_F_BLK_SIZE, VIRTIO_BLK_F_FLUSH
++    configuration.optionalFeatures.subset0 = (1 << 2) | (1 << 6) | (1 << 9)
++    configuration.deviceSpecificConfiguration = Self.blockConfiguration(sectors: 0)
++    configuration.provider = VZCustomVirtioDeviceDelegateProvider(deviceQueue: queue, delegate: self)
++    return configuration
++  }
++
++  /// struct virtio_blk_config up to and including write_zeroes_may_unmap.
++  static func blockConfiguration(sectors: UInt64) -> VZVirtioDeviceSpecificConfiguration {
++    var data = Data(count: 60)
++    func put<T: FixedWidthInteger>(_ value: T, at offset: Int) {
++      withUnsafeBytes(of: value.littleEndian) { data.replaceSubrange(offset..<offset + MemoryLayout<T>.size, with: $0) }
++    }
++    put(sectors, at: 0) // capacity
++    put(UInt32(254), at: 12) // seg_max
++    put(UInt32(sectorSize), at: 20) // blk_size
++    return VZVirtioDeviceSpecificConfiguration(configurationData: data)
++  }
++
++  // MARK: VZCustomVirtioDeviceConfigurationDelegate
++
++  func customVirtioConfiguration(_ deviceConfiguration: VZCustomVirtioDeviceConfiguration, didCreateDevice device: VZCustomVirtioDevice) {
++    self.device = device
++    device.delegate = self
++  }
++
++  // MARK: Binding
++
++  /// Binds image to this slot. Runs on the device queue, so no request is in flight.
++  func bind(image: String, announce: String) async throws {
++    try await onQueue {
++      guard self.fd < 0 else {
++        throw RuntimeError.Generic("cache disk slot \(self.index) is in use")
++      }
++      let fd = open(image, O_RDWR | O_CLOEXEC)
++      guard fd >= 0 else {
++        throw RuntimeError.Generic("open \(image): \(String(cString: strerror(errno)))")
++      }
++      var info = stat()
++      guard fstat(fd, &info) == 0, info.st_size > 0, UInt64(info.st_size) % Self.sectorSize == 0 else {
++        close(fd)
++        throw RuntimeError.Generic("\(image) is not a RAW disk image")
++      }
++      self.fd = fd
++      self.sectors = UInt64(info.st_size) / Self.sectorSize
++      self.image = image
++    }
++    try await announceCapacity(announce)
++  }
++
++  /// Unbinds the slot's image once its data is on permanent storage.
++  func unbind() async throws {
++    try await onQueue {
++      if self.fd >= 0 {
++        _ = fcntl(self.fd, F_FULLFSYNC)
++        close(self.fd)
++      }
++      self.fd = -1
++      self.sectors = 0
++      self.image = nil
++    }
++    try await announceCapacity("config")
++  }
++
++  private func announceCapacity(_ announce: String) async throws {
++    guard let device = device else {
++      throw RuntimeError.Generic("cache disk slot \(index) was never created")
++    }
++    let sectors = await onQueue { self.sectors }
++    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
++      queue.async {
++        device.update(Self.blockConfiguration(sectors: sectors)) { error in
++          if let error = error {
++            continuation.resume(throwing: error)
++          } else {
++            continuation.resume()
++          }
++        }
++      }
++    }
++    if announce == "reset" {
++      queue.async { device.requestReset() }
++    }
++  }
++
++  private func onQueue<T>(_ body: @escaping () throws -> T) async throws -> T {
++    try await withCheckedThrowingContinuation { continuation in
++      queue.async { continuation.resume(with: Result { try body() }) }
++    }
++  }
++
++  private func onQueue<T>(_ body: @escaping () -> T) async -> T {
++    await withCheckedContinuation { continuation in
++      queue.async { continuation.resume(returning: body()) }
++    }
++  }
++
++  // MARK: VZCustomVirtioDeviceDelegate (all on the device queue)
++
++  func customVirtioDevice(_ device: VZCustomVirtioDevice, didReceiveNotificationFor queue: VZVirtioQueue) {
++    while let element = queue.nextElement() {
++      handle(element)
++      element.returnToQueue()
++    }
++  }
++
++  private static let statusOK: UInt8 = 0
++  private static let statusIOError: UInt8 = 1
++  private static let statusUnsupported: UInt8 = 2
++
++  private func handle(_ element: VZVirtioQueueElement) {
++    guard let header = try? element.readBytes(withExactLength: 16) else {
++      return
++    }
++    let type = header.withUnsafeBytes { UInt32(littleEndian: $0.loadUnaligned(fromByteOffset: 0, as: UInt32.self)) }
++    let sector = header.withUnsafeBytes { UInt64(littleEndian: $0.loadUnaligned(fromByteOffset: 8, as: UInt64.self)) }
++    var status = Self.statusOK
++
++    switch type {
++    case 0: // VIRTIO_BLK_T_IN
++      let length = element.writeBuffersAvailableByteCount - 1
++      status = io(sector: sector, length: length) { buffer, offset in
++        guard pread(self.fd, buffer, length, offset) == length else { return false }
++        return (try? element.writeBuffer(buffer, exactLength: length)) != nil
++      }
++    case 1: // VIRTIO_BLK_T_OUT
++      let length = element.readBuffersAvailableByteCount
++      status = io(sector: sector, length: length) { buffer, offset in
++        guard (try? element.readBytes(intoBuffer: buffer, exactLength: length)) != nil else { return false }
++        return pwrite(self.fd, buffer, length, offset) == length
++      }
++    case 4: // VIRTIO_BLK_T_FLUSH
++      status = fd >= 0 && fcntl(fd, F_FULLFSYNC) == 0 ? Self.statusOK : Self.statusIOError
++    case 8: // VIRTIO_BLK_T_GET_ID
++      var id = Data("tuist-cache-\(index)".utf8.prefix(20))
++      id.append(Data(count: 20 - id.count))
++      let length = min(20, element.writeBuffersAvailableByteCount - 1)
++      if (try? element.write(id.prefix(length))) == nil {
++        status = Self.statusIOError
++      }
++    default:
++      status = Self.statusUnsupported
++    }
++
++    var byte = status
++    _ = try? element.writeBuffer(&byte, exactLength: 1)
++  }
++
++  private func io(sector: UInt64, length: Int, _ body: (UnsafeMutableRawPointer, off_t) -> Bool) -> UInt8 {
++    guard fd >= 0, length >= 0, length % Int(Self.sectorSize) == 0,
++          sector + UInt64(length) / Self.sectorSize <= sectors else {
++      return Self.statusIOError
++    }
++    if length == 0 {
++      return Self.statusOK
++    }
++    let buffer = UnsafeMutableRawPointer.allocate(byteCount: length, alignment: 4096)
++    defer { buffer.deallocate() }
++    return body(buffer, off_t(sector * Self.sectorSize)) ? Self.statusOK : Self.statusIOError
++  }
++}
++
++/// Serves the host's attach and detach requests for the VM's cache disk slots.
++@available(macOS 27.0, *)
++@MainActor
++final class VirtioCacheDisks {
++  struct AttachRequest: Decodable {
++    let image: String
++    let announce: String?
++  }
++
++  static let slotCount = 4
++
++  let directory: URL
++  let slots: [VirtioCacheDiskSlot]
++  private var bound: [String: VirtioCacheDiskSlot] = [:]
++
++  init(directory: URL) {
++    self.directory = directory
++    self.slots = (0..<Self.slotCount).map { VirtioCacheDiskSlot(index: $0) }
++  }
++
++  func configure(_ configuration: VZVirtualMachineConfiguration) {
++    configuration.customVirtioDevices = slots.map { $0.configuration() }
++  }
++
++  func run() async throws {
++    while !Task.isCancelled {
++      let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
++      for name in names.sorted() {
++        if name.hasSuffix(".attach") {
++          await serve(id: String(name.dropLast(".attach".count)), request: name, reply: "attached") { id, data in
++            try await self.attach(id: id, try JSONDecoder().decode(AttachRequest.self, from: data))
++          }
++        } else if name.hasSuffix(".detach") {
++          await serve(id: String(name.dropLast(".detach".count)), request: name, reply: "detached") { id, _ in
++            try await self.detach(id: id)
++          }
++        }
++      }
++      try await Task.sleep(nanoseconds: 250_000_000)
++    }
++  }
++
++  private func serve(id: String, request: String, reply: String, _ body: (String, Data) async throws -> [String: String]) async {
++    let requestURL = directory.appendingPathComponent(request)
++    guard let data = try? Data(contentsOf: requestURL) else {
++      return
++    }
++    try? FileManager.default.removeItem(at: requestURL)
++    do {
++      publish(id: id, suffix: reply, try await body(id, data))
++    } catch {
++      publish(id: id, suffix: "error", ["error": "\(error)"])
++    }
++  }
++
++  private func publish(id: String, suffix: String, _ body: [String: String]) {
++    let final = directory.appendingPathComponent("\(id).\(suffix)")
++    let temporary = directory.appendingPathComponent(".\(id).\(suffix).tmp")
++    guard let data = try? JSONSerialization.data(withJSONObject: body) else {
++      return
++    }
++    try? data.write(to: temporary)
++    _ = rename(temporary.path, final.path)
++  }
++
++  private func attach(id: String, _ request: AttachRequest) async throws -> [String: String] {
++    guard bound[id] == nil else {
++      throw RuntimeError.Generic("cache disk \(id) is already attached")
++    }
++    guard let slot = slots.first(where: { slot in !bound.values.contains { $0 === slot } }) else {
++      throw RuntimeError.Generic("all \(Self.slotCount) cache disk slots are in use")
++    }
++    bound[id] = slot
++    do {
++      try await slot.bind(image: request.image, announce: request.announce ?? "config")
++    } catch {
++      bound[id] = nil
++      throw error
++    }
++    return ["slot": "\(slot.index)"]
++  }
++
++  private func detach(id: String) async throws -> [String: String] {
++    guard let slot = bound[id] else {
++      throw RuntimeError.Generic("cache disk \(id) is not attached")
++    }
++    try await slot.unbind()
++    bound[id] = nil
++    return [:]
++  }
++}
+-- 
+2.43.0
+
