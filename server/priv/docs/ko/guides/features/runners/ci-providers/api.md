@@ -7,8 +7,6 @@
 ---
 # API {#api}
 
-<!-- @snippet: ./_invite-only -->
-
 자체 러너 프로토콜이 없는 Git 포지, 머지 큐 및 에이전트 오케스트레이터는 Tuist Runners에서 직접 작업을 실행할 수 있습니다. 하나의 요청으로 작업을 생성하면, 선택한 <.localized_link href="/guides/features/runners/profiles">프로필</.localized_link>의 Tuist 머신이 커밋을 체크아웃하고 스크립트를 실행하며, Tuist는 결과를 웹훅 엔드포인트로 보고합니다.
 
 ## 작업 실행하기 {#run-a-job}

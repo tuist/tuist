@@ -7,8 +7,6 @@
 ---
 # Acciones de GitHub {#github-actions}
 
-<!-- @snippet: ./_invite-only -->
-
 Ejecutar un trabajo en la flota requiere tres cambios: conectar GitHub, apuntar `runs-on` a un <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> de Tuist y hacer push.
 
 1. **Conecta GitHub.** Asegúrate de que tu proyecto esté <.localized_link href="/guides/integrations/gitforge/github">conectado a tu organización de GitHub</.localized_link>. Tuist recibe eventos `workflow_job` para esa organización y envía los trabajos coincidentes a la flota. Sin esta conexión, ningún trabajo llega a tus runners.

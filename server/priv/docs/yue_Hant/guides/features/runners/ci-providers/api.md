@@ -7,7 +7,7 @@
 ---
 # API {#api}
 
-<!-- @snippet: ./_invite-only -->
+
 
 冇自己 runner 協議嘅 Git forge、merge queue 同 agent orchestrator，都可以直接喺 Tuist Runners 上執行 job。你只需發出一個請求就可以建立 job；一部你所選 <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> 嘅 Tuist 機器會 checkout 該 commit 並執行你嘅 script，然後 Tuist 會將結果回報到你嘅 webhook endpoint。
 

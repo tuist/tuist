@@ -7,7 +7,7 @@
 ---
 # GitLab CI {#gitlab-ci}
 
-<!-- @snippet: ./_invite-only -->
+
 
 你嘅 pipeline 會留喺 GitLab。Tuist 會為每個 job 提供一部隔離嘅 Linux 或 macOS 機器，並將日誌同結果回報畀 GitLab 同 Tuist 儀表板。需要使用 GitLab 19.3 或更新版本。支援 GitLab.com 同可以透過公開 HTTPS 連線嘅自託管實例。
 

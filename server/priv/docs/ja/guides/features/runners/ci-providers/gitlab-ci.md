@@ -7,8 +7,6 @@
 ---
 # GitLab CI {#gitlab-ci}
 
-<!-- @snippet: ./_invite-only -->
-
 パイプラインは GitLab 上に残ります。Tuist は各ジョブに対して隔離された Linux または macOS マシンを提供し、そのログと結果を GitLab および Tuist ダッシュボードに報告します。GitLab 19.3 以降が必要です。パブリック HTTPS 経由でアクセス可能な GitLab.com およびセルフマネージドインスタンスがサポートされています。
 
 1. **GitLab ランナーを作成する** プロジェクトの **Settings → CI/CD → Runners** でプロジェクトランナーを作成します。グループランナーを使用することもできます。使用したい Tuist プロファイルラベルをすべてランナータグとして追加し（例: `tuist-linux` と `tuist-macos`）、**Run untagged jobs** を無効にしてください。GitLab が表示する認証トークン（`glrt-` で始まる）を保管してください。独自のマシンにランナーをインストールする必要はありません。

@@ -7,8 +7,6 @@
 ---
 # API {#api}
 
-<!-- @snippet: ./_invite-only -->
-
 独自のランナープロトコルを持たないGitフォージ、マージキュー、エージェントオーケストレーターは、Tuist Runners上で直接ジョブを実行できます。1回のリクエストでジョブを作成すると、選択した<.localized_link href="/guides/features/runners/profiles">プロファイル</.localized_link>のTuistマシンがコミットをチェックアウトしてスクリプトを実行し、Tuistが結果をWebhookエンドポイントに報告します。
 
 ## ジョブの実行 {#run-a-job}

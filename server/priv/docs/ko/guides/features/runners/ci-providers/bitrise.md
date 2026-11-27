@@ -7,8 +7,6 @@
 ---
 # Bitrise {#bitrise}
 
-<!-- @snippet: ./_invite-only -->
-
 > [!WARNING]
 > **비공개 저장소만**
 >

@@ -7,8 +7,6 @@
 ---
 # Bitrise {#bitrise}
 
-<!-- @snippet: ./_invite-only -->
-
 > [!WARNING]
 > **Yalnızca özel depolar**
 >

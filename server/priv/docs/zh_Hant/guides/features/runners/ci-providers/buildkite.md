@@ -7,8 +7,6 @@
 ---
 # Buildkite {#buildkite}
 
-<!-- @snippet: ./_invite-only -->
-
 Tuist 會監控你 Buildkite 叢集中的自管佇列，並在執行器群組上執行找到的工作。你的流水線仍會在 Buildkite 上運行；只有運算資源有所改變。要在執行器群組上執行工作，需要進行三項調整：連接你的叢集、以 Tuist <.localized_link href="/guides/features/runners/profiles">設定檔</.localized_link> 命名佇列，並從步驟中指定該佇列。
 
 1. **連接你的叢集。** 在 Buildkite 中，開啟你的叢集，前往 **Agent Tokens** 並建立權杖；它以 `bkct_` 開頭。在 Tuist 儀表板中，前往 **Settings → Integrations**，在 Buildkite 卡片上選擇 **Connect**，然後輸入你的組織代稱與權杖。該權杖會加密儲存，且不會再次顯示。若日後要變更組織或輪替權杖，請編輯卡片上的欄位並選擇 **Save changes**。Tuist 會在一分鐘內開始監控該叢集。

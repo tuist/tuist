@@ -7,8 +7,6 @@
 ---
 # Buildkite {#buildkite}
 
-<!-- @snippet: ./_invite-only -->
-
 Tuist supervisa las colas autoalojadas en tu clúster de Buildkite y ejecuta los trabajos que encuentra allí en la flota. Tus pipelines siguen ejecutándose en Buildkite; solo cambia el cómputo. Para ejecutar un trabajo en la flota se requieren tres cambios: conecta tu clúster, asigna a una cola el nombre de un <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> de Tuist y apúntala desde un paso.
 
 1. **Conecta tu clúster.** En Buildkite, abre tu clúster, ve a **Agent Tokens** y crea un token; comienza con `bkct_`. En el panel de Tuist, ve a **Settings → Integrations**, elige **Connect** en la tarjeta de Buildkite e introduce el slug de tu organización y el token. El token se almacena cifrado y no se vuelve a mostrar. Para cambiar la organización o rotar el token más adelante, edita los campos de la tarjeta y elige **Save changes**. Tuist comienza a supervisar el clúster en menos de un minuto.

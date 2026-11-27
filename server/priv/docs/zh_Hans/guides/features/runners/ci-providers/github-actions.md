@@ -7,8 +7,6 @@
 ---
 # GitHub Actions {#github-actions}
 
-<!-- @snippet: ./_invite-only -->
-
 在集群上运行作业需要进行三项更改：连接 GitHub、将 `runs-on` 指向 Tuist <.localized_link href="/guides/features/runners/profiles">配置文件</.localized_link>，然后推送代码。
 
 1. **连接 GitHub。** 确保你的项目已<.localized_link href="/guides/integrations/gitforge/github">连接到你的 GitHub 组织</.localized_link>。Tuist 会接收该组织的 `workflow_job` 事件，并将匹配的作业分派到集群。如果没有此连接，作业将无法到达你的运行器。

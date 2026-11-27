@@ -7,8 +7,6 @@
 ---
 # GitLab CI {#gitlab-ci}
 
-<!-- @snippet: ./_invite-only -->
-
 你的流水線仍留在 GitLab。Tuist 為每個工作提供一台隔離的 Linux 或 macOS 機器，並將日誌與結果回報給 GitLab 和 Tuist 儀表板。需要 GitLab 19.3 或更新版本。支援可透過公開 HTTPS 存取的 GitLab.com 與自管實例。
 
 1. **建立 GitLab Runner。** 在專案的**設定 → CI/CD → Runners**中，建立專案級 Runner。你也可以使用群組級 Runner。將你想要使用的 Tuist 設定檔標籤加入為 Runner 標籤，例如`tuist-linux`與`tuist-macos`，並停用**執行未標記的工作**。保留 GitLab 顯示的驗證權杖，其開頭為`glrt-`。你不需要在自己的機器上安裝 Runner。

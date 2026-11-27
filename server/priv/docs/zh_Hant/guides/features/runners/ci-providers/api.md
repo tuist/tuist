@@ -7,8 +7,6 @@
 ---
 # API {#api}
 
-<!-- @snippet: ./_invite-only -->
-
 沒有自有執行器協定的 Git 託管平台、合併佇列與代理協調器，可以直接在 Tuist Runners 上執行工作。你只需發送一個請求即可建立工作；你所選<.localized_link href="/guides/features/runners/profiles">設定檔</.localized_link>對應的 Tuist 機器會檢出該提交並執行你的腳本，Tuist 則將結果回報給你的 webhook 端點。
 
 ## 執行工作 {#run-a-job}

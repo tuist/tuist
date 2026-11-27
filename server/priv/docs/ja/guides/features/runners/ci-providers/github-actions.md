@@ -7,8 +7,6 @@
 ---
 # GitHub Actions {#github-actions}
 
-<!-- @snippet: ./_invite-only -->
-
 ジョブをフリートで実行するには、次の3つの手順が必要です。GitHub を接続し、`runs-on` を Tuist の <.localized_link href="/guides/features/runners/profiles">プロファイル</.localized_link> に向け、プッシュします。
 
 1. **GitHub を接続する。** プロジェクトが <.localized_link href="/guides/integrations/gitforge/github">GitHub 組織に接続されている</.localized_link> ことを確認してください。Tuist はその組織の `workflow_job` イベントを受信し、一致するジョブをフリートにディスパッチします。この接続がないと、ジョブはランナーに届きません。

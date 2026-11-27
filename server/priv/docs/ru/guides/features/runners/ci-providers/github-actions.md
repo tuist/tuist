@@ -7,8 +7,6 @@
 ---
 # GitHub Actions {#github-actions}
 
-<!-- @snippet: ./_invite-only -->
-
 Чтобы запустить задачу в пуле, нужно сделать три изменения: подключить GitHub, указать `runs-on` на <.localized_link href="/guides/features/runners/profiles">профиль</.localized_link> Tuist и отправить изменения.
 
 1. **Подключите GitHub.** Убедитесь, что ваш проект <.localized_link href="/guides/integrations/gitforge/github">подключён к вашей организации GitHub</.localized_link>. Tuist получает события `workflow_job` для этой организации и направляет соответствующие задачи в пул. Без этого подключения задачи не попадут на ваши раннеры.
