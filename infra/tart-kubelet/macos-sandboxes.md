@@ -78,7 +78,7 @@ the default moves. Callers pick one with an exact `xcode_version`
 
 - **Which Xcodes.** `sandboxes.macos.xcodeVersions` lists the Xcodes beyond the
   default, each from `runnersFleet.xcodeVersions`. Only the rack serves them; the
-  rented fleet and the hosts staging and canary borrow serve the default alone.
+  hosts staging and canary borrow serve the default alone.
   The server validates against `TUIST_MACOS_SANDBOX_XCODE_VERSIONS`, which the
   chart renders from the same list.
 - **Disk.** Their catalog pools carry `tuist.dev/macos-sandbox-template=true`,

@@ -303,7 +303,7 @@ defmodule Tuist.FeatureFlags do
   @doc """
   Whether the account is kept out of every site's runner-cache region, so its
   node there drains and is torn down. Its jobs still run at the site
-  (`runner_site_enabled?/2`) and use its other regions' caches.
+  (`Tuist.Runners.Dispatch`) and use its other regions' caches.
   """
   def runner_site_cache_excluded?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
@@ -314,15 +314,10 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account's macOS profile jobs run at a site: dispatch routes a
-  profile to the same Xcode and shape racked at a site
-  (`Tuist.Runners.Catalog.site_pool_name/1`) when one is and the site can
-  serve it (`Tuist.Runners.Sites`), and to the rented fleet otherwise; a site
-  job queued while the site is down moves to the rented fleet
-  (`Tuist.Runners.Workers.SiteSpilloverWorker`). The account also gets a
-  node in the site's runner-cache region, as `:runner_site_cache` gives one.
-  Staging and canary run their macOS jobs at a site, so it is on for every
-  account there.
+  Whether the account gets a node in the site's runner-cache region, as
+  `:runner_site_cache` gives one. Every account's macOS jobs run at a site
+  regardless (`Tuist.Runners.Dispatch`); the flag is on for every account in
+  staging and canary.
   """
   def runner_site_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(

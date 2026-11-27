@@ -1186,16 +1186,12 @@ them.
 `rackFleet.runners` renders the runner catalog a second time onto the rack:
 for each Xcode, a pool named `<release>-runner-pool-macos-<site>-<xcode>`
 (plus the shapes `rackFleet.runners.shapes` names) that selects the rack
-fleet, with the same image as the rented fleet's pool for that Xcode. The
-server learns them through `TUIST_RUNNERS_SITE_POOLS`. An account on the
-`runner_site` flag (`https://tuist.dev/ops/flags`) has its macOS profiles
-(`tuist-macos` and the rest) routed to the rack's pool for the profile's Xcode
-and shape, and to the rented fleet when the rack has none. While the rack is
-up, the account's jobs run only there: they queue for as long as the rack is
-busy, and no rented runner is minted for them, so none can pick one up. GitHub
-hands a queued job to any idle runner of the org that carries its labels, and
-a rack runner carries the same label as a rented one, so keeping rented
-runners from being minted is what keeps the jobs on the rack.
+fleet. The server learns them through `TUIST_RUNNERS_SITE_POOLS`. Every
+account's macOS profiles (`tuist-macos` and the rest) are routed to the rack's
+pool for the profile's Xcode and shape (`Tuist.Runners.Dispatch`). There is no
+other macOS runner fleet: a job queues for as long as the rack is busy or
+down, and a profile whose Xcode or shape the rack runs no pool for waits until
+it does.
 
 ### Several sites
 
@@ -1232,23 +1228,18 @@ guest slots together. Until then the site's minis get no runners.
   second site's runners on, with the queued jobs on the old names moved in the
   same deploy.
 
-Staging and canary rent no macOS runner hosts: their only macOS runners are
-the rack hosts production lends them (b01 and b02, "Lending a host to
-another env" below), and `runner_site` is on for every account there
-(`Tuist.FeatureFlags.runner_site_enabled?/1`). Their `runnersFleet.hostCount`
-is 0, so the chart renders no rented macOS pools and sets
-`TUIST_RUNNERS_RENTED_MACOS_FLEET=false`: dispatch sends every macOS profile
-to the rack's pool, and nothing spills over. A job waits while its env's host
-is down, cordoned or busy. Their Scaleway minis only run the xcresult
-processor (`macosFleet`).
+Staging's and canary's only macOS runners are the rack hosts production lends
+them (b01 and b02, "Lending a host to another env" below). A job waits while
+its env's host is down, cordoned or busy. Every env's Scaleway minis run only
+the xcresult processor (`macosFleet`) and, in production, the VM image
+builders (`buildersFleet`).
 
-A catalog shape can run a bigger guest on the rack than on the rented fleet
+A catalog shape can run a bigger guest than the shape itself
 (`rackFleet.runners.guestShapes`): in production the 6 vCPU / 14 GB shape runs
 8 vCPU / 24 GB guests and the 12 vCPU / 28 GB shape 16 vCPU / 48 GB, which the
 hosts' 16 CPU / 48 GB sizing fits two and one of. The pool keeps the shape's
 name, so a job is still recorded, billed and counted against the account's
-concurrency limit at the shape its profile names, and one that spills over to
-the rented fleet runs at that shape.
+concurrency limit at the shape its profile names.
 
 The rack's pools (one per Xcode and shape, plus the `ber1` smoke pool) share
 its guest slots through the runners-controller's compute allocator. When one of
@@ -1257,29 +1248,13 @@ the others give up idle warm runners straight away instead of after their
 scale-down cooldown (`infra/runners-controller/AGENTS.md`, "Cross-pool
 preemption").
 
-The rented fleet is the rack's backup while it is down (`Tuist.Runners.Sites`):
-
-- **No capacity:** no Node of the rack fleet is Ready, schedulable and large
-  enough for the pool's guest. Power, the uplink and a drain all show up this
-  way within the node-monitor grace period.
-- **Stalled:** a pool's oldest queued job has waited 10 minutes and nothing at
-  the rack held or took a claim in that time; 30 minutes while no eligible
-  Node holds the pool's golden image, so a cold pull is not an outage.
-
-While a pool is down, dispatch routes new jobs to the rented pool for the same
-Xcode and shape, and `SiteSpilloverWorker` moves its queued ones there every
-minute. A cluster the server cannot read leaves the rack up. An env that
-rents no macOS fleet (staging, canary) has no backup, so neither happens there.
-
-The flag also gives the account a node in the site's runner-cache region
-(`ber1-runners`, which spans every site), as `runner_site_cache` does. With the
-flag off for everyone, the rack's pools idle at their floors and nothing a
-customer runs lands on them.
+The `runner_site` flag (`https://tuist.dev/ops/flags`) gives the account a
+node in the site's runner-cache region (`ber1-runners`, which spans every
+site), as `runner_site_cache` does. It no longer decides where jobs run.
 
 The rack's pools autoscale against the rack's own guest slots: the
 runners-controller apportions a fleet's capacity among the autoscaling pools
-that share its `fleetSelector`, so the rack and the rented fleet are separate
-budgets. That is also why the `ber1` smoke pool autoscales from zero instead
+that share its `fleetSelector`. That is also why the `ber1` smoke pool autoscales from zero instead
 of holding a fixed count: the allocator counts only autoscaling pools, and a
 fixed count would hold slots it believes free.
 

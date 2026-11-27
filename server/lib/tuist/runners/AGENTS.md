@@ -53,9 +53,8 @@ The design and the alternatives considered are in [`sites.md`](sites.md).
   larch) had most of its jobs wait out the full grace while idle runners at the
   other site sat by. A job claimed away from its account's cache node reaches
   it through the claim site's gateway entrance (`Kura.runner_cache_endpoint_url/3`).
-- `SiteSpilloverWorker` is only the rented-fleet fallback, for an env that
-  rents macOS hosts. The rack pool is down (`Sites.status/1`) only when no Node
-  at any site fits or nothing claims.
+- There is no fallback off the rack: a macOS job waits for the rack while every
+  site is down.
 - Rack pool names keep the home site (`<prefix>-ber1-<xcode>`). Rename them only
   together with turning a second site's runners on, and move queued rows in the
   same deploy.

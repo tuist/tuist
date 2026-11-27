@@ -127,15 +127,12 @@ Nodes holding a job's volumes; that is not needed for correctness.
 A row claimed before the column existed has no site and counts at its pool's
 site, which is ber1 for every rack row in production.
 
-### 5. Down sites and the rented fleet
+### 5. Down sites
 
 Site-to-site spillover goes away (it never landed on `main`; #14757 is cut
-down to the larch Kura region). `Sites.status/1` and `SiteSpilloverWorker`
-stay as the rented-fleet fallback for an env that rents macOS hosts: with one
-pool spanning sites, the pool is down only when no Node at any site fits or
-the queue stalls everywhere. No managed env rents macOS hosts today
-(`runnersFleet.hostCount: 0` in staging, canary and production), so there the
-worker is a no-op, as it is now.
+down to the larch Kura region). The rented-fleet fallback (`Sites.status/1`,
+`SiteSpilloverWorker`) was removed on 2026-11-27 together with the rented
+macOS runner fleet, so a job waits for the rack while every site is down.
 
 ### 6. Controller changes
 

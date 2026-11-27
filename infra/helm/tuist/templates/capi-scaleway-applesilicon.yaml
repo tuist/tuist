@@ -905,7 +905,7 @@ spec:
             # sweep is report-only unless orphanReclaim.activeReclaim is
             # set. See controllers/orphan_reclaimer.go.
             - --default-adopt-pool-prefix={{ .Values.macosFleet.adoptPoolPrefix }}
-            - --orphan-reclaim-zones={{ list (.Values.macosFleet.machine.zone | default "fr-par-1") (.Values.runnersFleet.machine.zone | default "fr-par-1") (.Values.buildersFleet.machine.zone | default "fr-par-1") | uniq | join "," }}
+            - --orphan-reclaim-zones={{ list (.Values.macosFleet.machine.zone | default "fr-par-1") (.Values.buildersFleet.machine.zone | default "fr-par-1") | uniq | join "," }}
             {{- if .Values.macosFleet.orphanReclaim.activeReclaim }}
             - --orphan-reclaim-claim-name-prefix={{ include "tuist.fullname" . }}-
             {{- end }}

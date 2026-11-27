@@ -44,7 +44,7 @@ defmodule Tuist.Ops.FeatureFlags do
      "Gives a site account its site-local runner cache without site cache traffic; capacity still applies."},
     {:runner_site_cache_excluded, "account",
      "Tears down an account's site-local runner caches; its jobs still run at the site."},
-    {:runner_site, "account", "Opt-in site runners; staging/canary enable automatically."},
+    {:runner_site, "account", "Site-local runner cache for site runners; staging/canary enable automatically."},
     {:runner_actions_cache, "account",
      "GitHub Actions cache served by Linux runner hosts; opt-in on production, enabled elsewhere."},
     {:test_impact_analysis, "account",

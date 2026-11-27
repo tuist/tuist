@@ -3302,10 +3302,7 @@ mini in every macOS fleet.
 The VNC relay is the one thing that genuinely breaks without this. Its
 port is pinned per host (so the per-Mac Tailscale egress Service can
 declare it) while a relay is per *Pod*, so a second guest needs a
-second port and the Service has to front it. The chart expresses a
-mixed fleet through `runnersFleet.machineGroups[]` — see the comments
-in `infra/helm/tuist/templates/runners-fleet.yaml` for why each group
-gets its own Machine-object label but shares the fleet's Node label.
+second port and the Service has to front it.
 
 ### Scale down
 ```bash
@@ -3338,9 +3335,9 @@ scw apple-silicon server update <server-id> schedule-deletion=true zone=fr-par-1
 A pool host scheduled for deletion is still adoptable until it goes, so
 schedule it only once nothing in that env needs a spare.
 
-Staging and canary rent no runner hosts (`runnersFleet.hostCount: 0`;
-their macOS jobs run on lent alder rack hosts, see `infra/rack-nodes/AGENTS.md`),
-and keep one `macosFleet` mini each for the xcresult processor. Their
+No env rents macOS runner hosts: macOS jobs run on the alder rack (staging
+and canary on hosts production lends them, see `infra/rack-nodes/AGENTS.md`).
+Staging and canary keep one `macosFleet` mini each for the xcresult processor. Their
 pools hold no spare, so replacing that mini means ordering a
 `tuist-pool-` host first.
 

@@ -71,8 +71,7 @@ Helm-installed resource; publishing it is a separate rollout step.
   boot, 10 to 75 s), while a floor on an image without jobs holds a slot
   other images' bursts wait for. Images with a job in most weekday working
   hours keep one: on the alder rack 27.0 keeps two and 26.6, 26.3 and 26.0.1
-  one (`rackFleet.runners.xcodeOverrides`, default 0); on the rented fleet
-  27.0 keeps two and 26.6 one (`runnersFleet.xcodeOverrides`). The catalog
+  one (`rackFleet.runners.xcodeOverrides`, default 0). The catalog
   default is 27.2, but it only seeds new accounts' protected `macos`
   profile; existing accounts' `tuist-macos` stays on 26.6, so 26.6 keeps
   its floors and the rack also keeps one 27.2 runner for new accounts.

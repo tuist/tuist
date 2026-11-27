@@ -2664,15 +2664,6 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  Whether the env rents a macOS fleet to back its sites' pools with. Helm sets
-  `TUIST_RUNNERS_RENTED_MACOS_FLEET=false` when the env racks its macOS pools
-  at a site and rents no hosts, so dispatch keeps those pools' jobs at the site.
-  """
-  def runners_rented_macos_fleet?(environment \\ System.get_env()) do
-    Map.get(environment, "TUIST_RUNNERS_RENTED_MACOS_FLEET") != "false"
-  end
-
-  @doc """
   Wrapping roots (`TUIST_KURA_VOLUME_ROOT_KEYS`), as `[{id, key}]`.
   The first wraps new shares; all entries decrypt.
   Prepending a replacement does not rewrap existing shares. Use

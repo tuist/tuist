@@ -92,7 +92,6 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.PodReconciliationWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
     {"* * * * *", Tuist.Runners.Workers.UnstartedExecutionsWorker},
-    {"* * * * *", Tuist.Runners.Workers.SiteSpilloverWorker},
     {"*/5 * * * *", ConcurrencySizingWorker},
     {"30 * * * *", ConcurrencySizingWorker, args: %{"mode" => "daily"}},
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
