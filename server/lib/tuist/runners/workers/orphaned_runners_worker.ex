@@ -58,7 +58,10 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
        only if GitHub still says `queued` then, recover via
        `Claims.release/2` (with the original `claimed_at` as the
        handle), which deletes the claim and re-queues the lifecycle
-       row in one transaction.
+       row in one transaction. A job over an hour old that GitHub has
+       already left five runners idle for is closed as `stale` instead:
+       GitHub is not routing it to these runners, so another one would
+       idle out too (see `requeue_or_give_up/2`).
     4. If GH returns `status: 'in_progress'` → runner is actually
        running; leave the row alone.
     5. If GH returns `status: 'completed'` → GH has a terminal
@@ -211,6 +214,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJobs
   alias Tuist.VCS
@@ -219,6 +223,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
 
   @stale_after_seconds 300
   @queued_confirm_after_seconds 60
+  @give_up_after_seconds 3_600
+  @give_up_after_unassigned_runners 5
   @runner_label_selector "tuist.dev/runner=true"
   @runner_heartbeat_state_annotation "tuist.dev/runner-heartbeat-state"
   @runner_heartbeat_claimed "claimed"
@@ -581,7 +587,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
       nil ->
         case stage do
           :first_sighting -> schedule_queued_confirmation(orphan, account, evidence)
-          :confirmation -> requeue_orphan(orphan, account)
+          :confirmation -> requeue_or_give_up(orphan, account)
         end
 
       signal ->
@@ -727,6 +733,62 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     end
 
     false
+  end
+
+  # Re-queueing assumes the next runner will get the job. When GitHub has
+  # already left several runners minted for it idle, it is not routing the
+  # job to this account's runners at all: the organization's runner group no
+  # longer admits the repository, self-hosted runners were turned off for it,
+  # or the job's run will never assign it. Every re-queue then boots another
+  # runner that idles out, until GitHub's own 24-hour limit on queued
+  # self-hosted jobs ends it; on 2026-11-26 five such jobs took about 110
+  # runners each. So the row is closed instead, with the `stale` conclusion
+  # `StaleQueuedJobsWorker` gives a queued job nothing will move. GitHub keeps
+  # its job queued; a re-run creates a new job and is dispatched normally.
+  #
+  # Only GitHub jobs: other providers report their own job state, and a
+  # runner of theirs that takes nothing points at the runner, not at routing.
+  # The age floor keeps a short GitHub incident, during which no runner gets
+  # any job, from closing jobs that would run once it ends.
+  defp requeue_or_give_up(orphan, account) do
+    if never_assigned?(orphan) do
+      give_up_unassigned(orphan, account)
+    else
+      requeue_orphan(orphan, account)
+    end
+  end
+
+  defp never_assigned?(%{provider: "github", workflow_job_id: workflow_job_id, enqueued_at: %DateTime{} = enqueued_at}) do
+    DateTime.diff(DateTime.utc_now(), enqueued_at) >= @give_up_after_seconds and
+      RunnerSessions.unassigned_count(workflow_job_id) >= @give_up_after_unassigned_runners
+  end
+
+  defp never_assigned?(_orphan), do: false
+
+  defp give_up_unassigned(
+         %{workflow_job_id: workflow_job_id, claimed_at: claimed_at, pod_name: pod_name, fleet_name: fleet_name},
+         account
+       ) do
+    Logger.warning("runners: orphaned running row — GitHub never assigned it to a runner; closing it",
+      workflow_job_id: workflow_job_id,
+      account: account.name,
+      pod: pod_name
+    )
+
+    safe_complete_job(workflow_job_id, "stale")
+
+    # The row is terminal now, so the handle-guarded release only drops this
+    # claim and its re-queue does nothing. If the completion failed, the row is
+    # still `running` and this re-queues it as before.
+    Claims.release(workflow_job_id, claimed_at)
+
+    :telemetry.execute(
+      Telemetry.event_name_recovery(),
+      %{count: 1},
+      %{kind: "orphan_unassigned", fleet: fleet_name}
+    )
+
+    true
   end
 
   defp requeue_orphan(

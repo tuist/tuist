@@ -1084,6 +1084,7 @@ defmodule Tuist.Runners.WorkflowJobs do
     :account_id,
     :repository,
     :workflow_run_id,
+    :enqueued_at,
     :claimed_at,
     :started_at,
     :pod_name,
