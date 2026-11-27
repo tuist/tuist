@@ -12,6 +12,7 @@ defmodule Tuist.Runners.PrepaidNotificationsTest do
   alias Tuist.Runners.PrepaidActivation
   alias Tuist.Runners.PrepaidNotification
   alias Tuist.Runners.PrepaidNotifications
+  alias Tuist.Runners.PrepaidTopUp
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.Workers.PrepaidNotificationWorker
   alias Tuist.Runners.Workers.PrepaidUsageWorker
@@ -48,6 +49,32 @@ defmodule Tuist.Runners.PrepaidNotificationsTest do
     assert PrepaidNotifications.budget_cents(activation) == 1235
   end
 
+  test "the budget includes the pool's applied top-ups at each grant's own multiplier", context do
+    %{account: account, activation: activation} = context
+
+    top_up = fn status, grants ->
+      Repo.insert!(%PrepaidTopUp{
+        account_id: account.id,
+        activation_id: activation.id,
+        change_id: Ecto.UUID.generate(),
+        status: status,
+        principal: %{},
+        before: %{},
+        request: %{"grants" => grants}
+      })
+    end
+
+    top_up.("applied", [
+      %{"platform" => "macos", "paid_cents" => 1000, "credit_multiplier" => "1.1843"},
+      %{"platform" => "linux", "paid_cents" => 500, "credit_multiplier" => "1"}
+    ])
+
+    # A pending top-up has granted nothing yet.
+    top_up.("pending", [%{"platform" => "macos", "paid_cents" => 9000, "credit_multiplier" => "1"}])
+
+    assert PrepaidNotifications.budget_cents(activation) == 1000 + 1184 + 500
+  end
+
   test "pre-activation paid usage spends free tier first, separately per purchased platform", context do
     %{account: account, activation: activation, now: now, cycle_start: cycle_start} = context
     before = DateTime.add(activation.activated_at, -3, :day)
@@ -78,6 +105,21 @@ defmodule Tuist.Runners.PrepaidNotificationsTest do
     assert PrepaidNotifications.usage_cents(activation, account, now) == 800
     assert {:ok, _} = PrepaidNotifications.enqueue(activation.id)
     assert [%{threshold: 80, usage_cents: 800, budget_cents: 1000}] = Repo.all(PrepaidNotification)
+  end
+
+  test "a pool covering cache usage counts it past the allowances earlier usage spent", context do
+    %{account: account, activation: activation, now: now, cycle_start: cycle_start} = context
+
+    stub(Billing.UsagePricing, :metered_cache_usage, fn _account_id, period_start, _period_end ->
+      if period_start == cycle_start,
+        do: %{egress_megabytes: 90_000, requests: 900_000},
+        else: %{egress_megabytes: 30_000, requests: 300_000}
+    end)
+
+    # 20 GB past 100 GB at $0.10 and 200,000 requests past 1M at $0.01 per 1,000.
+    covering = %{activation | request: Map.put(activation.request, "covers_cache", true)}
+    assert PrepaidNotifications.usage_cents(covering, account, now) == 400
+    assert PrepaidNotifications.usage_cents(activation, account, now) == 0
   end
 
   test "trial usage is excluded and does not consume free allowance", context do

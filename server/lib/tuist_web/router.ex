@@ -1565,6 +1565,11 @@ defmodule TuistWeb.Router do
 
     get "/atlas/accounts/:account_id/runner-billing", AtlasAccountsController, :runner_billing
     put "/atlas/accounts/:account_id/runner-billing", AtlasAccountsController, :activate_runner_prepaid_pool
+
+    put "/atlas/accounts/:account_id/runner-billing/top-ups",
+        AtlasAccountsController,
+        :top_up_runner_prepaid_pool
+
     put "/atlas/accounts/:account_id/runner-trial", AtlasAccountsController, :update_runner_trial
 
     get "/atlas/kura/rollout", AtlasKuraRolloutsController, :show

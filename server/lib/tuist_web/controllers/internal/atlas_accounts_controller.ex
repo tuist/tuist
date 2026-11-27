@@ -53,6 +53,10 @@ defmodule TuistWeb.Internal.AtlasAccountsController do
     respond(conn, RunnerBilling.activate(account_id, conn.body_params, conn.assigns.atlas_principal))
   end
 
+  def top_up_runner_prepaid_pool(conn, %{"account_id" => account_id}) do
+    respond(conn, RunnerBilling.top_up(account_id, conn.body_params, conn.assigns.atlas_principal))
+  end
+
   def update_runner_trial(conn, %{"account_id" => account_id}) do
     respond(conn, RunnerBilling.update_trial(account_id, conn.body_params, conn.assigns.atlas_principal))
   end

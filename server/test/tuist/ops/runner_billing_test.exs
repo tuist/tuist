@@ -6,6 +6,7 @@ defmodule Tuist.Ops.RunnerBillingTest do
   alias Tuist.Environment
   alias Tuist.Ops.RunnerBilling
   alias Tuist.Runners.PrepaidActivation
+  alias Tuist.Runners.PrepaidTopUp
   alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -45,6 +46,25 @@ defmodule Tuist.Ops.RunnerBillingTest do
           %{up_to: 150_000_000, unit_amount: 0, flat_amount: nil},
           %{up_to: nil, unit_amount: nil, unit_amount_decimal: "0.000004", flat_amount: nil}
         ]
+    }
+
+    cache_prices = %{
+      "price_cache_egress" => %{
+        price
+        | id: "price_cache_egress",
+          tiers: [
+            %{up_to: 100_000, unit_amount: 0, flat_amount: nil},
+            %{up_to: nil, unit_amount: nil, unit_amount_decimal: "0.01", flat_amount: nil}
+          ]
+      },
+      "price_cache_requests" => %{
+        price
+        | id: "price_cache_requests",
+          tiers: [
+            %{up_to: 1_000_000, unit_amount: 0, flat_amount: nil},
+            %{up_to: nil, unit_amount: nil, unit_amount_decimal: "0.001", flat_amount: nil}
+          ]
+      }
     }
 
     seat = %{
@@ -88,14 +108,17 @@ defmodule Tuist.Ops.RunnerBillingTest do
         "runners" => %{
           "runner_macos_compute_unit_milliseconds" => price.id,
           "runner_linux_compute_unit_milliseconds" => linux_price.id
+        },
+        "usage_meters" => %{
+          "cache_egress_megabytes" => "price_cache_egress",
+          "cache_requests" => "price_cache_requests",
+          "passing_test_cases" => "price_test_cases"
         }
       }
     end)
 
-    stub(Stripe.Price, :retrieve, fn
-      "price_macos", %{expand: ["tiers"]} -> {:ok, price}
-      "price_linux", %{expand: ["tiers"]} -> {:ok, linux_price}
-    end)
+    prices = Map.merge(cache_prices, %{"price_macos" => price, "price_linux" => linux_price})
+    stub(Stripe.Price, :retrieve, fn id, %{expand: ["tiers"]} -> {:ok, Map.fetch!(prices, id)} end)
 
     stub(Stripe.Invoice, :retrieve, fn "in_order" ->
       {:ok, %{customer: customer, currency: "usd", subtotal: 625_000, status: "draft"}}
@@ -114,6 +137,7 @@ defmodule Tuist.Ops.RunnerBillingTest do
           Enum.map(items, fn
             %{price: "price_macos"} -> %{id: "si_macos", price: price, quantity: nil}
             %{price: "price_linux"} -> %{id: "si_linux", price: linux_price, quantity: nil}
+            %{price: "price_cache_" <> meter = id} -> %{id: "si_cache_#{meter}", price: cache_prices[id], quantity: nil}
           end)
 
         subscription = %{state.subscription | items: %{data: state.subscription.items.data ++ added}}
@@ -141,7 +165,7 @@ defmodule Tuist.Ops.RunnerBillingTest do
       "interface" => "mcp"
     }
 
-    %{account: account, stripe: stripe, params: params, seat: seat, now: now, price: price}
+    %{account: account, stripe: stripe, params: params, seat: seat, now: now, price: price, prices: prices}
   end
 
   test "activates one shared compute pool and strict final period without replacing SaaS", context do
@@ -196,6 +220,85 @@ defmodule Tuist.Ops.RunnerBillingTest do
     assert {:ok, replay} = RunnerBilling.activate(account.id, params, %{name: "atlas"})
     assert replay == recorded.after
     assert {:error, :change_id_conflict} = RunnerBilling.activate(account.id, Map.put(params, "paid_cents", 1), %{})
+  end
+
+  test "a pool covering cache usage pays for it from the same grant at the same multiplier", context do
+    %{account: account, stripe: stripe, params: params} = context
+    params = Map.put(params, "covers_cache", true)
+
+    assert {:ok, result} = RunnerBilling.activate(account.id, params, %{name: "atlas"})
+    assert result.activation.status == "applied"
+
+    state = Agent.get(stripe, & &1)
+    assert state.creates == 1
+    assert [grant] = state.grants
+    assert grant.amount.monetary == %{currency: "usd", value: 694_500}
+    assert grant.metadata["tuist_prepaid_covers_cache"] == "true"
+
+    assert Enum.sort(grant.applicability_config.scope.prices) == [
+             %{id: "price_cache_egress"},
+             %{id: "price_cache_requests"},
+             %{id: "price_linux"},
+             %{id: "price_macos"}
+           ]
+
+    # Test insights stay off the subscription; the schedule keeps the cache items.
+    subscription_prices = Enum.map(state.subscription.items.data, & &1.price.id)
+
+    assert Enum.sort(subscription_prices) ==
+             ~w(price_cache_egress price_cache_requests price_linux price_macos price_seat)
+
+    assert [during, after_term] = state.schedule.phases
+    assert Enum.sort(Enum.map(during.items, & &1.price)) == Enum.sort(subscription_prices)
+    assert during.items == after_term.items
+
+    # A replay after a failure resumes without granting or adding items twice.
+    reject(&CreditGrants.list_for_customer/1)
+    assert {:ok, replay} = RunnerBilling.activate(account.id, params, %{name: "atlas"})
+    assert replay["activation"]["status"] == "applied"
+  end
+
+  test "a failure after the grant resumes a cache-covering pool without granting twice", context do
+    %{account: account, stripe: stripe, params: params} = context
+    params = Map.put(params, "covers_cache", true)
+    Agent.update(stripe, &%{&1 | fail_schedule: true})
+    assert {:error, :stripe_request_failed} = RunnerBilling.activate(account.id, params, %{})
+
+    Agent.update(stripe, &%{&1 | fail_schedule: false})
+    assert {:ok, state} = RunnerBilling.activate(account.id, params, %{})
+    assert state.activation.status == "applied"
+    assert Agent.get(stripe, & &1.creates) == 1
+    assert Enum.count(Agent.get(stripe, & &1.subscription.items.data), &String.starts_with?(&1.id, "si_cache_")) == 2
+  end
+
+  test "pools cover cache usage only when asked, and only at the list rates", context do
+    %{account: account, stripe: stripe, params: params, prices: prices} = context
+
+    for covers_cache <- ["true", 1, nil] do
+      assert {:error, :invalid_request} =
+               RunnerBilling.activate(account.id, Map.put(params, "covers_cache", covers_cache), %{})
+    end
+
+    # Cache Prices already on a subscription are another service's paid items
+    # unless the pool covers them.
+    Agent.update(stripe, fn state ->
+      cache_item = %{id: "si_cache_egress", price: prices["price_cache_egress"], quantity: nil}
+      update_in(state.subscription.items.data, &(&1 ++ [cache_item]))
+    end)
+
+    assert {:error, :runner_only_subscription_required} = RunnerBilling.activate(account.id, params, %{})
+
+    # A cache Price charging more than `UsagePricing` quotes.
+    prices =
+      update_in(prices["price_cache_egress"].tiers, fn [free, paid] -> [free, %{paid | unit_amount_decimal: "0.02"}] end)
+
+    stub(Stripe.Price, :retrieve, fn id, _ -> {:ok, Map.fetch!(prices, id)} end)
+
+    assert {:error, :cache_price_mismatch} =
+             RunnerBilling.activate(account.id, Map.put(params, "covers_cache", true), %{})
+
+    assert Agent.get(stripe, & &1.creates) == 0
+    assert Trials.on_trial?(Repo.reload!(account))
   end
 
   test "failed schedule retains the grant and trial checkpoint and resumes without granting twice", context do
@@ -338,6 +441,249 @@ defmodule Tuist.Ops.RunnerBillingTest do
     assert Trials.on_trial?(Repo.reload!(account))
   end
 
+  describe "an order paid in instalments" do
+    test "credits the whole order up front, tied to the first instalment and its subscription", context do
+      %{account: account, stripe: stripe} = context
+      params = instalment_order(context, %{"tuist_runner_prepaid_instalments" => "true"})
+
+      assert {:ok, result} = RunnerBilling.activate(account.id, params, %{name: "atlas"})
+      assert result.activation.status == "applied"
+
+      assert [grant] = Agent.get(stripe, & &1.grants)
+      # 12 × 1,227 at 1.25, regardless of how many instalments are paid.
+      assert grant.amount.monetary == %{currency: "usd", value: 1_840_500}
+      assert grant.metadata["tuist_prepaid_invoice_id"] == "in_instalment_1"
+      assert grant.metadata["tuist_prepaid_instalments"] == "12"
+      assert grant.metadata["tuist_prepaid_instalment_subscription_id"] == "sub_instalments"
+      assert Repo.get_by!(PrepaidActivation, change_id: params["change_id"]).request["instalments"] == 12
+    end
+
+    test "refuses an invoice that is not one equal share of the order", context do
+      %{account: account, stripe: stripe} = context
+      params = instalment_order(context, %{"tuist_runner_prepaid_instalments" => "true"})
+
+      assert {:error, :invoice_does_not_match} =
+               RunnerBilling.activate(account.id, Map.put(params, "instalments", 11), %{})
+
+      assert Agent.get(stripe, & &1.creates) == 0
+    end
+
+    test "refuses an instalment invoice from an unmarked or the runner subscription", context do
+      %{account: account, stripe: stripe} = context
+      params = instalment_order(context, %{})
+      assert {:error, :instalment_subscription_required} = RunnerBilling.activate(account.id, params, %{})
+
+      customer = Agent.get(stripe, & &1.subscription.customer)
+
+      stub(Stripe.Invoice, :retrieve, fn _ ->
+        {:ok, %{customer: customer, currency: "usd", subtotal: 122_700, status: "draft", subscription: "sub_prepaid"}}
+      end)
+
+      assert {:error, :instalment_subscription_required} = RunnerBilling.activate(account.id, params, %{})
+      assert Agent.get(stripe, & &1.creates) == 0
+      assert Trials.on_trial?(Repo.reload!(account))
+    end
+
+    test "rejects an instalment count outside 2..12", %{account: account, params: params} do
+      for instalments <- [1, 13, "12"] do
+        assert {:error, :invalid_request} =
+                 RunnerBilling.activate(account.id, Map.put(params, "instalments", instalments), %{})
+      end
+    end
+  end
+
+  test "a top-up of a pool that covers cache covers cache with its Linux grant only", context do
+    %{account: account, stripe: stripe, params: params} = context
+    assert {:ok, _} = RunnerBilling.activate(account.id, Map.put(params, "covers_cache", true), %{})
+    customer = Agent.get(stripe, & &1.subscription.customer)
+
+    stub(Stripe.Invoice, :retrieve, fn "in_top_up" ->
+      {:ok, %{customer: customer, currency: "usd", subtotal: 80_000, status: "open"}}
+    end)
+
+    assert {:ok, _} = RunnerBilling.top_up(account.id, top_up_request(account, %{}), %{})
+
+    [_pool, macos, linux] = Agent.get(stripe, & &1.grants)
+    assert macos.applicability_config.scope.prices == [%{id: "price_macos"}]
+    refute Map.has_key?(macos.metadata, "tuist_prepaid_covers_cache")
+
+    assert Enum.sort(linux.applicability_config.scope.prices) ==
+             [%{id: "price_cache_egress"}, %{id: "price_cache_requests"}, %{id: "price_linux"}]
+
+    assert linux.metadata["tuist_prepaid_covers_cache"] == "true"
+    # At the Linux grant's own multiplier: 30,000 × 1.25.
+    assert linux.amount.monetary == %{currency: "usd", value: 37_500}
+  end
+
+  describe "top_up/3" do
+    setup %{account: account, params: params, stripe: stripe} do
+      assert {:ok, _} = RunnerBilling.activate(account.id, params, %{})
+      customer = Agent.get(stripe, & &1.subscription.customer)
+
+      stub(Stripe.Invoice, :retrieve, fn
+        "in_order" -> {:ok, %{customer: customer, currency: "usd", subtotal: 625_000, status: "paid"}}
+        "in_top_up" -> {:ok, %{customer: customer, currency: "usd", subtotal: 80_000, status: "open"}}
+      end)
+
+      :ok
+    end
+
+    test "grants each platform at its own multiplier, expiring with the pool and spent first", context do
+      %{account: account, stripe: stripe, params: pool} = context
+      request = top_up_request(account, %{})
+
+      assert {:ok, result} = RunnerBilling.top_up(account.id, request, %{name: "atlas"})
+      assert length(result.prepaid_grants) == 3
+
+      [pool_grant, macos, linux] = Agent.get(stripe, & &1.grants)
+      assert macos.amount.monetary == %{currency: "usd", value: 59_215}
+      assert macos.applicability_config.scope.prices == [%{id: "price_macos"}]
+      assert linux.amount.monetary == %{currency: "usd", value: 37_500}
+      assert linux.applicability_config.scope.prices == [%{id: "price_linux"}]
+
+      for grant <- [macos, linux] do
+        assert grant.expires_at == pool_grant.expires_at
+        assert grant.priority < pool_grant.priority
+        assert grant.metadata["tuist_prepaid_expires_on"] == pool["expires_on"]
+        assert grant.metadata["tuist_prepaid_top_up_of"] == pool["change_id"]
+        assert grant.metadata["tuist_prepaid_activation_id"] == request["change_id"]
+        assert grant.metadata["tuist_prepaid_invoice_id"] == "in_top_up"
+      end
+
+      recorded = Repo.get_by!(PrepaidTopUp, change_id: request["change_id"])
+      assert recorded.status == "applied"
+      assert recorded.grant_ids == [macos.id, linux.id]
+      assert recorded.principal == %{"name" => "atlas"}
+      assert recorded.activation_id == Repo.get_by!(PrepaidActivation, change_id: pool["change_id"]).id
+
+      # An identical replay returns the recorded result without Stripe.
+      reject(&CreditGrants.list_for_customer/1)
+      assert {:ok, replay} = RunnerBilling.top_up(account.id, request, %{name: "atlas"})
+      assert replay == recorded.after
+      assert {:error, :change_id_conflict} = RunnerBilling.top_up(account.id, Map.put(request, "reason", "x"), %{})
+    end
+
+    test "reconciles a grant whose response was lost without granting the platform twice", context do
+      %{account: account, stripe: stripe} = context
+      Agent.update(stripe, &%{&1 | ambiguous_grant: true})
+      request = top_up_request(account, %{})
+
+      assert {:error, :stripe_request_failed} = RunnerBilling.top_up(account.id, request, %{})
+      assert Repo.get_by!(PrepaidTopUp, change_id: request["change_id"]).status == "pending"
+
+      assert {:ok, _} = RunnerBilling.top_up(account.id, request, %{})
+      # The pool plus one grant per platform.
+      assert Agent.get(stripe, & &1.creates) == 3
+      assert length(Repo.get_by!(PrepaidTopUp, change_id: request["change_id"]).grant_ids) == 2
+    end
+
+    test "refuses mismatched invoices, reused invoices, foreign platforms and reused change IDs", context do
+      %{account: account, stripe: stripe, params: pool} = context
+
+      assert {:error, :invoice_does_not_match} =
+               RunnerBilling.top_up(
+                 account.id,
+                 top_up_request(account, %{
+                   "grants" => [%{"platform" => "macos", "paid_cents" => 50_000, "credit_multiplier" => "1.1843"}]
+                 }),
+                 %{}
+               )
+
+      assert {:error, :invoice_already_used} =
+               RunnerBilling.top_up(account.id, top_up_request(account, %{"invoice_id" => "in_order"}), %{})
+
+      assert {:error, :change_id_conflict} =
+               RunnerBilling.top_up(account.id, top_up_request(account, %{"change_id" => pool["change_id"]}), %{})
+
+      Repo.update_all(PrepaidActivation, set: [request: Map.put(pool, "platforms", ["linux"])])
+
+      assert {:error, :platform_not_in_pool} = RunnerBilling.top_up(account.id, top_up_request(account, %{}), %{})
+
+      assert {:ok, _} =
+               RunnerBilling.top_up(
+                 account.id,
+                 top_up_request(account, %{
+                   "grants" => [%{"platform" => "linux", "paid_cents" => 80_000, "credit_multiplier" => "1.25"}]
+                 }),
+                 %{}
+               )
+
+      assert {:error, :invoice_already_used} =
+               RunnerBilling.top_up(
+                 account.id,
+                 top_up_request(account, %{
+                   "grants" => [%{"platform" => "linux", "paid_cents" => 80_000, "credit_multiplier" => "1.25"}]
+                 }),
+                 %{}
+               )
+
+      assert Agent.get(stripe, & &1.creates) == 2
+    end
+
+    test "refuses an account without a pool running past today", %{account: account, params: pool} do
+      Repo.update_all(PrepaidActivation, set: [request: Map.put(pool, "expires_on", "2026-11-16")])
+      assert {:error, :no_live_pool} = RunnerBilling.top_up(account.id, top_up_request(account, %{}), %{})
+    end
+
+    test "rejects malformed top-ups", %{account: account} do
+      grant = %{"platform" => "macos", "paid_cents" => 80_000, "credit_multiplier" => "1.1843"}
+
+      for override <- [
+            %{"grants" => []},
+            %{"grants" => [grant, grant]},
+            %{"grants" => [Map.put(grant, "platform", "windows")]},
+            %{"grants" => [Map.put(grant, "credit_multiplier", "1.18427")]},
+            %{"grants" => [Map.put(grant, "credit_multiplier", "0.9")]},
+            %{"grants" => [Map.put(grant, "extra", 1)]},
+            %{"invoice_id" => "inv_x"},
+            %{"interface" => "worker"},
+            %{"extra" => 1}
+          ] do
+        assert {:error, :invalid_request} = RunnerBilling.top_up(account.id, top_up_request(account, override), %{})
+      end
+    end
+  end
+
+  defp instalment_order(%{params: params, stripe: stripe}, subscription_metadata) do
+    customer = Agent.get(stripe, & &1.subscription.customer)
+
+    stub(Stripe.Invoice, :retrieve, fn "in_instalment_1" ->
+      {:ok, %{customer: customer, currency: "usd", subtotal: 122_700, status: "draft", subscription: "sub_instalments"}}
+    end)
+
+    stub(Stripe.Subscription, :retrieve, fn
+      "sub_instalments" -> {:ok, %{id: "sub_instalments", customer: customer, metadata: subscription_metadata}}
+      "sub_prepaid" -> {:ok, Agent.get(stripe, & &1.subscription)}
+    end)
+
+    Map.merge(params, %{
+      "paid_cents" => 1_472_400,
+      "credit_multiplier" => "1.25",
+      "instalments" => 12,
+      "invoice_id" => "in_instalment_1"
+    })
+  end
+
+  defp top_up_request(account, attrs) do
+    {:ok, state} = RunnerBilling.get(account.id)
+
+    Map.merge(
+      %{
+        "grants" => [
+          %{"platform" => "macos", "paid_cents" => 50_000, "credit_multiplier" => "1.1843"},
+          %{"platform" => "linux", "paid_cents" => 30_000, "credit_multiplier" => "1.25"}
+        ],
+        "invoice_id" => "in_top_up",
+        "expected_revision" => state.revision,
+        "reason" => "Top-up order",
+        "change_id" => Ecto.UUID.generate(),
+        "actor" => %{"id" => Ecto.UUID.generate(), "email" => "operator@tuist.dev"},
+        "interface" => "mcp"
+      },
+      attrs
+    )
+  end
+
   defp stripe_request(
          %{method: :get, endpoint: "/v1/billing/credit_grants"},
          %{fail_snapshot: true, schedule: %{metadata: metadata}} = state
@@ -351,9 +697,10 @@ defmodule Tuist.Ops.RunnerBillingTest do
     do: {{:ok, %{balances: [%{available_balance: %{monetary: %{value: 694_500}}}]}}, state}
 
   defp stripe_request(%{method: :post, endpoint: "/v1/billing/credit_grants", params: params}, state) do
-    grant = Map.put(params, :id, "credgr_order")
+    id = if state.creates == 0, do: "credgr_order", else: "credgr_order_#{state.creates}"
+    grant = Map.put(params, :id, id)
     result = if state.ambiguous_grant, do: {:error, :timeout}, else: {:ok, grant}
-    {result, %{state | grants: [grant], creates: state.creates + 1, ambiguous_grant: false}}
+    {result, %{state | grants: state.grants ++ [grant], creates: state.creates + 1, ambiguous_grant: false}}
   end
 
   defp stripe_request(%{method: :post, endpoint: "/v1/subscription_schedules"}, %{fail_schedule: true} = state),

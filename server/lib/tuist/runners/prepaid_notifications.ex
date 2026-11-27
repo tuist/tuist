@@ -10,12 +10,14 @@ defmodule Tuist.Runners.PrepaidNotifications do
   alias Tuist.Billing
   alias Tuist.Billing.AirUsageNotifications
   alias Tuist.Billing.Subscription
+  alias Tuist.Billing.UsagePricing
   alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.PrepaidActivation
   alias Tuist.Runners.PrepaidNotification
+  alias Tuist.Runners.PrepaidTopUp
   alias Tuist.Runners.Trials
   alias Tuist.Runners.Workers.PrepaidNotificationWorker
   alias Tuist.Runners.Workers.PrepaidUsageWorker
@@ -62,11 +64,25 @@ defmodule Tuist.Runners.PrepaidNotifications do
       Repo.exists?(from(s in Subscription, where: s.account_id == ^account.id and s.status in ["active", "trialing"]))
   end
 
+  # The pool's credit and its applied top-ups', which expire with it. Each
+  # top-up grant pays for one platform only, so the total is a notice
+  # threshold, not what any one platform could still run on.
   def budget_cents(activation) do
-    basis_points =
-      activation.request["credit_multiplier"] |> Decimal.new() |> Decimal.mult(10_000) |> Decimal.to_integer()
+    top_ups =
+      Repo.all(
+        from(t in PrepaidTopUp, where: t.activation_id == ^activation.id and t.status == "applied", select: t.request)
+      )
 
-    div(activation.request["paid_cents"] * basis_points, 10_000)
+    top_ups
+    |> Enum.flat_map(& &1["grants"])
+    |> Enum.map(&granted_cents(&1["paid_cents"], &1["credit_multiplier"]))
+    |> Enum.sum()
+    |> Kernel.+(granted_cents(activation.request["paid_cents"], activation.request["credit_multiplier"]))
+  end
+
+  defp granted_cents(paid_cents, credit_multiplier) do
+    basis_points = credit_multiplier |> Decimal.new() |> Decimal.mult(10_000) |> Decimal.to_integer()
+    div(paid_cents * basis_points, 10_000)
   end
 
   def threshold(_usage, budget) when budget <= 0, do: nil
@@ -94,13 +110,15 @@ defmodule Tuist.Runners.PrepaidNotifications do
           previous = units_by_platform(account.id, paid_start, from)
           current = units_by_platform(account.id, from, until)
 
-          Enum.reduce(platforms, totals, fn platform, acc ->
+          platforms
+          |> Enum.reduce(totals, fn platform, acc ->
             # Earlier paid usage spends the cycle's allowance first. Trial
             # usage does not, and activation must not reset the free tier.
             remaining_free = max(Allowance.free_monthly_minutes(platform) * 60_000 - Map.get(previous, platform, 0), 0)
             billable = max(Map.get(current, platform, 0) - remaining_free, 0)
             Map.update(acc, platform, billable, &(&1 + billable))
           end)
+          |> add_cache_usage(activation, account.id, {cycle_start, from, until})
         else
           totals
         end
@@ -109,10 +127,38 @@ defmodule Tuist.Runners.PrepaidNotifications do
     # Pricing a large exact multiple preserves fractions of a cent across
     # platforms without duplicating the on-demand rate card or using floats.
     units
-    |> Enum.map(fn {platform, ms} -> Prepaid.on_demand_cost_for_milliseconds(platform, ms * 6_000_000).amount end)
+    |> Enum.map(fn
+      {:cache, scaled_cents} -> scaled_cents
+      {platform, ms} -> Prepaid.on_demand_cost_for_milliseconds(platform, ms * 6_000_000).amount
+    end)
     |> Enum.sum()
     |> div(6_000_000)
   end
+
+  # A pool that covers cache usage pays for it from the same credit, at the
+  # list rates Stripe charges past each allowance, so it counts here too, in
+  # cents scaled by 6,000,000 like the runner total. Usage earlier in the cycle
+  # spends the allowance first, so activation never resets the free tier.
+  defp add_cache_usage(totals, %{request: %{"covers_cache" => true}}, account_id, {cycle_start, from, until}) do
+    previous = UsagePricing.metered_cache_usage(account_id, cycle_start, from)
+    current = UsagePricing.metered_cache_usage(account_id, from, until)
+    quantities = %{"cache_egress_megabytes" => :egress_megabytes, "cache_requests" => :requests}
+
+    scaled_cents =
+      UsagePricing.meter_prices()
+      |> Enum.filter(&Map.has_key?(quantities, &1.event_name))
+      |> Enum.map(fn meter ->
+        key = Map.fetch!(quantities, meter.event_name)
+        before = Map.fetch!(previous, key)
+        billable = max(before + Map.fetch!(current, key) - meter.included, 0) - max(before - meter.included, 0)
+        div(billable * meter.cents * 6_000_000, meter.per_units)
+      end)
+      |> Enum.sum()
+
+    Map.update(totals, :cache, scaled_cents, &(&1 + scaled_cents))
+  end
+
+  defp add_cache_usage(totals, _activation, _account_id, _window), do: totals
 
   def enqueue(activation_id) do
     Repo.transaction(fn ->

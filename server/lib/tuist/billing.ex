@@ -1387,8 +1387,25 @@ defmodule Tuist.Billing do
         :ok
 
       {:ok, account} ->
-        on_subscription_change_for_account(subscription, account)
+        if prepaid_instalment_subscription?(subscription),
+          do: :ok,
+          else: on_subscription_change_for_account(subscription, account)
     end
+  end
+
+  @doc """
+  Whether `subscription` is a Stripe subscription that only charges the
+  instalments of a prepaid runner pool (`Tuist.Ops.RunnerBilling`), marked
+  with `tuist_runner_prepaid_instalments = "true"` metadata when it is
+  created in Stripe.
+
+  It sits beside the subscription the account keeps its plan through, has
+  no plan Price, and is never stored: storing it would make it the account's
+  current subscription, and its plan cannot be resolved.
+  """
+  def prepaid_instalment_subscription?(subscription) do
+    metadata = Map.get(subscription, :metadata) || %{}
+    Enum.any?(metadata, fn {key, value} -> to_string(key) == "tuist_runner_prepaid_instalments" and value == "true" end)
   end
 
   # An event about a subscription already stored as ended was sent before it

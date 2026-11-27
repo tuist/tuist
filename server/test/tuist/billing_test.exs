@@ -274,6 +274,23 @@ defmodule Tuist.BillingTest do
       end
     end
 
+    test "does not store a prepaid runner instalment subscription as the account's plan" do
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      # Its items carry no plan Price, so storing it would raise.
+      assert Billing.on_subscription_change(%{
+               id: "sub_instalments",
+               status: "active",
+               customer: "customer_id",
+               default_payment_method: nil,
+               metadata: %{"tuist_runner_prepaid_instalments" => "true"},
+               items: %{data: [%{price: %{id: "price_runner_instalment"}}]}
+             }) == :ok
+
+      assert Billing.get_current_active_subscription(account) == nil
+    end
+
     test "when an account for the given customer doesn't exist" do
       # When
       assert(

@@ -9,12 +9,15 @@ defmodule Tuist.Runners.PrepaidExpiry do
   one monthly phase. The grant's four-day settlement grace cannot fund that
   next month's usage invoice. No replacement pool is scheduled.
 
-  Only runner subscriptions with no other paid items are supported: changing
+  Only runner subscriptions with no other paid items are supported, plus the
+  cache usage Prices when the pool also covers cache usage (`covers_cache:
+  true`): changing
   another service's invoice date or payment terms would require a separate
   commercial decision. Existing schedules are never overwritten.
   """
 
   alias Tuist.Billing
+  alias Tuist.Runners.Prepaid
 
   # Automatic tax is inherited from the imported schedule's defaults. Its
   # response also contains read-only fields that Stripe refuses on update.
@@ -44,15 +47,18 @@ defmodule Tuist.Runners.PrepaidExpiry do
     end
   end
 
+  def validate(subscription, activation_id, opts \\ [])
+
   def validate(
         %{status: "active", cancel_at_period_end: false, cancel_at: nil, billing_mode: "classic"} = subscription,
-        activation_id
+        activation_id,
+        opts
       ) do
-    runner_prices = Map.values(Map.get(Tuist.Environment.stripe_prices() || %{}, "runners", %{}))
+    prepaid_prices = prepaid_prices(Keyword.get(opts, :covers_cache, false))
 
     supported_items? =
       is_nil(Map.get(subscription, :billing_thresholds)) and
-        Enum.all?(subscription.items.data, &supported_item?(&1, runner_prices))
+        Enum.all?(subscription.items.data, &supported_item?(&1, prepaid_prices))
 
     cond do
       not supported_items? or not is_nil(Map.get(subscription, :discount)) or
@@ -71,22 +77,34 @@ defmodule Tuist.Runners.PrepaidExpiry do
     end
   end
 
-  def validate(%{billing_mode: mode}, _activation_id) when mode != "classic", do: {:error, :classic_billing_required}
-  def validate(_subscription, _activation_id), do: {:error, :active_subscription_required}
+  def validate(%{billing_mode: mode}, _activation_id, _opts) when mode != "classic",
+    do: {:error, :classic_billing_required}
 
-  defp supported_item?(item, runner_prices) do
+  def validate(_subscription, _activation_id, _opts), do: {:error, :active_subscription_required}
+
+  defp prepaid_prices(covers_cache) do
+    cache_prices =
+      case covers_cache && Prepaid.cache_price_ids() do
+        {:ok, ids} -> ids
+        _none -> []
+      end
+
+    Map.values(Map.get(Tuist.Environment.stripe_prices() || %{}, "runners", %{})) ++ cache_prices
+  end
+
+  defp supported_item?(item, prepaid_prices) do
     price = item.price
 
     is_nil(Map.get(item, :billing_thresholds)) and price.recurring.interval == "month" and
       price.recurring.interval_count == 1 and
-      (price.id in runner_prices or (price.recurring.usage_type == "licensed" and item.quantity == 0))
+      (price.id in prepaid_prices or (price.recurring.usage_type == "licensed" and item.quantity == 0))
   end
 
-  def schedule(account, activation_id, expires_on) do
+  def schedule(account, activation_id, expires_on, opts \\ []) do
     cutoff = expires_on |> Date.add(1) |> DateTime.new!(~T[00:00:00], "Etc/UTC")
 
     with {:ok, subscription} <- subscription(account),
-         :ok <- validate(%{subscription | schedule: nil}, activation_id),
+         :ok <- validate(%{subscription | schedule: nil}, activation_id, opts),
          {:ok, schedule} <- get_or_create(subscription, activation_id),
          {:ok, schedule} <- set_boundary(schedule, activation_id, cutoff) do
       {:ok, schedule.id}

@@ -56,6 +56,11 @@ defmodule Tuist.Runners.Prepaid do
   $1,250 of credit. It is held between 1.0 and 2.0 and recorded on the
   grant in basis points.
 
+  A pool can also cover remote cache usage when the order says so
+  (`:covers_cache`): the cache Prices join the same grant's scope, so the
+  whole balance pays for either, both at the multiplier. Pools cover only
+  runner usage otherwise.
+
   Monthly prepaid grants made before pools were the only prepaid offering
   are still read by `balance/2` until Stripe expires them.
 
@@ -100,13 +105,21 @@ defmodule Tuist.Runners.Prepaid do
   @max_funding_ratio_bp 20_000
 
   @prepaid_priority 50
+  # Stripe applies grants with a lower number first. A top-up is scoped to
+  # one platform and expires with its pool, so spending it first keeps the
+  # shared pool free for either platform; the other order can leave a
+  # platform's top-up unspent while the other platform's usage is billed
+  # on demand.
+  @top_up_priority 40
 
   @kind_key "tuist_runner_credit"
   @invoice_key "tuist_prepaid_invoice_id"
   @paid_cents_key "tuist_prepaid_paid_cents"
   @granted_ratio_key "tuist_prepaid_funding_ratio_bp"
+  @covers_cache_key "tuist_prepaid_covers_cache"
 
   @pool_kind "pool"
+  @cache_meters ~w(cache_egress_megabytes cache_requests)
   # A yearly contract, granted up to a month before it starts.
   @max_pool_months 13
 
@@ -174,11 +187,21 @@ defmodule Tuist.Runners.Prepaid do
     * `:starts_on` - the first day of the contract.
     * `:expires_on` - the last day of the contract, at most a year after
       the first.
+    * `:covers_cache` - optional, `true` when the order also prepays remote
+      cache usage: the grant's scope then adds the cache egress and request
+      Prices, which draw on the same credit at the same multiplier, so the
+      order's cache rates are list rates divided by it. The cache Prices must
+      be on the subscription for the credit to pay for them.
     * `:invoice_id` - optional, the Stripe invoice that charged for the pool,
       recorded on the grant so the credit can be traced to its charge.
     * `:activation_id` - internal audited activation UUID. These pools have
       a strict usage cutoff and require the activation to arrange a Stripe
       billing-cycle boundary at midnight after `expires_on`.
+    * `:instalments` and `:instalment_subscription_id` - optional, for a
+      pool paid in instalments: how many, and the Stripe subscription that
+      charges them. `:invoice_id` is then the first instalment's invoice.
+    * `:top_up_of` - optional, the activation UUID of the live pool this
+      grant tops up. A top-up is spent before the pool.
 
   Nothing is billed here: the charge is an ordinary invoice raised on its
   own. Returns `{:ok, grant}`, `{:error, {:invalid_pool, field}}` for a term
@@ -191,7 +214,8 @@ defmodule Tuist.Runners.Prepaid do
          :ok <- pool_term(attrs[:starts_on], attrs[:expires_on]),
          :ok <- pool_end(attrs[:expires_on]),
          {:ok, invoice_metadata} <- pool_invoice_metadata(attrs[:invoice_id]),
-         {:ok, price_ids} <- price_ids(platforms) do
+         {:ok, price_ids} <- price_ids(platforms),
+         {:ok, cache_price_ids} <- pool_cache_price_ids(attrs[:covers_cache]) do
       coverage = pool_coverage(Billing.current_billing_period(account), attrs.starts_on, attrs.expires_on)
       contract_end = start_of_day(Date.add(attrs.expires_on, 1))
 
@@ -204,32 +228,45 @@ defmodule Tuist.Runners.Prepaid do
 
       activation_metadata =
         if attrs[:activation_id] do
-          %{
-            "tuist_prepaid_activation_id" => attrs.activation_id,
-            "tuist_prepaid_expires_on" => Date.to_iso8601(attrs.expires_on),
-            "tuist_prepaid_starts_on" => Date.to_iso8601(attrs.starts_on)
-          }
+          Map.reject(
+            %{
+              "tuist_prepaid_activation_id" => attrs.activation_id,
+              "tuist_prepaid_expires_on" => Date.to_iso8601(attrs.expires_on),
+              "tuist_prepaid_starts_on" => Date.to_iso8601(attrs.starts_on),
+              "tuist_prepaid_platforms" => Enum.join(platforms, ","),
+              "tuist_prepaid_instalments" => attrs[:instalments] && to_string(attrs.instalments),
+              "tuist_prepaid_instalment_subscription_id" => attrs[:instalment_subscription_id],
+              "tuist_prepaid_top_up_of" => attrs[:top_up_of]
+            },
+            fn {_key, value} -> is_nil(value) end
+          )
         else
           %{}
         end
 
+      # Appended only when set, so the key of a runner-only pool is unchanged.
+      cache_terms = if cache_price_ids == [], do: [], else: [:covers_cache]
+
       terms =
         [paid_cents, ratio_bp, platforms, attrs.starts_on, attrs.expires_on, attrs[:invoice_id]] ++
-          List.wrap(attrs[:activation_id])
+          List.wrap(attrs[:activation_id]) ++ cache_terms
 
       result =
         CreditGrants.create(%{
           customer_id: customer_id,
           amount_cents: div(paid_cents * ratio_bp, @bp_basis),
           currency: "usd",
-          price_ids: price_ids,
+          price_ids: price_ids ++ cache_price_ids,
           category: "paid",
           name: "Prepaid runner pool",
           effective_at: coverage.effective_at,
           expires_at: coverage.expires_at,
-          priority: @prepaid_priority,
+          priority: if(attrs[:top_up_of], do: @top_up_priority, else: @prepaid_priority),
           metadata:
-            Map.merge(Map.merge(invoice_metadata, activation_metadata), %{
+            invoice_metadata
+            |> Map.merge(activation_metadata)
+            |> Map.merge(if(cache_price_ids == [], do: %{}, else: %{@covers_cache_key => "true"}))
+            |> Map.merge(%{
               @kind_key => @pool_kind,
               @paid_cents_key => to_string(paid_cents),
               @granted_ratio_key => to_string(ratio_bp)
@@ -241,6 +278,24 @@ defmodule Tuist.Runners.Prepaid do
       refresh_balance(customer_id)
       result
     end
+  end
+
+  @doc """
+  The usage meters a pool granted with `:covers_cache` also pays for.
+  """
+  def cache_meters, do: @cache_meters
+
+  @doc """
+  The Prices of `cache_meters/0`, or an error unless every one is configured,
+  so a grant never covers only part of the cache usage it was sold for.
+  """
+  def cache_price_ids do
+    prices = Map.get(Tuist.Environment.stripe_prices() || %{}, "usage_meters", %{})
+    ids = Enum.map(@cache_meters, &Map.get(prices, &1))
+
+    if Enum.all?(ids, &(is_binary(&1) and &1 != "")),
+      do: {:ok, ids},
+      else: {:error, :no_cache_prices_configured}
   end
 
   @doc """
@@ -385,6 +440,10 @@ defmodule Tuist.Runners.Prepaid do
   end
 
   defp pool_invoice_metadata(_invoice_id), do: invalid_pool(:invoice_id)
+
+  defp pool_cache_price_ids(covers_cache) when covers_cache in [nil, false], do: {:ok, []}
+  defp pool_cache_price_ids(true), do: cache_price_ids()
+  defp pool_cache_price_ids(_covers_cache), do: invalid_pool(:covers_cache)
 
   defp invalid_pool(field), do: {:error, {:invalid_pool, field}}
 
