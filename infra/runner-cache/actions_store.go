@@ -83,9 +83,9 @@ func (s *ActionsStore) PutBlock(ctx context.Context, id, block string, body io.R
 }
 
 // CommitBlocks ends the upload of entry id as its staged blocks, in list
-// order. The blocks stay where they are, already synced: they are linked into
-// `parts/` in order and only read to hash them, never rewritten into one file.
-// Unlisted blocks go.
+// order. The blocks stay where they are: they are linked into `parts/` in
+// order, never rewritten into one file nor read, since the job waits on this.
+// Digest hashes them once the job has its answer. Unlisted blocks go.
 func (s *ActionsStore) CommitBlocks(ctx context.Context, id string, blocks []string) error {
 	if !actionsEntryID.MatchString(id) || !s.uploading(id) || len(blocks) == 0 || len(blocks) > actionsMaxBlocks {
 		return ErrActionsUpload
@@ -116,50 +116,49 @@ func (s *ActionsStore) CommitBlocks(ctx context.Context, id string, blocks []str
 			return err
 		}
 	}
-	sum := sha256.New()
-	content, err := openParts(paths)
-	if err != nil {
-		return err
-	}
-	defer content.Close()
-	if _, err := io.Copy(sum, readerWithContext{ctx, content}); err != nil {
-		return err
-	}
-	if err := os.WriteFile(s.blob(id)+".sha256", []byte(hex.EncodeToString(sum.Sum(nil))), 0o600); err != nil {
-		return err
-	}
 	return os.RemoveAll(filepath.Join(s.upload(id), "blocks"))
 }
 
-// Seal ends the upload of entry id, which must hold size bytes, and returns
-// its SHA-256. A sealed upload takes no more writes.
-func (s *ActionsStore) Seal(id string, size int64) (string, error) {
+// Seal ends the upload of entry id, which must hold size bytes. A sealed
+// upload takes no more writes.
+func (s *ActionsStore) Seal(id string, size int64) error {
 	if !actionsEntryID.MatchString(id) {
-		return "", ErrActionsUpload
+		return ErrActionsUpload
 	}
 	paths, err := s.content(id)
 	if err != nil {
-		return "", ErrActionsUpload
+		return ErrActionsUpload
 	}
 	var total int64
 	for _, path := range paths {
 		info, err := os.Stat(path)
 		if err != nil {
-			return "", ErrActionsUpload
+			return ErrActionsUpload
 		}
 		total += info.Size()
 	}
 	if total != size {
-		return "", ErrActionsUpload
+		return ErrActionsUpload
 	}
-	sum, err := os.ReadFile(s.blob(id) + ".sha256")
+	return os.RemoveAll(filepath.Join(s.upload(id), "blocks"))
+}
+
+// Digest returns the SHA-256 of sealed entry id: the one a single-request
+// upload computed while it arrived, else the hash of its parts, read now.
+func (s *ActionsStore) Digest(ctx context.Context, id string) (string, error) {
+	if sum, err := os.ReadFile(s.blob(id) + ".sha256"); err == nil {
+		return string(sum), nil
+	}
+	content, err := s.Open(id)
 	if err != nil {
 		return "", err
 	}
-	if err := os.RemoveAll(filepath.Join(s.upload(id), "blocks")); err != nil {
+	defer content.Close()
+	sum := sha256.New()
+	if _, err := io.Copy(sum, readerWithContext{ctx, content}); err != nil {
 		return "", err
 	}
-	return string(sum), nil
+	return hex.EncodeToString(sum.Sum(nil)), nil
 }
 
 // Open opens the sealed upload of entry id, to copy it to its store or serve

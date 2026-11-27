@@ -459,9 +459,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - `ActionsStore` stages uploads under `actions-cache/uploads/` on the cache
   filesystem until `Run` copies them to the store (a presigned PUT bound to the
   SHA-256) and the server commits them; a failed copy drops the entry. A block
-  list commits by hard-linking its blocks into `parts/` in list order
-  and hashing them; the copy streams the parts. Never reassemble them into one
-  file before answering: the job waits on it, seconds per GB. Never fsync per
+  list commits by hard-linking its blocks into `parts/` in list order; the
+  copy hashes the parts (`Digest`) and then streams them. Never reassemble or
+  read them before answering: the job waits on it, and hashing alone cost the
+  agent 0.6 to 1.4 s per GB of a 3.7 to 7.3 s runnersbench save (2026-11-27). Never fsync per
   block either: buildx sends 1 MiB blocks one at a time, and an fsync on the
   loop-mounted cache costs 11 ms. Each stream starts writeback every 16 MiB and
   at its end, and the store fsyncs once all streams staged 16 MiB, which bounds
