@@ -15,8 +15,15 @@ defmodule Atlas.MCP.Tools.ActivateTuistRunnerPrepaidPool do
     "Activate a prepaid runner order as one shared paid Stripe credit grant for the selected linux/macos platforms, " <>
       "not a separate grant per platform. Each platform consumes the shared credit at its own usage rate. " <>
       "paid_cents is the upfront price in cents; credit_multiplier is a decimal string from 1 to 2 with at most " <>
-      "four fractional digits (for example 1.5). starts_on and expires_on are inclusive ISO dates. " <>
+      "four fractional digits (for example 1.5). Set covers_cache to true only when the order also prepays remote " <>
+      "cache usage: the same grant then also pays for the cache egress and request Prices, at the same multiplier, and " <>
+      "those Prices are added to the subscription if missing. Omit it for a runner-only order. starts_on and expires_on are inclusive ISO dates. " <>
       "invoice_id identifies the existing upfront Stripe invoice (in_...), which may be draft, open or paid. " <>
+      "For an order paid in monthly instalments, set instalments (2–12) and pass the FIRST instalment's invoice as " <>
+      "invoice_id: its subtotal times instalments must equal paid_cents, and it must come from a separate Stripe " <>
+      "subscription marked with metadata tuist_runner_prepaid_instalments=true. The whole paid_cents is credited at " <>
+      "activation, however many instalments are paid; later instalments are collected by Stripe, not tracked here. " <>
+      "starts_on cannot be in the future. " <>
       "Ends the runner trial prospectively while preserving trial usage and the free monthly allowance, and schedules " <>
       "a billing-cycle boundary at the end of the term so post-term usage cannot consume this credit. " <>
       "Does not issue, send or pay the upfront invoice, renew the contract, or change per-platform runner capacity. " <>

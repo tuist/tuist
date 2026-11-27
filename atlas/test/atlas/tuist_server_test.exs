@@ -359,6 +359,26 @@ defmodule Atlas.TuistServerTest do
       end
     end
 
+    test "PUTs top-ups once to the top-up endpoint without retries" do
+      attrs = %{"grants" => [%{"platform" => "macos"}], "change_id" => Ecto.UUID.generate()}
+
+      request = fn req ->
+        assert req.method == :put
+        assert req.url.path == "/api/internal/atlas/accounts/42/runner-billing/top-ups"
+        assert req.options[:auth] == {:bearer, "tok"}
+        assert req.options[:json] == attrs
+        assert req.options[:retry] == false
+        {:ok, %Req.Response{status: 422, body: %{"error" => "no_live_pool"}}}
+      end
+
+      assert {:error, "no_live_pool"} =
+               TuistServer.top_up_runner_prepaid_pool(42, attrs,
+                 token: "tok",
+                 base_url: "https://tuist.test",
+                 request: request
+               )
+    end
+
     test "PUTs trial changes once to the runner trial endpoint without retries" do
       attrs = %{"operation" => "start", "change_id" => Ecto.UUID.generate()}
 

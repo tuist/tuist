@@ -340,6 +340,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SyncPublicHolidays
   alias Atlas.MCP.Tools.SyncSocialPosts
   alias Atlas.MCP.Tools.TerminateFinancing
+  alias Atlas.MCP.Tools.TopUpTuistRunnerPrepaidPool
   alias Atlas.MCP.Tools.UnlinkAssetFromInsuranceClaim
   alias Atlas.MCP.Tools.UnlinkProjectDomain
   alias Atlas.MCP.Tools.UnlinkProjectRepository
@@ -622,6 +623,7 @@ defmodule Atlas.MCP.Server do
     UpdateTuistAccountPlan,
     GetTuistRunnerBilling,
     ActivateTuistRunnerPrepaidPool,
+    TopUpTuistRunnerPrepaidPool,
     UpdateTuistRunnerTrial,
     GetTuistKuraRollout,
     GetTuistAcquisitionFunnel
@@ -641,6 +643,7 @@ defmodule Atlas.MCP.Server do
     UpdateTuistRunnerConcurrencyLimits,
     UpdateTuistAccountPlan,
     ActivateTuistRunnerPrepaidPool,
+    TopUpTuistRunnerPrepaidPool,
     UpdateTuistRunnerTrial
   ]
   @error_alert_read_tools [ListErrorAlertRules, PreviewErrorAlertRule]
@@ -931,6 +934,7 @@ defmodule Atlas.MCP.Server do
     UpdateTuistAccountPlan,
     GetTuistRunnerBilling,
     ActivateTuistRunnerPrepaidPool,
+    TopUpTuistRunnerPrepaidPool,
     UpdateTuistRunnerTrial,
     GetTuistKuraRollout,
     GetTuistAcquisitionFunnel,

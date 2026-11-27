@@ -9,6 +9,7 @@ defmodule Atlas.TuistAccountsTest do
   alias Atlas.MCP.Tools.GetTuistAccountPlan
   alias Atlas.MCP.Tools.GetTuistRunnerBilling
   alias Atlas.MCP.Tools.GetTuistRunnerConcurrencyLimits
+  alias Atlas.MCP.Tools.TopUpTuistRunnerPrepaidPool
   alias Atlas.MCP.Tools.UpdateTuistAccountPlan
   alias Atlas.MCP.Tools.UpdateTuistRunnerConcurrencyLimits
   alias Atlas.MCP.Tools.UpdateTuistRunnerTrial
@@ -370,6 +371,23 @@ defmodule Atlas.TuistAccountsTest do
   end
 
   describe "runner billing" do
+    defp top_up_change(attrs \\ %{}) do
+      Map.merge(
+        %{
+          "account_id" => 42,
+          "grants" => [
+            %{"platform" => "macos", "paid_cents" => 50_000, "credit_multiplier" => "1.1843"},
+            %{"platform" => "linux", "paid_cents" => 30_000, "credit_multiplier" => "1.25"}
+          ],
+          "invoice_id" => "in_topup123",
+          "expected_revision" => "billing-1",
+          "reason" => "Top-up order",
+          "change_id" => Ecto.UUID.generate()
+        },
+        attrs
+      )
+    end
+
     defp prepaid_change(attrs \\ %{}) do
       Map.merge(
         %{
@@ -478,6 +496,100 @@ defmodule Atlas.TuistAccountsTest do
                args |> Map.delete("account_id") |> Map.merge(%{"status" => "ok", "revision" => "billing-2"})
     end
 
+    test "an instalment order forwards and audits its instalment count" do
+      user = insert_user!(%{scopes: ["feature_flags:write"]})
+      conn = mcp_conn(user)
+      args = prepaid_change(%{"paid_cents" => 1_472_400, "credit_multiplier" => "1.25", "instalments" => 12})
+
+      expect(TuistServer, :activate_runner_prepaid_pool, fn 42, attrs ->
+        assert attrs["instalments"] == 12
+        assert attrs["paid_cents"] == 1_472_400
+        {:ok, runner_billing(args)}
+      end)
+
+      assert {:error, _} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, args)
+      [approval] = MCP.list_pending_tool_approvals(user, server_names: ["tuist-server"])
+      {:ok, _} = MCP.decide_tool_approval(user, approval.id, "approved")
+      assert {:ok, _} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, args)
+
+      {activities, _} = Audit.list_activities(actor_id: user.id, action: "tuist_runner_billing.activated")
+      assert [ok] = Enum.filter(activities, &(&1.metadata["status"] == "ok"))
+      assert ok.metadata["instalments"] == 12
+    end
+
+    test "a top-up needs single-use approval for the exact payload and forwards trusted provenance" do
+      user = insert_user!(%{scopes: ["feature_flags:write"]})
+      conn = mcp_conn(user)
+      args = top_up_change()
+      result = runner_billing(prepaid_change())
+
+      expect(TuistServer, :top_up_runner_prepaid_pool, fn 42, attrs ->
+        assert attrs ==
+                 args
+                 |> Map.delete("account_id")
+                 |> Map.put("actor", %{"id" => user.id, "email" => user.email})
+                 |> Map.put("interface", "mcp")
+
+        {:ok, result}
+      end)
+
+      assert {:error, message} = execute_tool(TopUpTuistRunnerPrepaidPool, conn, args)
+      assert message =~ "/approvals/"
+      [approval] = MCP.list_pending_tool_approvals(user, server_names: ["tuist-server"])
+      assert approval.tool_name == "top-up-runner-prepaid-pool"
+      {:ok, _} = MCP.decide_tool_approval(user, approval.id, "approved")
+
+      changed = put_in(args, ["grants", Access.at(0), "credit_multiplier"], "1.1842")
+      assert {:error, _} = execute_tool(TopUpTuistRunnerPrepaidPool, conn, changed)
+      assert {:ok, ^result} = execute_tool(TopUpTuistRunnerPrepaidPool, conn, args)
+      assert {:error, _} = execute_tool(TopUpTuistRunnerPrepaidPool, conn, args)
+
+      {activities, _} = Audit.list_activities(actor_id: user.id, action: "tuist_runner_billing.topped_up")
+      assert [ok] = Enum.filter(activities, &(&1.metadata["status"] == "ok"))
+      assert ok.target_id == "42"
+
+      assert ok.metadata ==
+               args |> Map.delete("account_id") |> Map.merge(%{"status" => "ok", "revision" => "billing-2"})
+    end
+
+    test "validates the entire top-up before requesting approval and refuses readers and other interfaces" do
+      user = insert_user!(%{scopes: ["feature_flags:write"]})
+      conn = mcp_conn(user)
+      reject(TuistServer, :top_up_runner_prepaid_pool, 2)
+      grant = %{"platform" => "macos", "paid_cents" => 50_000, "credit_multiplier" => "1.1843"}
+
+      for attrs <- [
+            %{"account_id" => 0},
+            %{"grants" => []},
+            %{"grants" => [grant, grant]},
+            %{"grants" => [Map.put(grant, "platform", "windows")]},
+            %{"grants" => [Map.put(grant, "paid_cents", 0)]},
+            %{"grants" => [Map.put(grant, "credit_multiplier", "1\n")]},
+            %{"grants" => [Map.put(grant, "credit_multiplier", "0")]},
+            %{"grants" => [Map.put(grant, "credit_multiplier", 1.18)]},
+            %{"grants" => [Map.delete(grant, "paid_cents")]},
+            %{"grants" => [Map.put(grant, "extra", 1)]},
+            %{"invoice_id" => "inv_1"},
+            %{"expected_revision" => " "},
+            %{"reason" => " "},
+            %{"change_id" => "not-a-uuid"},
+            %{"interface" => "mcp"}
+          ] do
+        assert {:error, _} = execute_tool(TopUpTuistRunnerPrepaidPool, conn, top_up_change(attrs))
+      end
+
+      assert MCP.list_pending_tool_approvals(user, server_names: ["tuist-server"]) == []
+
+      reader = %{scopes: ["feature_flags:read"]} |> insert_user!() |> mcp_conn()
+      assert {:error, _} = execute_tool(TopUpTuistRunnerPrepaidPool, reader, top_up_change())
+
+      for interface <- ~w(worker api) do
+        other = %{assigns: %{current_user: user, audit_interface: interface}}
+        assert {:error, message} = execute_tool(TopUpTuistRunnerPrepaidPool, other, top_up_change())
+        assert message =~ "only callable over Atlas MCP"
+      end
+    end
+
     test "read and write scopes, authentication and shared Slack refusal apply to direct execution" do
       writer = insert_user!(%{scopes: ["feature_flags:write"]})
       reader = %{scopes: ["feature_flags:read"]} |> insert_user!() |> mcp_conn()
@@ -518,6 +630,8 @@ defmodule Atlas.TuistAccountsTest do
             %{"paid_cents" => 0},
             %{"paid_cents" => -1},
             %{"paid_cents" => 1.5},
+            %{"covers_cache" => "true"},
+            %{"covers_cache" => 1},
             %{"credit_multiplier" => 1.5},
             %{"credit_multiplier" => "NaN"},
             %{"credit_multiplier" => "1e3"},
@@ -539,7 +653,10 @@ defmodule Atlas.TuistAccountsTest do
             %{"reason" => String.duplicate("a", 1001)},
             %{"change_id" => "not-a-uuid"},
             %{"actor" => %{"id" => user.id}},
-            %{"interface" => "mcp"}
+            %{"interface" => "mcp"},
+            %{"instalments" => 1},
+            %{"instalments" => 13},
+            %{"instalments" => "12"}
           ] do
         assert {:error, _} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, prepaid_change(attrs))
       end
@@ -563,6 +680,12 @@ defmodule Atlas.TuistAccountsTest do
                    "credit_multiplier" => "1"
                  })
                )
+
+      assert message =~ "/approvals/"
+
+      # An order that also prepays cache usage.
+      assert {:error, message} =
+               execute_tool(ActivateTuistRunnerPrepaidPool, conn, prepaid_change(%{"covers_cache" => true}))
 
       assert message =~ "/approvals/"
     end

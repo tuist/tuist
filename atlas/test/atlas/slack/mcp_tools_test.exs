@@ -34,7 +34,8 @@ defmodule Atlas.Slack.MCPToolsTest do
           ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags update_tuist_feature_flag
              get_tuist_account get_tuist_runner_concurrency_limits update_tuist_runner_concurrency_limits
              get_tuist_account_plan update_tuist_account_plan
-             get_tuist_runner_billing activate_tuist_runner_prepaid_pool update_tuist_runner_trial) do
+             get_tuist_runner_billing activate_tuist_runner_prepaid_pool top_up_tuist_runner_prepaid_pool
+             update_tuist_runner_trial) do
       refute name in names
     end
   end

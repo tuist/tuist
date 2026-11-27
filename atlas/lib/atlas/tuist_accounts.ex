@@ -5,7 +5,8 @@ defmodule Atlas.TuistAccounts do
   keyed by, reading or changing the account's runner concurrency limits,
   reading or changing its billing plan, and starting or cancelling its runner
   trial, as the ops account page does, or adding the runner items a paid
-  subscription lacks.
+  subscription lacks. Prepaid runner pools are activated, paid up front or in
+  instalments, and topped up through the same contract.
 
   These are rollout controls alongside `Atlas.TuistFeatureFlags`, so they use
   the same `feature_flags:read`/`feature_flags:write` scopes and the same
@@ -94,6 +95,34 @@ defmodule Atlas.TuistAccounts do
     "additionalProperties" => false
   }
 
+  @top_up_runner_prepaid_pool_schema %{
+    "type" => "object",
+    "properties" => %{
+      "account_id" => @account_id,
+      "grants" => %{
+        "type" => "array",
+        "minItems" => 1,
+        "maxItems" => 2,
+        "items" => %{
+          "type" => "object",
+          "properties" => %{
+            "platform" => %{"type" => "string", "enum" => ~w(linux macos)},
+            "paid_cents" => %{"type" => "integer", "minimum" => 1},
+            "credit_multiplier" => %{"type" => "string", "pattern" => "^[0-9]+(\\.[0-9]+)?$"}
+          },
+          "required" => ~w(platform paid_cents credit_multiplier),
+          "additionalProperties" => false
+        }
+      },
+      "invoice_id" => %{"type" => "string", "pattern" => "^in_[A-Za-z0-9]+$"},
+      "expected_revision" => %{"type" => "string", "minLength" => 1},
+      "reason" => %{"type" => "string", "minLength" => 1, "maxLength" => 1000},
+      "change_id" => %{"type" => "string", "format" => "uuid"}
+    },
+    "required" => ~w(account_id grants invoice_id expected_revision reason change_id),
+    "additionalProperties" => false
+  }
+
   @update_runner_trial_schema %{
     "type" => "object",
     "properties" => %{
@@ -118,6 +147,7 @@ defmodule Atlas.TuistAccounts do
 
   def runner_billing_schema, do: @limits_schema
   def update_runner_trial_schema, do: @update_runner_trial_schema
+  def top_up_runner_prepaid_pool_schema, do: @top_up_runner_prepaid_pool_schema
 
   def activate_runner_prepaid_pool_schema do
     %{
@@ -125,6 +155,7 @@ defmodule Atlas.TuistAccounts do
       "properties" => %{
         "account_id" => @account_id,
         "paid_cents" => %{"type" => "integer", "minimum" => 1},
+        "covers_cache" => %{"type" => "boolean"},
         "credit_multiplier" => %{"type" => "string", "pattern" => "^[0-9]+(\\.[0-9]+)?$"},
         "platforms" => %{
           "type" => "array",
@@ -135,6 +166,8 @@ defmodule Atlas.TuistAccounts do
         "starts_on" => %{"type" => "string", "format" => "date"},
         "expires_on" => %{"type" => "string", "format" => "date"},
         "invoice_id" => %{"type" => "string", "pattern" => "^in_[A-Za-z0-9]+$"},
+        # Only for an order paid in monthly instalments; invoice_id is then the first one's.
+        "instalments" => %{"type" => "integer", "minimum" => 2, "maximum" => 12},
         "expected_revision" => %{"type" => "string", "minLength" => 1},
         "reason" => %{"type" => "string", "minLength" => 1, "maxLength" => 1000},
         "change_id" => %{"type" => "string", "format" => "uuid"}
@@ -433,7 +466,7 @@ defmodule Atlas.TuistAccounts do
         do:
           Map.take(
             args,
-            ~w(paid_cents credit_multiplier platforms starts_on expires_on invoice_id expected_revision reason change_id)
+            ~w(paid_cents covers_cache credit_multiplier platforms starts_on expires_on invoice_id instalments expected_revision reason change_id)
           ),
         else: %{}
 
@@ -462,6 +495,53 @@ defmodule Atlas.TuistAccounts do
         else: %{}
 
     record("tuist_runner_trial.updated", user, account_id(args), metadata, result, opts)
+  end
+
+  def top_up_runner_prepaid_pool(user, args, opts \\ []) do
+    result =
+      with :ok <- validate_interface(opts),
+           :ok <- authorize(user, "feature_flags:write"),
+           :ok <- validate(@top_up_runner_prepaid_pool_schema, args),
+           :ok <- validate_update(args),
+           :ok <- validate_top_up(args),
+           :ok <- TuistFeatureFlags.approve_write(user, "top-up-runner-prepaid-pool", args, opts) do
+        attrs =
+          args
+          |> Map.delete("account_id")
+          |> Map.put("actor", %{"id" => user.id, "email" => user.email})
+          |> Map.put("interface", Keyword.get(opts, :interface, "mcp"))
+
+        TuistServer.top_up_runner_prepaid_pool(args["account_id"], attrs)
+      end
+
+    metadata =
+      if is_map(args),
+        do: Map.take(args, ~w(grants invoice_id expected_revision reason change_id)),
+        else: %{}
+
+    record("tuist_runner_billing.topped_up", user, account_id(args), metadata, result, opts)
+  end
+
+  # Tuist owns the multiplier band and basis-point rule; this only refuses
+  # what the schema's pattern lets through, such as a trailing newline.
+  defp validate_top_up(args) do
+    platforms = Enum.map(args["grants"], & &1["platform"])
+
+    with true <- Enum.uniq(platforms) == platforms,
+         true <- Enum.all?(args["grants"], &positive_decimal?(&1["credit_multiplier"])),
+         true <- Regex.match?(~r/\Ain_[A-Za-z0-9]+\z/, args["invoice_id"]),
+         true <- String.trim(args["expected_revision"]) != "" do
+      :ok
+    else
+      _ -> {:error, "Invalid top-up grants, invoice or expected revision."}
+    end
+  end
+
+  defp positive_decimal?(value) do
+    case Decimal.parse(value) do
+      {decimal, ""} -> Decimal.positive?(decimal)
+      _ -> false
+    end
   end
 
   defp validate_prepaid_term(args) do
