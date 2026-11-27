@@ -64,6 +64,10 @@ func newDirectLab(t *testing.T, claimCode int) *directLab {
 	lab.client, _ = gatewayWith(t, g, func(r *http.Request) (*http.Response, error) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/capabilities"):
+			// The server lists sized keys only to a caller that asks for them.
+			if r.URL.Query().Get("sized_keys") != "1" {
+				return response(200, `{"cas_endpoint":"grpcs://cache.example","leases":true}`), nil
+			}
 			keys, _ := json.Marshal(lab.sizedKeys)
 			return response(200, `{"cas_endpoint":"grpcs://cache.example","leases":true,"sized_keys":`+string(keys)+`}`), nil
 		case strings.HasSuffix(r.URL.Path, "/leases"):
