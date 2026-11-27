@@ -33,6 +33,7 @@ jobs:
       - name: Let the host keep round 1's writes
         if: 1 == 2
         run: sleep 90
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Fresh clone on the root disk
         run: |
           git clone -q --depth 1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}" "$HOME/src"
@@ -119,6 +120,7 @@ jobs:
       - name: Let the host keep round 1's writes
         if: 2 == 2
         run: sleep 90
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Fresh clone on the root disk
         run: |
           git clone -q --depth 1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}" "$HOME/src"
@@ -204,6 +206,7 @@ jobs:
       - name: Let the host keep round 1's writes
         if: 1 == 2
         run: sleep 90
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Fresh clone on the root disk
         run: |
           git clone -q --depth 1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}" "$HOME/src"
@@ -290,6 +293,7 @@ jobs:
       - name: Let the host keep round 1's writes
         if: 2 == 2
         run: sleep 90
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Fresh clone on the root disk
         run: |
           git clone -q --depth 1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}" "$HOME/src"
