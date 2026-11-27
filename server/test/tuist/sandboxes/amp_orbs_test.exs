@@ -21,6 +21,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
   alias Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker
   alias Tuist.Sandboxes.Workers.CaptureAmpCreatorWorker
   alias Tuist.Sandboxes.Workers.CopyDiskSnapshotWorker
+  alias Tuist.Sandboxes.Workers.PauseRestoredOrbWorker
   alias Tuist.Storage
 
   setup do
@@ -213,6 +214,12 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
 
     assert {:error, :restoring} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
     assert %{state: :running, residency_work_id: "amp:amp-thread"} = Repo.reload!(sandbox)
+
+    # Amp does not send the pause again, so Tuist finishes it.
+    assert_enqueued(
+      worker: PauseRestoredOrbWorker,
+      args: %{sandbox_id: sandbox.id, residency_epoch: sandbox.residency_epoch}
+    )
   end
 
   test "records the setup that ran in the Orb from its log before pausing", %{account: account} do

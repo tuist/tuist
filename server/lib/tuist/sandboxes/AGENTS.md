@@ -651,6 +651,12 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   only if `last_active_at` is unchanged, the same way Amp's pause does.
   Without `cpu_ms` (an older daemon), `guest_cpu_ms` stays nil and nothing
   is paused.
+  Amp does not repeat a pause the node refused while a warm restore's disks
+  load (`:restoring`), and an Orb whose services keep its CPU busy never
+  looks idle, so the refusal queues `PauseRestoredOrbWorker`, which pauses
+  the Orb once the disks are whole unless a later spawn moved its
+  `residency_epoch`. Without it, restored Orbs of archived threads held 8 of
+  the Linux fleet's ~45 slots for up to three days (2026-11-26).
 - Lifetimes: a sandbox `Query.run(:create)` creates (the account API, MCP
   `create_sandbox`, `tuist sandbox create`) has `lifetime_seconds` (two hours
   by default, five minutes to a day) and `expires_at`, set at create and
