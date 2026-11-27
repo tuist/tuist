@@ -1,5 +1,5 @@
 # Security Policy
-The Tuist repo is scanned frequently for code and dependency vulnerabilities. Notifications are received by the Tuist Core Team members, who assess risk, prioritize, and determine a remediation plan. Typically this process involves a package update or patch release and is resolved within 24 hours of notification.
+The Tuist repo is scanned frequently for code and dependency vulnerabilities. Notifications are received by the Tuist Core Team members, who assess risk, prioritize, and determine a remediation plan. Typically this process involves a package update or patch release. Remediation deadlines by severity are set in our [Operations Security Policy](https://handbook.tuist.dev/security/secure-development-and-operations/operations-security-policy#technical-vulnerability-management).
 
 ## Supported Versions
 

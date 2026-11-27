@@ -14,14 +14,9 @@
 
 In case of an incident, urgently report it to [incidents@tuist.dev](mailto:incidents@tuist.dev). The incident response team will take it from there.
 
-## Vulnerability remediation SLAs
+## Vulnerabilities
 
-To ensure a swift and effective response to vulnerabilities, we have established the following SLAs for remediation based on severity:
-
-- **Critical Vulnerabilities:** These vulnerabilities are addressed within **24 hours** of identification. Immediate action is taken to mitigate risks that could significantly impact systems, users, or data.
-- **High Vulnerabilities:** These vulnerabilities are addressed within **72 hours** of identification. Prompt action is taken to reduce the likelihood of exploitation.
-
-These timelines are integrated into our incident response process to ensure timely remediation and minimize potential risks.
+Remediation deadlines for vulnerabilities are set in the [Operations Security Policy](/security/secure-development-and-operations/operations-security-policy#technical-vulnerability-management). A vulnerability that is being exploited, or that exposes customer data, is handled as an incident under this plan and contained immediately, without waiting for its remediation deadline.
 
 ## Plan
 
