@@ -39,7 +39,7 @@ RUN git init . && git remote add origin https://github.com/endevco/aube.git \
 # in the runtime image. Kept in a separate stage so the Elixir builder
 # doesn't need Node/aube in its layer.
 # ========================================
-FROM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS noora-assets
+FROM node:22-slim@sha256:be979e5523c76fa4d5ca4ebd3099078f220aa47ec39c48ad5b5df9314debd6eb AS noora-assets
 COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /opt/tuist/certificate-trust/
 
 ENV CI=1
