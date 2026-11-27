@@ -185,6 +185,10 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		backend.Seed = c.Checkouts.Seed
 		c.Checkouts.Room = c.reserveCheckout
 		c.Checkouts.Spare = c.spareCheckout
+		// Checkout restores yield to jobs as master prefetch does: throttled disk
+		// I/O, and the server's HEADs wait while a runner here runs a job.
+		c.Checkouts.Throttle = withThrottledIO
+		c.Checkouts.Hold = holdForJobs(c.runsJob)
 		c.Checkouts.Observe = observeCustomCache
 		c.Checkouts.Log = slog.New(logr.ToSlogHandler(log.FromContext(ctx)))
 		// Checkout images are larger than custom ones, so their archives get their own bound.

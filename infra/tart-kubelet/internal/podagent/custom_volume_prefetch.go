@@ -258,6 +258,26 @@ func (p *customPrefetcher) deferForJobs() bool {
 	return time.Since(p.deferredSince) < customPrefetchJobWaitCap
 }
 
+// holdForJobs returns whether background work waits for the host's jobs:
+// true while busy reports a running job, until customPrefetchJobWaitCap after
+// it first waited for them, as deferForJobs does for master prefetch.
+func holdForJobs(busy func(context.Context) bool) func(context.Context) bool {
+	var mu sync.Mutex
+	var since time.Time
+	return func(ctx context.Context) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		if !busy(ctx) {
+			since = time.Time{}
+			return false
+		}
+		if since.IsZero() {
+			since = time.Now()
+		}
+		return time.Since(since) < customPrefetchJobWaitCap
+	}
+}
+
 // requeue puts a download its budget cut short behind the masters queued since,
 // still pending, so it resumes from the bytes it received once they had a turn.
 func (p *customPrefetcher) requeue(job *customPrefetch) bool {

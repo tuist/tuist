@@ -277,7 +277,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   `setiopolicy_np`, what `taskpolicy -b` does for a process), and the server's
   HEADs (`background`) wait while a runner Pod on the host has claimed a job
   (`claimsJob`, as staging does), for up to `customPrefetchJobWaitCap` (20
-  minutes); a master a job asked for does not wait. The download and restore
+  minutes); a master a job asked for does not wait. Cached-checkout restores
+  get the same (`Checkouts.Throttle`, and `Checkouts.Hold` for the server's
+  spare HEADs, retried on the next reconcile). The download and restore
   must write from the calling goroutine for the policy to reach them.
   Evidence: on 2026-11-27 rack hosts prefetched 650 to 1,500 GB a day at 100
   to 400 MB/s, and shards extracted their test products 2 to 4 times slower

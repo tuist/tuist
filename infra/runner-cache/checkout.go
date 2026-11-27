@@ -91,13 +91,21 @@ type Checkouts struct {
 	Path string
 	// Transfer publishes masters and restores the volume's HEAD.
 	Transfer ImageTransfer
-	Observe  Observer
-	Log      *slog.Logger
+	// Throttle runs a restore's download and expansion, which it calls, at
+	// background disk priority, so they yield to the host's running jobs.
+	// Without it they run as any other work.
+	Throttle func(func())
+	// Hold reports whether a restore no job asked for (CheckoutTask.Spare)
+	// waits for the host's jobs; a held restore is retried on Maintain.
+	Hold    func(context.Context) bool
+	Observe Observer
+	Log     *slog.Logger
 
 	mu      sync.Mutex
 	locks   map[string]*sync.Mutex
 	pending map[string]CheckoutTask
-	// waiting holds builds refused for disk room until a reconcile retries them.
+	// waiting holds builds refused for disk room, and spare restores Hold
+	// deferred, until a reconcile retries them.
 	waiting map[string]CheckoutTask
 	busy    map[string]bool
 	// refused holds when a cold build last refused each lineage's export.
@@ -437,6 +445,10 @@ func (c *Checkouts) Process(ctx context.Context, task CheckoutTask) {
 	case cold:
 		operation, budget, room = "checkout_build", 45*time.Minute, uint64(checkoutBuildRoom)
 	}
+	if task.Export == "" && task.Spare && c.Hold != nil && c.Hold(ctx) {
+		keep = c.wait(task)
+		return
+	}
 	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 	done := c.Observe.With(task.Subject()).Start(operation, source)
@@ -449,15 +461,7 @@ func (c *Checkouts) Process(ctx context.Context, task CheckoutTask) {
 	done(err)
 	if errors.Is(err, ErrCapacity) && !task.Spare && c.now().Sub(task.Since) < checkoutWaitFor {
 		// The requesting job usually holds the room; every reconcile retries for a while.
-		c.mu.Lock()
-		if c.waiting == nil {
-			c.waiting = map[string]CheckoutTask{}
-		}
-		if _, queued := c.pending[task.Scope]; !queued {
-			c.waiting[task.Scope] = task
-			keep = true
-		}
-		c.mu.Unlock()
+		keep = c.wait(task)
 		return
 	}
 	if errors.Is(err, errCheckoutNotJobCheckout) || errors.Is(err, errCheckoutLFSMissing) {
@@ -471,6 +475,21 @@ func (c *Checkouts) Process(ctx context.Context, task CheckoutTask) {
 	if err != nil && !errors.Is(err, ErrWithheld) {
 		c.logError(err, "checkout master not updated", "operation", operation)
 	}
+}
+
+// wait keeps a task for the next Maintain unless a newer one for its scope is
+// already queued, and reports whether it kept it.
+func (c *Checkouts) wait(task CheckoutTask) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, queued := c.pending[task.Scope]; queued {
+		return false
+	}
+	if c.waiting == nil {
+		c.waiting = map[string]CheckoutTask{}
+	}
+	c.waiting[task.Scope] = task
+	return true
 }
 
 // Refusing reports whether this host refused to start the lineage's master from
@@ -868,7 +887,14 @@ func (c *Checkouts) restore(ctx context.Context, task CheckoutTask, room uint64)
 	c.Images.Abandon(ctx, next, mount)
 	_ = os.Remove(next)
 	defer os.Remove(next)
-	if err := c.Transfer.Download(ctx, c.headSlot(task), next); err != nil {
+	download := func() error { return c.Transfer.Download(ctx, c.headSlot(task), next) }
+	var err error
+	if c.Throttle != nil {
+		c.Throttle(func() { err = download() })
+	} else {
+		err = download()
+	}
+	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(mount, 0700); err != nil {

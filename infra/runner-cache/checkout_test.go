@@ -110,9 +110,14 @@ type fakeCheckoutTransfer struct {
 	// partials records which partial downloads were next to the download.
 	partials []string
 	conflict bool
+	// onDownload runs inside each download.
+	onDownload func()
 }
 
 func (f *fakeCheckoutTransfer) Download(_ context.Context, slot Slot, path string) error {
+	if f.onDownload != nil {
+		f.onDownload()
+	}
 	f.downloads = append(f.downloads, slot)
 	f.paths = append(f.paths, path)
 	parts, _ := filepath.Glob(filepath.Join(filepath.Dir(path), "*.part"))
@@ -925,6 +930,56 @@ func TestCheckoutSpareRestoreTakesOnlyItsOwnRoom(t *testing.T) {
 	c.Maintain()
 	if len(c.queue) != 0 {
 		t.Fatal("a spare restore refused for room waits for it")
+	}
+}
+
+// Checkout restores yield to the host's jobs: the server's HEADs wait while
+// Hold says a job runs, and every restore downloads inside Throttle.
+func TestCheckoutSpareRestoreWaitsForTheHostsJobs(t *testing.T) {
+	c, _ := newCheckouts(t)
+	transfer := &fakeCheckoutTransfer{}
+	c.Transfer = transfer
+	c.ready, c.queue = true, make(chan string, checkoutQueue)
+	held, throttled, throttling := true, 0, false
+	c.Hold = func(context.Context) bool { return held }
+	c.Throttle = func(fn func()) {
+		throttled++
+		throttling = true
+		fn()
+		throttling = false
+	}
+	transfer.onDownload = func() {
+		if !throttling {
+			t.Error("a restore downloaded outside Throttle")
+		}
+	}
+	task := checkoutTestTask()
+	task.BaseGeneration, task.ImageDigest, task.ContentDigest = 3, strings.Repeat("b", 40), strings.Repeat("c", 64)
+	task.Spare = true
+
+	c.Process(context.Background(), task)
+	if len(transfer.downloads) != 0 {
+		t.Fatal("a spare restore ran while the host ran a job")
+	}
+	c.Maintain()
+	if len(c.queue) != 1 {
+		t.Fatal("a held spare restore was dropped instead of retried")
+	}
+	held = false
+	scope := <-c.queue
+	next := c.pending[scope]
+	delete(c.pending, scope)
+	c.Process(context.Background(), next)
+	if len(transfer.downloads) != 1 || throttled != 1 {
+		t.Fatalf("downloads %d, throttled %d", len(transfer.downloads), throttled)
+	}
+
+	held = true
+	restore := task
+	restore.Spare, restore.Generation = false, 2
+	c.Process(context.Background(), restore)
+	if len(transfer.downloads) != 2 || throttled != 2 {
+		t.Fatalf("a job's restore was held: downloads %d, throttled %d", len(transfer.downloads), throttled)
 	}
 }
 
