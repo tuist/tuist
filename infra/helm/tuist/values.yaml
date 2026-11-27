@@ -2002,7 +2002,7 @@ rackFleet:
     # spends nothing of Docker Hub's anonymous budget.
     prewarmImage:
       repository: public.ecr.aws/docker/library/busybox
-      tag: 1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+      tag: 1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
       pullPolicy: IfNotPresent
     resources:
       requests:
