@@ -353,7 +353,13 @@ build {
       "echo 'admin' | sudo -S install -m 0644 /tmp/tuist-cacerts.pem /etc/ssl/cert.pem",
       "rm /tmp/tuist-cacerts.pem",
       "/opt/homebrew/bin/brew update",
-      "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 /opt/homebrew/bin/brew upgrade ca-certificates",
+      # Upgrade every formula, not only ca-certificates: Layer 1 rebuilds only
+      # for a new Xcode, so its formulae go stale, and a job's `brew install`
+      # then has to upgrade the outdated dependencies its bottles link against
+      # first (about 3 s of a 9 s `brew install sysbench fio`). Runs before the
+      # filter below, so the filtered store is the upgraded ca-certificates.
+      "HOMEBREW_NO_ASK=1 /opt/homebrew/bin/brew upgrade --formula",
+      "/opt/homebrew/bin/brew cleanup --prune=all",
       "bash /tmp/tuist-pem-store.sh filter /opt/homebrew/etc/ca-certificates/cert.pem /tmp/tuist-homebrew-roots.pem",
       "sudo install -m 0644 /tmp/tuist-homebrew-roots.pem /opt/homebrew/etc/ca-certificates/cert.pem",
       "bash /tmp/tuist-pem-store.sh check /etc/ssl/cert.pem /opt/homebrew/etc/ca-certificates/cert.pem",
