@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr/funcr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -33,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
@@ -2657,6 +2659,47 @@ func TestReconcileDataStorageResize(t *testing.T) {
 			if !exists(t, c, claim(ordinal, "40Gi")) || !exists(t, c, pod(ordinal, true)) {
 				t.Fatalf("ordinal %d must keep its volume and keep serving", ordinal)
 			}
+		}
+	})
+
+	// A hold can last as long as a region has one host, and the instance is
+	// reconciled every few seconds, so the hold is reported when it starts,
+	// not on every pass.
+	t.Run("reports a held rebuild once while it stays held", func(t *testing.T) {
+		c := spreadFixtureOn(spread(), [2]string{"box-a", "box-a"}, []client.Object{box("box-a", true), box("box-b", false)})
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+		var messages []string
+		ctx := log.IntoContext(context.Background(), funcr.New(func(prefix, args string) { messages = append(messages, args) }, funcr.Options{}))
+
+		holds := func() int {
+			count := 0
+			for _, message := range messages {
+				if strings.Contains(message, "holding a Kura data volume rebuild") {
+					count++
+				}
+			}
+			return count
+		}
+		for range 3 {
+			if _, err := r.reconcileDataStorageResize(ctx, spread()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := holds(); got != 1 {
+			t.Fatalf("expected the hold to be reported once over three passes, got %d", got)
+		}
+
+		// Once the hold ends, a later hold is news again.
+		r.Client = spreadFixture(spread(), [2]string{"box-a", "box-b"})
+		if _, err := r.reconcileDataStorageResize(ctx, spread()); err != nil {
+			t.Fatal(err)
+		}
+		r.Client = c
+		if _, err := r.reconcileDataStorageResize(ctx, spread()); err != nil {
+			t.Fatal(err)
+		}
+		if got := holds(); got != 2 {
+			t.Fatalf("expected a hold that ended and came back to be reported again, got %d reports", got)
 		}
 	})
 

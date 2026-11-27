@@ -200,6 +200,13 @@ type KuraInstanceReconciler struct {
 	// tolerates by treating counter decreases as no growth.
 	podSamplesMu sync.Mutex
 	podSamples   map[types.NamespacedName]map[string]*podRuntimeSample
+
+	// heldRebuilds is the reason each held data volume rebuild was last
+	// reported with, keyed by instance and claim, so a hold that lasts as long
+	// as a region has one host is logged when it starts or changes rather
+	// than on every reconcile. In-memory only: a restart reports it once more.
+	heldRebuildsMu sync.Mutex
+	heldRebuilds   map[types.NamespacedName]map[string]string
 }
 
 type RuntimeStatusClient interface {
@@ -507,6 +514,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, err
 		}
 		r.forgetPodSamples(instance)
+		r.reportHeldRebuilds(ctx, instance, nil)
 		controllerutil.RemoveFinalizer(instance, KuraInstanceFinalizer)
 		return ctrl.Result{}, r.Update(ctx, instance)
 	}
@@ -3765,6 +3773,7 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	if err != nil {
 		return false, err
 	}
+	r.reportHeldRebuilds(ctx, instance, replacements)
 	if deleting {
 		return true, nil
 	}
@@ -3873,7 +3882,6 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	// rebuild would discard the copy that could have recovered first.
 	for _, volume := range replacements {
 		if volume.held {
-			log.FromContext(ctx).Info("holding a Kura data volume rebuild until a node can take it", "pvc", volume.claim.Name, "reason", volume.reason)
 			continue
 		}
 		if !serving[volume.ordinal] && othersSettled(volume.ordinal, true) {
@@ -3908,6 +3916,35 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 		}
 	}
 	return true, nil
+}
+
+// reportHeldRebuilds logs each held rebuild among replacements when its hold
+// starts or its reason changes, and forgets holds that have ended so a later
+// one is reported again.
+func (r *KuraInstanceReconciler) reportHeldRebuilds(ctx context.Context, instance *kurav1alpha1.KuraInstance, replacements []dataVolumeReplacement) {
+	held := map[string]string{}
+	for _, volume := range replacements {
+		if volume.held {
+			held[volume.claim.Name] = volume.reason
+		}
+	}
+	key := types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name}
+	r.heldRebuildsMu.Lock()
+	defer r.heldRebuildsMu.Unlock()
+	previous := r.heldRebuilds[key]
+	for claim, reason := range held {
+		if previous[claim] != reason {
+			log.FromContext(ctx).Info("holding a Kura data volume rebuild until a node can take it", "pvc", claim, "reason", reason)
+		}
+	}
+	if len(held) == 0 {
+		delete(r.heldRebuilds, key)
+		return
+	}
+	if r.heldRebuilds == nil {
+		r.heldRebuilds = map[types.NamespacedName]map[string]string{}
+	}
+	r.heldRebuilds[key] = held
 }
 
 // siblingsCatchingUp reports whether any replica other than ordinal has yet to
