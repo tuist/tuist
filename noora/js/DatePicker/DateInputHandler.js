@@ -87,6 +87,28 @@ export class DateInputHandler {
     );
     const currentIndex = inputs.indexOf(input);
 
+    // Backspace at the start of a field deletes on into the field before it,
+    // the way typing runs on into the next one, so every press removes one
+    // digit. It skips fields that are already empty and stays within one date.
+    if (
+      e.key === "Backspace" &&
+      cursorPos === 0 &&
+      input.selectionEnd === 0 &&
+      currentIndex > 0
+    ) {
+      e.preventDefault();
+      let prevIndex = currentIndex - 1;
+      while (prevIndex > 0 && inputs[prevIndex].value === "") prevIndex -= 1;
+      const prevInput = inputs[prevIndex];
+      prevInput.value = prevInput.value.slice(0, -1);
+      prevInput.focus();
+      prevInput.setSelectionRange(
+        prevInput.value.length,
+        prevInput.value.length,
+      );
+      return;
+    }
+
     // Left arrow at start of field -> go to previous field
     if (e.key === "ArrowLeft" && cursorPos === 0) {
       e.preventDefault();
