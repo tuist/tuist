@@ -711,8 +711,10 @@ defmodule Tuist.Sandboxes.Capacity do
   revokes grants must not starve them: a shared host's floor always takes
   VMs. When nothing fits, a shared host's carve-out grows toward its
   ceiling ahead of queued CI (see `allocation_allows?/2`): a growth the
-  kubelet defers stays asked for, which keeps new runner Pods off the room
-  that running jobs free. `on_grow` runs before it waits for a growth, so
+  kubelet defers stays asked for on every node it tried, not only the last,
+  which keeps new runner Pods off the room that running jobs free and has
+  the runners controller retire idle runners on all of them at once.
+  `on_grow` runs before it waits for a growth, so
   callers can tell that wait for room from the VM's preparation.
   """
   def place_execution(%Sandbox{} = sandbox, image_tag, on_grow \\ fn -> :ok end) do
@@ -737,7 +739,7 @@ defmodule Tuist.Sandboxes.Capacity do
         with {:ok, grown} <-
                candidates
                |> Enum.filter(&execution_fits?(&1, sandbox))
-               |> grow_somewhere(charge, wait_ms(:grow_wait_ms), :reported),
+               |> grow_somewhere(charge, wait_ms(:grow_wait_ms), :reported, keep_deferred: true),
              :ok <- reserve.(grown) do
           {:ok, grown.name}
         else
@@ -783,28 +785,74 @@ defmodule Tuist.Sandboxes.Capacity do
     do: min(node.capacity.cpus, node.execution_slots * 2) * 1000 - placed_cpu_milli(node.name)
 
   # Memory of the remote execution VMs reserved but not placed yet, oldest
-  # first, as many as `room` and the node's CPU guarantees take.
+  # first, as many as `room` and the node's CPU guarantees take, less what
+  # growths other execution daemons were asked for and have not applied:
+  # placements keep deferred growths (`grow_somewhere/5`), and without this
+  # every node would ask for the whole build's waiting VMs.
   defp waiting_execution_bytes(node, room) do
     if execution_daemon?(node) do
-      from(s in Sandbox,
-        where:
-          s.purpose == :remote_execution and is_nil(s.node_name) and s.state in ^@charged_states and
-            s.execution_lease_expires_at > ^DateTime.utc_now(),
-        order_by: [asc: s.inserted_at],
-        select: {coalesce(s.guaranteed_cpu_milli, s.vcpus * 1000), s.memory_mb}
-      )
-      |> Repo.all()
-      |> Enum.reduce_while({execution_cpu_room_milli(node), 0}, fn {cpu_milli, memory_mb}, {cpu_room, bytes} ->
-        vm_bytes = memory_mb * @mib + @vm_overhead_bytes
+      pending = pending_execution_growth(node.name)
 
-        if cpu_milli <= cpu_room and bytes + vm_bytes <= room,
-          do: {:cont, {cpu_room - cpu_milli, bytes + vm_bytes}},
-          else: {:halt, {cpu_room, bytes}}
-      end)
-      |> elem(1)
+      node
+      |> waiting_execution_bytes_within(room + pending)
+      |> Kernel.-(pending)
+      |> max(0)
+      |> min(room)
     else
       0
     end
+  end
+
+  # Growth asked of the other connected execution daemons beyond both what
+  # they report and what their placed VMs hold.
+  defp pending_execution_growth(node_name) do
+    others =
+      Enum.filter(Nodes.connected_nodes(), &(&1.name != node_name and execution_daemon?(&1) and elastic?(&1)))
+
+    names = Enum.map(others, & &1.name)
+    asked = Map.new(Repo.all(from r in SandboxNode, where: r.name in ^names, select: {r.name, r}))
+
+    held =
+      Map.new(
+        Repo.all(
+          from s in Sandbox,
+            where:
+              s.node_name in ^names and
+                (s.state in ^@charged_states or (s.purpose == :remote_execution and s.state == :error)),
+            group_by: s.node_name,
+            select: {s.node_name, coalesce(sum(s.memory_mb), 0) * ^@mib + count(s.id) * ^@vm_overhead_bytes}
+        )
+      )
+
+    Enum.reduce(others, 0, fn node, total ->
+      case Map.get(asked, node.name) do
+        %SandboxNode{pod_name: pod_name, memory_limit_bytes: limit} when pod_name == node.elastic.pod_name ->
+          applied = max(reported_limit(node) || 0, Map.get(held, node.name, 0) + @daemon_reserve_bytes)
+          total + max(limit - applied, 0)
+
+        _no_growth ->
+          total
+      end
+    end)
+  end
+
+  defp waiting_execution_bytes_within(node, room) do
+    from(s in Sandbox,
+      where:
+        s.purpose == :remote_execution and is_nil(s.node_name) and s.state in ^@charged_states and
+          s.execution_lease_expires_at > ^DateTime.utc_now(),
+      order_by: [asc: s.inserted_at],
+      select: {coalesce(s.guaranteed_cpu_milli, s.vcpus * 1000), s.memory_mb}
+    )
+    |> Repo.all()
+    |> Enum.reduce_while({execution_cpu_room_milli(node), 0}, fn {cpu_milli, memory_mb}, {cpu_room, bytes} ->
+      vm_bytes = memory_mb * @mib + @vm_overhead_bytes
+
+      if cpu_milli <= cpu_room and bytes + vm_bytes <= room,
+        do: {:cont, {cpu_room - cpu_milli, bytes + vm_bytes}},
+        else: {:halt, {cpu_room, bytes}}
+    end)
+    |> elem(1)
   end
 
   defp execution_node?(node, image_tag, sandbox) do
@@ -1042,7 +1090,7 @@ defmodule Tuist.Sandboxes.Capacity do
   end
 
   defp place_by_growing(ranked, charge, reserve, prefer) do
-    with {:ok, grown} <- grow_somewhere(ranked, charge, wait_ms(:grow_wait_ms), :reported, prefer),
+    with {:ok, grown} <- grow_somewhere(ranked, charge, wait_ms(:grow_wait_ms), :reported, prefer: prefer),
          :ok <- reserve.(grown) do
       {:ok, grown.name, :grown}
     else
@@ -1209,7 +1257,7 @@ defmodule Tuist.Sandboxes.Capacity do
   # the placement that follows waits for the daemon to report it.
   defp grown_in_time?(nodes, sized, prefer) when is_list(nodes) do
     with_space = Enum.filter(nodes, &disk_space?(&1, sized))
-    result = grow_somewhere(with_space, charge_bytes(sized), wait_ms(:admission_grow_wait_ms), :applied, prefer)
+    result = grow_somewhere(with_space, charge_bytes(sized), wait_ms(:admission_grow_wait_ms), :applied, prefer: prefer)
     match?({:ok, _node}, result)
   end
 
@@ -1227,37 +1275,60 @@ defmodule Tuist.Sandboxes.Capacity do
   # earlier attempt left asked for comes first and keeps it, deferred or
   # not: otherwise every attempt during a CI burst would release it and ask
   # every node again.
-  defp grow_somewhere(nodes, charge, wait_ms, until, prefer \\ []) do
+  #
+  # `keep_deferred: true` (remote execution) keeps every deferred growth
+  # asked for and moves on: a cold build places dozens of VMs at once, and
+  # releasing each deferral within the same second left the runners
+  # controller, which retires idle runners for a deferred growth every few
+  # seconds, nothing to act on (production, 2026-11-27: about 30 releases in
+  # 3 s, and workers waited up to a minute for CI jobs to end instead).
+  # `ask_for_growth/2` keeps those asks from adding up past the waiting VMs.
+  defp grow_somewhere(nodes, charge, wait_ms, until, opts \\ []) do
+    keep? = Keyword.get(opts, :keep_deferred, false)
     deadline = System.monotonic_time(:millisecond) + wait_ms
     {growing, others} = nodes |> growable(charge) |> Enum.split_with(&growth_asked?/1)
-    {preferred, others} = Enum.split_with(others, &(&1.name in prefer))
+    {preferred, others} = Enum.split_with(others, &(&1.name in Keyword.get(opts, :prefer, [])))
 
-    case keep_growing(growing, charge, deadline, until) do
-      {:error, _reason} -> try_growing(preferred ++ others, charge, deadline, until)
-      result -> result
+    case keep_growing(growing, charge, deadline, until, keep?) do
+      {:error, _reason} ->
+        try_growing(preferred ++ others, charge, deadline, until, keep?)
+
+      {:deferred, _limit} = deferred when keep? ->
+        case try_growing(preferred ++ others, charge, deadline, until, keep?) do
+          {:error, _reason} -> deferred
+          result -> result
+        end
+
+      result ->
+        result
     end
   end
 
   defp growth_asked?(node), do: (asked_limit(node) || 0) > (reported_limit(node) || 0)
 
-  defp keep_growing(nodes, charge, deadline, until) do
-    Enum.reduce_while(nodes, {:error, :no_capacity}, fn node, _result ->
+  defp keep_growing(nodes, charge, deadline, until, keep?) do
+    Enum.reduce_while(nodes, {:error, :no_capacity}, fn node, result ->
       case grow(node, charge, max(deadline - System.monotonic_time(:millisecond), 0), until) do
-        {:error, _reason} = error -> {:cont, error}
+        {:error, _reason} = error -> {:cont, if(match?({:deferred, _limit}, result), do: result, else: error)}
+        {:deferred, _limit} = deferred when keep? -> {:cont, deferred}
         result -> {:halt, result}
       end
     end)
   end
 
-  defp try_growing([], _charge, _deadline, _until), do: {:error, :no_capacity}
+  defp try_growing([], _charge, _deadline, _until, _keep?), do: {:error, :no_capacity}
 
-  defp try_growing([node | rest], charge, deadline, until) do
+  defp try_growing([node | rest], charge, deadline, until, keep?) do
     remaining = max(deadline - System.monotonic_time(:millisecond), 0)
 
     case grow(node, charge, remaining, until) do
       {:deferred, limit} when rest != [] ->
-        release_growth(node, limit)
-        try_growing(rest, charge, deadline, until)
+        if !keep?, do: release_growth(node, limit)
+
+        case try_growing(rest, charge, deadline, until, keep?) do
+          {:error, _reason} when keep? -> {:deferred, limit}
+          result -> result
+        end
 
       result ->
         result

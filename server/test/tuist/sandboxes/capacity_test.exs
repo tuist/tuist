@@ -994,6 +994,42 @@ defmodule Tuist.Sandboxes.CapacityTest do
       refute_received {:resized, _bytes}
     end
 
+    test "execution placements keep every deferred growth, asking each node only for the VMs others will not take" do
+      {first, image} = connect_execution(%{elastic: %{memory_floor_bytes: 9 * @gib, memory_ceiling_bytes: 34 * @gib}})
+      {second, ^image} = connect_execution(%{elastic: %{memory_floor_bytes: 9 * @gib, memory_ceiling_bytes: 34 * @gib}})
+      test = self()
+      # Both nodes are full of CI runners: the kubelet defers every growth.
+      stub(KubernetesClient, :get_pod, fn "tuist-sandboxes", _pod -> {:ok, %{"status" => deferred_status()}} end)
+
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn "tuist-sandboxes", "sandboxd-" <> node, bytes ->
+        send(test, {:resized, node, bytes})
+        {:ok, %{}}
+      end)
+
+      for node <- [first, second], _ <- 1..2, do: execution_vm(node)
+      lease = DateTime.add(DateTime.utc_now(:second), 60, :second)
+
+      [asking | _waiting] =
+        for _ <- 1..5 do
+          execution_vm() |> Ecto.Changeset.change(execution_lease_expires_at: lease) |> Repo.update!()
+        end
+
+      assert {:error, :no_capacity} = Capacity.place_execution(asking, image)
+
+      # Whichever node is asked first grows for all five waiting 4160 MiB VMs
+      # (two placed, five waiting and the 512 MiB reserve: 28.9 GiB, rounded
+      # up to 29); the other grows for the asking VM alone (13 GiB), not for
+      # the same five again (29 GiB).
+      sizes = for node <- [first, second], into: %{}, do: {node, Repo.get!(SandboxNode, node).memory_limit_bytes}
+      assert Enum.sort(Map.values(sizes)) == [13 * @gib, 29 * @gib]
+
+      # Neither growth was given back.
+      for {node, size} <- sizes do
+        assert_received {:resized, ^node, ^size}
+        refute_received {:resized, ^node, _released}
+      end
+    end
+
     defp grown_execution_daemon(last_vm_placed_at) do
       {node, _image} = connect_execution(%{capacity: %{memory_bytes: 17 * @gib, cpus: 16}})
       set_grant(node, memory_limit_bytes: 17 * @gib, grown_at: DateTime.add(DateTime.utc_now(:second), -600, :second))

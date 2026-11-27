@@ -104,7 +104,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   reported limit, so a growth is only used once the daemon reports it and a
   shrink stops placements first. A growth the kubelet defers (read from the
   Pod's `PodResizePending` condition) is given back and the next node tried;
-  only the last deferral stays asked for. A resume, which runs only on its own node and whose refusal archives the
+  only the last deferral stays asked for. Remote execution placements keep
+  every deferral instead, so the runners controller frees room on all those
+  nodes at once; a node's batch then leaves out the waiting VMs that other
+  execution daemons' unapplied growths already cover. A resume, which runs only on its own node and whose refusal archives the
   sandbox, instead waits out its node's deferral (up to 60 s) for as long as
   the grant still offers the memory, since the runners controller retires
   idle runners on a deferral; a revoked or shrunk grant ends the wait. `admissible?/2` asks for a growth
