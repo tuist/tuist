@@ -2703,6 +2703,56 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		}
 	})
 
+	// A Ready host is not a landing spot if its disk is already reserved: the
+	// standby's replacement would sit Pending for want of tuist.dev/kura-disk
+	// while its warm volume is already gone. Only kura pods request that
+	// resource, so the instance's namespace holds every reservation.
+	t.Run("holds the standby while no other host has disk for it", func(t *testing.T) {
+		lvm := func() *kurav1alpha1.KuraInstance {
+			instance := spread()
+			instance.Spec.DiskResource = string(kuraDiskResource)
+			return instance
+		}
+		withDisk := func(name, allocatable string) *corev1.Node {
+			node := box(name, true)
+			node.Status.Allocatable = corev1.ResourceList{kuraDiskResource: resource.MustParse(allocatable)}
+			return node
+		}
+		tenant := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "kura-other-0", Namespace: namespace},
+			Spec: corev1.PodSpec{NodeName: "box-b", Containers: []corev1.Container{{
+				Name:      kuraContainerName,
+				Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{kuraDiskResource: resource.MustParse("80Gi")}},
+			}}},
+		}
+		for _, tc := range []struct {
+			name       string
+			boxB       string
+			expectHeld bool
+		}{
+			{name: "full", boxB: "100Gi", expectHeld: true},
+			{name: "room", boxB: "200Gi", expectHeld: false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				c := spreadFixtureOn(lvm(), [2]string{"box-a", "box-a"}, []client.Object{withDisk("box-a", "500Gi"), withDisk("box-b", tc.boxB), tenant})
+				r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+				volumes, err := r.colocatedVolumes(context.Background(), lvm())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(volumes) != 1 || volumes[0].held != tc.expectHeld {
+					t.Fatalf("expected one colocated standby with held=%v, got %+v", tc.expectHeld, volumes)
+				}
+				if _, err := r.reconcileDataStorageResize(context.Background(), lvm()); err != nil {
+					t.Fatal(err)
+				}
+				if tc.expectHeld && (!exists(t, c, claim(0, "40Gi")) || !exists(t, c, pod(0, true))) {
+					t.Fatal("the standby must keep its volume while no host has disk for its replacement")
+				}
+			})
+		}
+	})
+
 	t.Run("rebuilds the standby's volume off the primary's host when spread is required", func(t *testing.T) {
 		c := spreadFixture(spread(), [2]string{"box-a", "box-a"})
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}

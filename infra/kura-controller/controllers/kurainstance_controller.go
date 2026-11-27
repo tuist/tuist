@@ -4162,6 +4162,9 @@ func (r *KuraInstanceReconciler) colocatedVolumes(ctx context.Context, instance 
 			occupied[node.Name] = true
 		}
 	}
+	if err := r.occupyNodesWithoutDisk(ctx, instance, nodes.Items, occupied); err != nil {
+		return nil, err
+	}
 	held := !hasLandingNode(nodes.Items, occupied, nodeSelector(instance))
 	var colocated []dataVolumeReplacement
 	for _, value := range values {
@@ -4264,11 +4267,67 @@ func (r *KuraInstanceReconciler) unselectedVolumes(ctx context.Context, instance
 			occupied[node.Name] = true
 		}
 	}
+	if err := r.occupyNodesWithoutDisk(ctx, instance, nodes.Items, occupied); err != nil {
+		return nil, err
+	}
 	held := !hasLandingNode(nodes.Items, occupied, nodeSelector(instance))
 	for i := range unselected {
 		unselected[i].held = held
 	}
 	return unselected, nil
+}
+
+// occupyNodesWithoutDisk marks every node whose unreserved tuist.dev/kura-disk
+// cannot hold one of the instance's replicas, so a rebuild never empties a warm
+// volume for a replacement the scheduler cannot place. Only Kura pods request
+// that resource, so the instance's namespace holds every reservation the
+// scheduler counts. Instances on ephemeral-storage keep the check they had:
+// system pods outside the watched namespace share that resource.
+func (r *KuraInstanceReconciler) occupyNodesWithoutDisk(ctx context.Context, instance *kurav1alpha1.KuraInstance, nodes []corev1.Node, occupied map[string]bool) error {
+	if diskResource(instance) != kuraDiskResource {
+		return nil
+	}
+	need := diskReservation(instance)
+	sts := &appsv1.StatefulSet{}
+	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); {
+	case err == nil:
+		if current := kuraDiskRequest(sts.Spec.Template.Spec, kuraDiskResource); current.Cmp(need) > 0 {
+			need = current
+		}
+	case !apierrors.IsNotFound(err):
+		return err
+	}
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace)); err != nil {
+		return err
+	}
+	reserved := map[string]*resource.Quantity{}
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.Spec.NodeName == "" || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+			continue
+		}
+		for _, container := range pod.Spec.Containers {
+			request, ok := container.Resources.Requests[kuraDiskResource]
+			if !ok {
+				continue
+			}
+			if reserved[pod.Spec.NodeName] == nil {
+				reserved[pod.Spec.NodeName] = &resource.Quantity{}
+			}
+			reserved[pod.Spec.NodeName].Add(request)
+		}
+	}
+	for i := range nodes {
+		free := nodes[i].Status.Allocatable[kuraDiskResource]
+		if used := reserved[nodes[i].Name]; used != nil {
+			free.Sub(*used)
+		}
+		if free.Cmp(need) < 0 {
+			occupied[nodes[i].Name] = true
+		}
+	}
+	return nil
 }
 
 func (r *KuraInstanceReconciler) rebuildDataVolume(ctx context.Context, instance *kurav1alpha1.KuraInstance, volume dataVolumeReplacement, serving bool) error {
