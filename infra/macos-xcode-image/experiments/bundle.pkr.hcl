@@ -22,6 +22,10 @@ variable "disk_size_gb" {
   type    = number
   default = 260
 }
+variable "recovery_partition" {
+  type    = string
+  default = "delete"
+}
 
 source "tart-cli" "bundle" {
   vm_base_name = var.base_image
@@ -34,7 +38,7 @@ source "tart-cli" "bundle" {
   ssh_timeout  = "120s"
   headless     = true
   # A stacked VM has no disk.img for the plugin to edit (see infra/runner-image/runner.pkr.hcl).
-  recovery_partition = var.stacked ? "keep" : "delete"
+  recovery_partition = var.stacked ? "keep" : var.recovery_partition
 }
 
 build {

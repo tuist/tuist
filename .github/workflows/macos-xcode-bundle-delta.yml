@@ -1,0 +1,112 @@
+name: macOS Xcode bundle delta experiment
+
+# Throwaway experiment (branch exp/xcode-bundle-tahoe-27 only). The first
+# bundle experiment grew each step's disk to 260 GB and deleted the recovery
+# partition, and only about 30 of 55 GB survived adding 27.1. This run adds
+# 27.1, then 27.2, on top of macos-tahoe-xcode:27-0 at the base's own 140 GB
+# disk with the recovery partition kept, and compares 512 MiB disk chunks
+# locally (chunks.py) instead of pushing. It first calibrates the method on the
+# pushed exp-bundle-27-0-27-1 tag, whose GHCR delta is known (about 34.5 GB).
+# Nothing is pushed. Every measurement line starts with BUNDLE-EXP.
+
+on:
+  push:
+    branches: [exp/xcode-bundle-tahoe-27]
+    paths:
+      - .github/workflows/macos-xcode-bundle-delta.yml
+      - infra/macos-xcode-image/experiments/chunks.py
+
+concurrency:
+  group: macos-xcode-bundle-delta
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  REPO: ghcr.io/tuist/macos-tahoe-xcode
+  CHUNKS: ${{ github.workspace }}/infra/macos-xcode-image/experiments/chunks.py
+
+jobs:
+  delta:
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull Xcode .xips from mirror
+        id: xips
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | oras login ghcr.io --username tuist-bot --password-stdin
+          for v in 27.1 27.2; do
+            d="${RUNNER_TEMP}/xip-${v}"; rm -rf "$d"; mkdir -p "$d"
+            oras pull "ghcr.io/tuist/xcode-xips:${v}" --output "$d"
+            echo "x${v//./_}=$(ls "$d"/*.xip | head -n1)" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Initialize Packer
+        working-directory: infra/macos-xcode-image/experiments
+        run: packer init -upgrade bundle.pkr.hcl
+
+      - uses: ./.github/actions/reclaim-tart-disk
+        with:
+          keep: |
+            ghcr.io/tuist/macos-tahoe-xcode:27-0
+
+      - name: Pull images
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for tag in 27-0 exp-bundle-27-0-27-1; do
+            t0=$(date +%s); tart pull "$REPO:$tag"
+            echo "BUNDLE-EXP pull $tag s: $(( $(date +%s) - t0 ))"
+          done
+
+      - name: Hash the base and calibrate on the pushed chain step
+        run: |
+          set -euo pipefail
+          oci() { readlink -f "$HOME/.tart/cache/OCIs/ghcr.io/tuist/macos-tahoe-xcode/$1/disk.img"; }
+          t0=$(date +%s); python3 "$CHUNKS" hash "$(oci 27-0)" "$RUNNER_TEMP/h-base"
+          echo "BUNDLE-EXP hash 140 GB disk s: $(( $(date +%s) - t0 ))"
+          python3 "$CHUNKS" hash "$(oci exp-bundle-27-0-27-1)" "$RUNNER_TEMP/h-old-a"
+          python3 "$CHUNKS" diff "$RUNNER_TEMP/h-base" "$RUNNER_TEMP/h-old-a" "calibration: 27-0 -> pushed exp-bundle-27-0-27-1 (260 GB, recovery deleted; GHCR said about 34.5 GB new)"
+          tart delete "$REPO:exp-bundle-27-0-27-1" 2>/dev/null || true
+
+      - name: Add Xcode 27.1 at 140 GB, recovery kept
+        working-directory: infra/macos-xcode-image/experiments
+        run: |
+          set -euo pipefail
+          t0=$(date +%s)
+          env -u GITHUB_TOKEN packer build -var "base_image=$REPO:27-0" -var output_image=exp-delta-a \
+            -var disk_size_gb=140 -var recovery_partition=keep \
+            -var "xcode_xip_path=${{ steps.xips.outputs.x27_1 }}" -var xcode_version=27.1 bundle.pkr.hcl
+          echo "BUNDLE-EXP build add 27.1 s: $(( $(date +%s) - t0 ))"
+          python3 "$CHUNKS" hash "$HOME/.tart/vms/exp-delta-a/disk.img" "$RUNNER_TEMP/h-a"
+          python3 "$CHUNKS" diff "$RUNNER_TEMP/h-base" "$RUNNER_TEMP/h-a" "27-0 -> +27.1 (140 GB, recovery kept)"
+
+      - name: Add Xcode 27.2 at 140 GB, recovery kept
+        working-directory: infra/macos-xcode-image/experiments
+        run: |
+          set -euo pipefail
+          t0=$(date +%s)
+          env -u GITHUB_TOKEN packer build -var base_image=exp-delta-a -var output_image=exp-delta-b \
+            -var disk_size_gb=140 -var recovery_partition=keep \
+            -var "xcode_xip_path=${{ steps.xips.outputs.x27_2 }}" -var xcode_version=27.2 bundle.pkr.hcl
+          echo "BUNDLE-EXP build add 27.2 s: $(( $(date +%s) - t0 ))"
+          python3 "$CHUNKS" hash "$HOME/.tart/vms/exp-delta-b/disk.img" "$RUNNER_TEMP/h-b"
+          python3 "$CHUNKS" diff "$RUNNER_TEMP/h-a" "$RUNNER_TEMP/h-b" "+27.1 -> +27.2 (140 GB, recovery kept)"
+          python3 "$CHUNKS" diff "$RUNNER_TEMP/h-base" "$RUNNER_TEMP/h-b" "27-0 -> +27.1 +27.2 (140 GB, recovery kept)"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          for vm in exp-delta-a exp-delta-b; do tart delete "$vm" 2>/dev/null || true; done
+          tart delete "$REPO:exp-bundle-27-0-27-1" 2>/dev/null || true
+          rm -rf "${RUNNER_TEMP}"/xip-* "${RUNNER_TEMP}"/h-*
