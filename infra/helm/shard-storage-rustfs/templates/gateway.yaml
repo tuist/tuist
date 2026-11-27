@@ -41,13 +41,17 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       affinity:
+        # Preferred, not required: each site has one node the gateway may run
+        # on, and a rolling update starts the new pod beside the old one.
         podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  app: {{ .Release.Name }}
-                  component: gateway
-              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: {{ .Release.Name }}
+                    component: gateway
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: nginx
           image: {{ .Values.gateway.image | quote }}

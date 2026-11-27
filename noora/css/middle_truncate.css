@@ -19,5 +19,8 @@
 
   & [data-part="tail"] {
     flex: none;
+    /* A tail split at a space starts with it, and a flex item drops leading
+       white space unless it is preserved. */
+    white-space: pre;
   }
 }
