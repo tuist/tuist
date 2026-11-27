@@ -56,6 +56,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         )
         let frameworkSearchPaths = allTargetDependencies
             .sorted()
+            .filter { $0.target.product != .macro }
             .map(\.target.productName).map {
                 "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\($0)"
             }
