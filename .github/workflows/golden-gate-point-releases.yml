@@ -52,8 +52,14 @@ jobs:
               printf 'https://ghcr.io' | "$helper" erase || true
             fi
           done
-          tart pull "$VANILLA:27.0"
-          tart pull "$VANILLA:27.2"
+          env | cut -d= -f1 | grep -iE 'tart|docker|registry' || true
+          [ -f "$HOME/.docker/config.json" ] && jq -c 'with_entries(.value |= (if type=="object" then keys else . end))' "$HOME/.docker/config.json" || true
+          # No registry variables and an empty HOME (no Docker config), so
+          # Tart pulls the public images anonymously into its usual cache.
+          export TART_HOME="${TART_HOME:-$HOME/.tart}"
+          anon() { env -u TART_REGISTRY_USERNAME -u TART_REGISTRY_PASSWORD -u TART_REGISTRY_HOSTNAME HOME="$(mktemp -d)" tart "$@"; }
+          anon pull "$VANILLA:27.0"
+          anon pull "$VANILLA:27.2"
       - name: Run the point releases
         run: |
           set -uo pipefail
