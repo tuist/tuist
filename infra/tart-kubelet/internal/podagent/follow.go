@@ -28,10 +28,14 @@ import (
 // holds that golden and not the current one, the GC keeps the previous golden
 // and its cached image and pulls the current one in the background. The
 // next pass after the pull reaps the previous golden as superseded.
-
-// defaultFollowTimeout bounds how long a superseded golden is kept for its
-// successor's pull, so an image that cannot be pulled does not pin it.
-const defaultFollowTimeout = 2 * time.Hour
+//
+// The previous golden stays for as long as the host lacks the current one,
+// with no time limit, so a pool rolled back to `status.previousImage` finds
+// it on the hosts that could not pull the release. Disk pressure still reaps
+// it (the aggressive pass ignores `following`). Until 2026-11-27 the keep
+// ended after two hours: that day the rack's image cache could not serve
+// release 0.70.0 and hosts sat for hours without the current images, so the
+// rollback had to beat the clock on hosts' previous goldens.
 
 // succession is a pool's move from one image to another. stacked is whether
 // the pool runs stacked images, whose release shares its base with the
@@ -50,7 +54,7 @@ type followPull struct {
 
 // planFollow returns the images this host should pull to follow a release,
 // and marks the previous goldens the pass keeps until they are pulled.
-func (c *Collector) planFollow(expected *expectedSet, vms []tart.VM, now time.Time) []followPull {
+func (c *Collector) planFollow(expected *expectedSet, vms []tart.VM) []followPull {
 	if c.Goldens == nil || len(expected.successions) == 0 {
 		return nil
 	}
@@ -60,35 +64,10 @@ func (c *Collector) planFollow(expected *expectedSet, vms []tart.VM, now time.Ti
 			local[vm.Name] = true
 		}
 	}
-	timeout := c.FollowTimeout
-	if timeout <= 0 {
-		timeout = defaultFollowTimeout
-	}
-
-	c.followMu.Lock()
-	defer c.followMu.Unlock()
-	if c.followSince == nil {
-		c.followSince = map[string]time.Time{}
-	}
-	for previous := range c.followSince {
-		if _, ok := expected.successions[previous]; !ok {
-			delete(c.followSince, previous)
-		}
-	}
-
 	seen := map[string]bool{}
 	var images []followPull
 	for previous, s := range expected.successions {
 		if !local[previous] || local[goldenVMName(s.current)] {
-			delete(c.followSince, previous)
-			continue
-		}
-		since, ok := c.followSince[previous]
-		if !ok {
-			since = now
-			c.followSince[previous] = now
-		}
-		if now.Sub(since) >= timeout {
 			continue
 		}
 		expected.following[previous] = struct{}{}

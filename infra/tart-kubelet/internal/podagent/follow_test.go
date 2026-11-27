@@ -149,17 +149,16 @@ func TestRunOnceFollowsAReleaseBeforeReapingThePreviousImage(t *testing.T) {
 		}
 	})
 
-	t.Run("lets the previous image go after the follow timeout", func(t *testing.T) {
+	// On 2026-11-27 the rack's image cache could not serve a release for
+	// hours; the previous golden is what a rollback runs on.
+	t.Run("keeps the previous image while the current one cannot be pulled", func(t *testing.T) {
 		c := newCollector(t, []string{goldenVMName(previous), previous}, released(withPrevious))
 		c.goldens.err = map[string]error{current: errors.New("manifest unknown")}
 		run(c)
-		if got := c.deletes(t); len(got) != 0 {
-			t.Fatalf("deletes = %v, want none inside the timeout", got)
-		}
-		*c.now = start.Add(defaultFollowTimeout)
+		*c.now = start.Add(30 * time.Hour)
 		run(c)
-		if want := []string{goldenVMName(previous), previous}; !reflect.DeepEqual(c.deletes(t), want) {
-			t.Fatalf("deletes = %v, want %v", c.deletes(t), want)
+		if got := c.deletes(t); len(got) != 0 {
+			t.Fatalf("deletes = %v, want the previous image kept until the current one is here", got)
 		}
 	})
 

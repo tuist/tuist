@@ -72,8 +72,11 @@ workflow code runs in the guest. Never expose host credentials or masters.
   previous one as superseded. A stacked golden's base stays in Tart's content
   store throughout, so the pull is only the overlay. Bounds: no follow under
   disk pressure or when the pull would leave less than the 15% reclaim floor
-  (`roomToPull`, sized as in staging below), and a golden is kept
-  for its successor at most `defaultFollowTimeout` (2h). Evidence: after the
+  (`roomToPull`, sized as in staging below). Otherwise the previous golden
+  stays until the host holds the current one, with no time limit, so a pool
+  rolled back to `status.previousImage` still finds it; until 2026-11-27 the
+  keep ended after 2h, and that day hosts that could not pull release 0.70.0
+  from a full image cache were losing the rollback target. Evidence: after the
   release of 2026-10-22 13:00 UTC the GC freed about 60 GiB per reaped golden
   per rack host, and the next pull took 10 to 23 s on hosts that still held
   the base against 9.5 to 12.8 minutes on hosts that did not. Every 6 vCPU
@@ -122,10 +125,13 @@ workflow code runs in the guest. Never expose host credentials or masters.
   current image's golden label also
   holds the new one (`.github/scripts/runner-image-staging-gate.sh`, run by
   `server-deployment.yml` before the chart upgrade), and `announce` waits for
-  the same before it dispatches the release's deploy. Both give up on an
-  image an hour after it was first announced
-  (`tuist.dev/runner-image-announced-at-by-image`, per key, falling back to
-  `tuist.dev/runner-image-announced-at`), and a release dispatched with
+  the same before it dispatches the release's deploy. An hour after an image
+  was first announced (`tuist.dev/runner-image-announced-at-by-image`, per
+  key, falling back to `tuist.dev/runner-image-announced-at`) the deploy moves
+  a pool once three quarters of those Nodes hold the new image, and otherwise
+  keeps holding and warns; `announce` stops waiting then. Until 2026-11-27 the
+  hour alone moved pools, and that day it moved 40 pools onto images 0 to 9 of
+  23 hosts held while the image cache was full. A release dispatched with
   `skip_staging` moves the pools at once
   (`tuist.dev/runner-image-staging: skip`). A deploy moving a pool to an
   image no announcement names announces it itself and holds the pool, so a

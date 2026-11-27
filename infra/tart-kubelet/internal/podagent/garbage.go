@@ -120,11 +120,7 @@ type Collector struct {
 	// one (see follow.go). Nil disables following releases.
 	Goldens goldenEnsurer
 
-	// FollowTimeout overrides defaultFollowTimeout.
-	FollowTimeout time.Duration
-
 	followMu      sync.Mutex
-	followSince   map[string]time.Time
 	followRunning bool
 	followWG      sync.WaitGroup
 }
@@ -219,7 +215,7 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 
 	var follow []followPull
 	if !aggressive {
-		follow = c.planFollow(expected, vms, now)
+		follow = c.planFollow(expected, vms)
 	}
 
 	var droppedClones, droppedImages, droppedGoldens int
