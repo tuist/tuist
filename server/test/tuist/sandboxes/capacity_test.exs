@@ -967,6 +967,33 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert {:error, :no_capacity} = Capacity.place_execution(execution_vm(), image)
     end
 
+    test "an execution carve-out grows once for every VM waiting for a node" do
+      {node, image} = connect_execution(%{})
+      test = self()
+
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn "tuist-sandboxes", "sandboxd-" <> ^node, bytes ->
+        :ok = Nodes.update(node, %{capacity: %{memory_bytes: bytes, cpus: 16}})
+        send(test, {:resized, bytes})
+        {:ok, %{}}
+      end)
+
+      for _ <- 1..2, do: execution_vm(node)
+      lease = DateTime.add(DateTime.utc_now(:second), 60, :second)
+
+      # Reserved by the scheduler, waiting for a node; the third does not fit the 17 GiB ceiling.
+      [first, second, _third] =
+        for _ <- 1..3 do
+          execution_vm() |> Ecto.Changeset.change(execution_lease_expires_at: lease) |> Repo.update!()
+        end
+
+      # The two placed and two waiting 4160 MiB guests beside the 512 MiB reserve need 16.75 GiB.
+      assert {:ok, ^node} = Capacity.place_execution(first, image)
+      assert_received {:resized, limit}
+      assert limit == 17 * @gib
+      assert {:ok, ^node} = Capacity.place_execution(second, image)
+      refute_received {:resized, _bytes}
+    end
+
     defp grown_execution_daemon(last_vm_placed_at) do
       {node, _image} = connect_execution(%{capacity: %{memory_bytes: 17 * @gib, cpus: 16}})
       set_grant(node, memory_limit_bytes: 17 * @gib, grown_at: DateTime.add(DateTime.utc_now(:second), -600, :second))

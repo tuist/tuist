@@ -774,10 +774,37 @@ defmodule Tuist.Sandboxes.Capacity do
   end
 
   defp execution_fits?(node, sandbox) do
-    placed_cpu_milli(node.name) + Sandbox.guaranteed_cpu_milli(sandbox) <=
-      min(node.capacity.cpus, node.execution_slots * 2) * 1000 and
+    Sandbox.guaranteed_cpu_milli(sandbox) <= execution_cpu_room_milli(node) and
       disk_space?(node, sandbox) and
       disk_room?(node, sandbox)
+  end
+
+  defp execution_cpu_room_milli(node),
+    do: min(node.capacity.cpus, node.execution_slots * 2) * 1000 - placed_cpu_milli(node.name)
+
+  # Memory of the remote execution VMs reserved but not placed yet, oldest
+  # first, as many as `room` and the node's CPU guarantees take.
+  defp waiting_execution_bytes(node, room) do
+    if execution_daemon?(node) do
+      from(s in Sandbox,
+        where:
+          s.purpose == :remote_execution and is_nil(s.node_name) and s.state in ^@charged_states and
+            s.execution_lease_expires_at > ^DateTime.utc_now(),
+        order_by: [asc: s.inserted_at],
+        select: {coalesce(s.guaranteed_cpu_milli, s.vcpus * 1000), s.memory_mb}
+      )
+      |> Repo.all()
+      |> Enum.reduce_while({execution_cpu_room_milli(node), 0}, fn {cpu_milli, memory_mb}, {cpu_room, bytes} ->
+        vm_bytes = memory_mb * @mib + @vm_overhead_bytes
+
+        if cpu_milli <= cpu_room and bytes + vm_bytes <= room,
+          do: {:cont, {cpu_room - cpu_milli, bytes + vm_bytes}},
+          else: {:halt, {cpu_room, bytes}}
+      end)
+      |> elem(1)
+    else
+      0
+    end
   end
 
   defp execution_node?(node, image_tag, sandbox) do
@@ -1317,16 +1344,25 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
+  # An execution daemon grows for every remote execution VM waiting for a
+  # node, not only the one asking: a cold build reserves a few dozen at
+  # once, and growing one VM at a time takes a resize and a scheduler round
+  # trip per VM. The batch stays within the node's ceiling and grant, and
+  # falls back to the one VM when they do not hold it.
   defp ask_for_growth(%{name: node_name, elastic: elastic} = node, charge) do
     fn ->
       lock(node_name)
-      needed = reserved_bytes(node_name) + charge + @daemon_reserve_bytes
+      held = reserved_bytes(node_name) + @daemon_reserve_bytes
+      needed = held + charge
 
       if needed > elastic.memory_ceiling_bytes or not allocation_allows?(node, round_up_to_step(needed)),
         do: Repo.rollback(:no_capacity)
 
+      batch = held + max(charge, waiting_execution_bytes(node, elastic.memory_ceiling_bytes - held))
+      batch = if allocation_allows?(node, round_up_to_step(batch)), do: batch, else: needed
+
       current = max(asked_limit(node) || 0, reported_limit(node) || 0)
-      limit = needed |> round_up_to_step() |> min(elastic.memory_ceiling_bytes) |> max(current)
+      limit = batch |> round_up_to_step() |> min(elastic.memory_ceiling_bytes) |> max(current)
 
       %SandboxNode{}
       |> SandboxNode.changeset(%{
