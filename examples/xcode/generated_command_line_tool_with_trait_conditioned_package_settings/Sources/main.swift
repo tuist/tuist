@@ -1,0 +1,3 @@
+import TraitSettings
+
+print(traitSettingsValue())
