@@ -487,6 +487,29 @@ build {
     ]
   }
 
+  # softwareupdated is a system daemon and reads the system domain, not
+  # runner's: with only the per-user keys above, a macOS 27 guest still
+  # checks within seconds of boot and downloads and prepares a pending
+  # minor update. On staging (2026-11-27, 27.2 26B123 offered 27.2.1) that
+  # grew Preboot from 9.5 to 19.0 GB and Recovery from 1.5 to 3.0 GB within
+  # five minutes, so the data volume's free space fell from 106.8 to
+  # 94.0 GiB on a VM that ran nothing. With these system-domain keys the
+  # same guest stayed at 106.5 GiB for 45 minutes: softwareupdated still
+  # scans and sees the update, but logs "auto download disabled" and never
+  # prepares it. On macOS 27 `softwareupdate --schedule` still reports
+  # checking as on afterwards, so it is printed, not asserted. Copies in
+  # `/Library/Managed Preferences` do not survive to runtime and did nothing.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S true",
+      "for key in AutomaticCheckEnabled AutomaticDownload AutomaticallyInstallMacOSUpdates CriticalUpdateInstall ConfigDataInstall; do sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate \"$key\" -bool false; done",
+      "sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool false",
+      "sudo softwareupdate --schedule off || true",
+      "sudo softwareupdate --schedule || true"
+    ]
+  }
+
   # The base installs the Metal Toolchain as `admin`, and Xcode 26.1
   # only exposes a downloaded toolchain to the user that installed
   # it. Running the download as `runner` registers it for the user
