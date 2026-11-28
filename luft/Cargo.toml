@@ -17,7 +17,7 @@ base64 = "0.22"
 getrandom = "0.3"
 # Pin the UI and native AccessKit adapters together, rather than tracking main.
 gpui = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216", version = "=0.2.2" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216", default-features = false, features = ["font-kit", "runtime_shaders", "wayland", "x11"] }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "0f009536a0262b3c0e1e10d25ad87162bab43a7f", default-features = false, features = ["font-kit", "runtime_shaders", "wayland", "x11"] }
 # gpui's own HTTP stack (a reqwest fork); `blocking` keeps the auth crates free
 # of an async runtime, and callers run them on background threads.
 reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["blocking", "rustls-tls-native-roots"] }
