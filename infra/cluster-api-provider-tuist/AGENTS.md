@@ -3043,8 +3043,10 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
    retries. The state is the displayName alone, so a restart resumes from
    OVH, and none of the markers starts with a prefix, so no fleet adopts a box
    mid-prep. Its events are on the fleet's template. This is how agents prep:
-   one approved rename through Atlas (infra/AGENTS.md, "From an Amp orb"),
-   never this task, which reads the `OVH_API` token.
+   one rename through Atlas's `ovh_set_server_display_name`, which needs no
+   approval while the box still has OVH's default name (its service name) or
+   is `prep-failed-<prefix>` (infra/AGENTS.md, "From an Amp orb"), never this
+   task, which reads the `OVH_API` token.
 
    **Vultr is a conversion, not an install.** Its API exposes no partitioning
    control and its installer offers only RAID 1 across both disks (one

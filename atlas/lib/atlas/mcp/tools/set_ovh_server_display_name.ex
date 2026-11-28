@@ -5,9 +5,17 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayName do
 
   OVH's MCP servers expose no displayName write, so this calls OVH's REST API
   directly with the caller's own `ovh-services` OAuth session, the same identity
-  the proxied OVH tools use. A matching name makes the fleet adopt and wipe the
-  box, so every rename waits for the caller's approval of that exact call, like
-  the gated reinstall.
+  the proxied OVH tools use.
+
+  Asking for a prep runs without approval: renaming a box that still has OVH's
+  default name (its service name) to `prep-<fleet prefix>`, or retrying a
+  failed prep with `prep-failed-<prefix>` → `prep-<prefix>`. The CAPI
+  operator's pool prep then reinstalls it, but only when the box is in that
+  fleet's datacenter and offer and no Machine holds it, and a box adopted or
+  named for any other use no longer has its default name. Every other rename,
+  including one straight to a fleet's prefix, which makes the fleet adopt and
+  wipe the box, waits for the caller's approval of that exact call, like the
+  gated reinstall.
   """
 
   use Atlas.MCP.Tool,
@@ -25,7 +33,8 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayName do
           "type" => "string",
           "minLength" => 1,
           "maxLength" => 255,
-          "description" => "The new displayName, for example the fleet's adoptDisplayNamePrefix."
+          "description" =>
+            "The new displayName, for example `prep-<adoptDisplayNamePrefix>` to have the fleet's operator prep the box."
         }
       },
       "additionalProperties" => false
@@ -53,13 +62,19 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayName do
   @server "ovh-services"
   @approval_tool "set-server-display-name"
   @api "https://api.us.ovhcloud.com/1.0"
+  # prep-<adoptDisplayNamePrefix>. Fleet prefixes are tuist-<kind>-ovh-<env>[-…];
+  # the operator only acts on a prefix one of its templates declares.
+  @prep_request ~r/\Aprep-(tuist-[a-z0-9]+(?:-[a-z0-9]+)*-ovh-[a-z0-9]+(?:-[a-z0-9]+)*)\z/
 
   @impl EMCP.Tool
   def description do
-    "[ovh-services] Set an OVH dedicated server's displayName through your own OVH connection. A name matching a " <>
-      "fleet's adoptDisplayNamePrefix makes that fleet adopt and wipe the box, so each rename needs its own approval: " <>
-      "the first call files a request and returns a link, the person approves it in Atlas, and the same call with " <>
-      "identical arguments then runs once. A server that already has the name is left alone without approval."
+    "[ovh-services] Set an OVH dedicated server's displayName through your own OVH connection. Renaming a box that " <>
+      "still has OVH's default name (its service name) to prep-<adoptDisplayNamePrefix>, or a prep-failed-<prefix> " <>
+      "box back to prep-<prefix>, runs without approval: the fleet's operator then installs the box and names it " <>
+      "into the pool. Any other rename, including one straight to a fleet's prefix, which makes that fleet adopt " <>
+      "and wipe the box, needs its own approval: the first call files a request and returns a link, the person " <>
+      "approves it in Atlas, and the same call with identical arguments then runs once. A server that already has " <>
+      "the name is left alone."
   end
 
   def execute(conn, args) do
@@ -79,7 +94,7 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayName do
       if previous == args["displayName"] do
         {:ok, result}
       else
-        with :ok <- approve(conn, args),
+        with :ok <- authorize(conn, args, previous),
              :ok <- rename(token, service_id, args["displayName"]) do
           {:ok, %{result | changed: true}}
         end
@@ -104,6 +119,22 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayName do
 
       {:error, _reason} ->
         {:error, "Connect Atlas → #{@server} at #{AtlasWeb.Endpoint.url()}/admin/mcps, then retry."}
+    end
+  end
+
+  defp authorize(%{assigns: %{current_user: %User{}, audit_interface: "mcp"}} = conn, args, previous) do
+    if prep_request?(args["serviceName"], previous, args["displayName"]), do: :ok, else: approve(conn, args)
+  end
+
+  defp authorize(conn, args, _previous), do: approve(conn, args)
+
+  # A box only asks for a prep from OVH's default name, which a box a fleet
+  # adopted or someone named for another use no longer has, or as a retry of
+  # the same fleet's failed prep.
+  defp prep_request?(service_name, previous, name) do
+    case Regex.run(@prep_request, name) do
+      [_, prefix] -> previous in [nil, "", service_name, "prep-failed-" <> prefix]
+      nil -> false
     end
   end
 
@@ -153,7 +184,7 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayName do
         {:error,
          "OVH accepted the rename but the displayName is still #{inspect(observed)}. OVH drops renames while a task " <>
            "such as a reinstall is pending: wait for ovh-servers__list-dedicated-server-tasks to show none, then call " <>
-           "again, which needs a new approval."}
+           "again (a rename that is not a prep request needs a new approval)."}
 
       error ->
         error

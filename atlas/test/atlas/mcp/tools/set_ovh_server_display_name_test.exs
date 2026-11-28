@@ -53,6 +53,50 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayNameTest do
     refute_received {:put, _}
   end
 
+  test "asking an unnamed box, or a failed prep of the same fleet, to be prepped needs no approval" do
+    owner = insert_user!()
+    connect!(owner, "owner-token")
+    prep = %{@rename | "displayName" => "prep-tuist-runners-ovh-production"}
+
+    for previous <- ["ns1.ip-1-2-3.us", "prep-failed-tuist-runners-ovh-production"] do
+      ovh(previous, "owner-token")
+
+      assert {:ok, %{previousDisplayName: ^previous, changed: true}} =
+               SetOVHServerDisplayName.execute(agent_conn(owner), prep)
+
+      assert_received {:put, %{"resource" => %{"displayName" => "prep-tuist-runners-ovh-production"}}}
+    end
+
+    assert MCP.list_pending_tool_approvals(owner) == []
+  end
+
+  test "a prep request for a box that is named, adopted or failed for another fleet still needs approval" do
+    owner = insert_user!()
+    connect!(owner, "owner-token")
+    prep = %{@rename | "displayName" => "prep-tuist-runners-ovh-production"}
+
+    for previous <- [
+          "tuist-runners-ovh-production",
+          "prepping-7-tuist-runners-ovh-production",
+          "prep-failed-tuist-runners-ovh-canary",
+          "build-cache-keep"
+        ] do
+      ovh(previous, "owner-token")
+      assert {:error, message} = SetOVHServerDisplayName.execute(agent_conn(owner), prep)
+      assert message =~ "/approvals/"
+    end
+
+    # Only prep-<fleet prefix> is a prep request, not every prep- name.
+    ovh("ns1.ip-1-2-3.us", "owner-token")
+
+    for name <- ["prep-failed-tuist-runners-ovh-production", "prep-other", "tuist-runners-ovh-production"] do
+      assert {:error, message} = SetOVHServerDisplayName.execute(agent_conn(owner), %{@rename | "displayName" => name})
+      assert message =~ "/approvals/"
+    end
+
+    refute_received {:put, _}
+  end
+
   test "a server that already has the name is left alone without an approval" do
     owner = insert_user!()
     connect!(owner, "owner-token")
@@ -87,12 +131,14 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayNameTest do
   test "callers that act as a fixed operator cannot rename" do
     user = insert_user!()
     connect!(user, "owner-token")
-    ovh("unnamed", "owner-token")
+    ovh("ns1.ip-1-2-3.us", "owner-token")
+    slack = %{assigns: %{current_user: user, audit_interface: "slack"}}
 
-    assert {:error, message} =
-             SetOVHServerDisplayName.execute(%{assigns: %{current_user: user, audit_interface: "slack"}}, @rename)
+    for name <- [@rename["displayName"], "prep-tuist-runners-ovh-production"] do
+      assert {:error, message} = SetOVHServerDisplayName.execute(slack, %{@rename | "displayName" => name})
+      assert message =~ "only callable over Atlas MCP"
+    end
 
-    assert message =~ "only callable over Atlas MCP"
     assert MCP.list_pending_tool_approvals(user) == []
     refute_received {:put, _}
   end
