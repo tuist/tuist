@@ -1,0 +1,69 @@
+{
+  "originHash" : "30d43a61696a1ac132a560d29d3628d377d9093a09146d631daca77a82441e9e",
+  "pins" : [
+    {
+      "identity" : "pointfreeco.combine-schedulers",
+      "kind" : "registry",
+      "location" : "",
+      "originalLocation" : "https://github.com/pointfreeco/combine-schedulers",
+      "state" : {
+        "version" : "1.2.2"
+      }
+    },
+    {
+      "identity" : "pointfreeco.swift-clocks",
+      "kind" : "registry",
+      "location" : "",
+      "originalLocation" : "https://github.com/pointfreeco/swift-clocks",
+      "state" : {
+        "version" : "1.1.1"
+      }
+    },
+    {
+      "identity" : "pointfreeco.swift-concurrency-extras",
+      "kind" : "registry",
+      "location" : "",
+      "originalLocation" : "https://github.com/pointfreeco/swift-concurrency-extras",
+      "state" : {
+        "version" : "1.4.3"
+      }
+    },
+    {
+      "identity" : "pointfreeco.swift-dependencies",
+      "kind" : "registry",
+      "location" : "",
+      "originalLocation" : "https://github.com/pointfreeco/swift-dependencies",
+      "state" : {
+        "version" : "1.14.1"
+      }
+    },
+    {
+      "identity" : "pointfreeco.swift-issue-reporting",
+      "kind" : "registry",
+      "location" : "",
+      "originalLocation" : "https://github.com/pointfreeco/swift-issue-reporting",
+      "state" : {
+        "version" : "2.1.2"
+      }
+    },
+    {
+      "identity" : "pointfreeco.xctest-dynamic-overlay",
+      "kind" : "registry",
+      "location" : "",
+      "originalLocation" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
+      "state" : {
+        "version" : "1.13.1"
+      }
+    },
+    {
+      "identity" : "swiftlang.swift-syntax",
+      "kind" : "registry",
+      "location" : "",
+      "originalLocation" : "https://github.com/swiftlang/swift-syntax",
+      "state" : {
+        "version" : "604.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}
