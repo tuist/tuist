@@ -373,9 +373,11 @@ defmodule TuistEx.Analytics.Coverage do
               do: path
 
         Enum.reduce(
-          modules,
+          module_paths(paths, modules),
           acc,
-          &Map.update(&2, &1, paths, fn known -> Enum.uniq(known ++ paths) end)
+          fn {module, paths}, acc ->
+            Map.update(acc, module, paths, &Enum.uniq(&1 ++ paths))
+          end
         )
 
       _source, acc ->
@@ -383,6 +385,48 @@ defmodule TuistEx.Analytics.Coverage do
     end)
   rescue
     _ -> %{}
+  end
+
+  # Each of a source's modules with the resources it depends on: all of them,
+  # but a Gettext catalog one of the modules holds (`catalog_owners/2`).
+  defp module_paths(paths, modules) do
+    owners = catalog_owners(paths, modules)
+
+    for module <- modules,
+        do: {module, for(path <- paths, module in Map.get(owners, path, [module]), do: path)}
+  end
+
+  # The modules that hold each Gettext catalog among a source's resources. A
+  # backend split by locale or domain (`split_module_by:`) compiles each
+  # `<locale>/LC_MESSAGES/<domain>.po` into a module of its own,
+  # `<Backend>.T_<locale>_<domain>` (`T_<locale>` or `T_<domain>` when split
+  # by one), defined from the backend's source; the backend only routes to it.
+  # So the catalog is that module's alone, and a test depends on it only when
+  # it looked a message up in that locale and domain. A catalog no module of
+  # the source holds, as an unsplit backend's, stays every module's.
+  defp catalog_owners(paths, modules) do
+    names = MapSet.new(modules, &inspect/1)
+
+    split =
+      Enum.group_by(
+        for(
+          module <- modules,
+          [_, backend, suffix] <- [Regex.run(~r/^(.+)\.T_([^.]+)$/, inspect(module))],
+          MapSet.member?(names, backend),
+          do: {suffix, module}
+        ),
+        &elem(&1, 0),
+        &elem(&1, 1)
+      )
+
+    for path <- paths,
+        [file, "LC_MESSAGES", locale | _] <- [path |> Path.split() |> Enum.reverse()],
+        Path.extname(file) == ".po",
+        domain = Path.rootname(file, ".po"),
+        owners = Enum.flat_map([locale <> "_" <> domain, locale, domain], &Map.get(split, &1, [])),
+        owners != [],
+        into: %{},
+        do: {path, owners}
   end
 
   # The path with its symbolic links resolved, as Git names the file: a module

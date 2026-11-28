@@ -98,7 +98,9 @@ such as a Mimic copy loaded from memory, counts its own source by line.
 Only files in the project count; a dependency's macro that keeps
 its own location gets no counters. Keep stack traces naming the template, and its compile info claiming
 `line_coverage`, which Mimic's copies and the already-instrumented check read.
-External resources come from Mix's compile manifest (`Coverage.resources/2`).
+External resources come from Mix's compile manifest (`Coverage.resources/2`),
+which names them for every module of a source; a split Gettext backend's
+`.po` goes only to the `<Backend>.T_<locale>_<domain>` module compiled from it.
 It then switches the runtime to line
 counters (`Coverage.enable_native/1`: `code:set_coverage_mode/1` applies after
 boot only to explicitly loaded code, so every module of the build is loaded

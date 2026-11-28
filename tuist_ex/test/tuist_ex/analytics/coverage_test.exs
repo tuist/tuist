@@ -581,6 +581,30 @@ defmodule TuistEx.Analytics.CoverageTest do
       <%= if name == "boom", do: raise("boom") %>
       """)
 
+      # A Gettext backend split by locale and domain defines a module per
+      # catalog from its own source, as `Module.create/3` does there. This one
+      # holds no module for its English catalog.
+      File.write!(Path.join(directory, "lib/gettext.ex"), """
+      defmodule TuistExTemplateFixture.Gettext do
+        @external_resource "priv/gettext/zh_Hans/LC_MESSAGES/dashboard_account.po"
+        @external_resource "priv/gettext/en/LC_MESSAGES/dashboard_account.po"
+        @external_resource "priv/plural.txt"
+
+        defmodule T_zh_Hans_dashboard_account do
+        end
+      end
+      """)
+
+      for locale <- ["zh_Hans", "en"] do
+        File.mkdir_p!(Path.join(directory, "priv/gettext/#{locale}/LC_MESSAGES"))
+
+        File.write!(
+          Path.join(directory, "priv/gettext/#{locale}/LC_MESSAGES/dashboard_account.po"),
+          ""
+        )
+      end
+
+      File.write!(Path.join(directory, "priv/plural.txt"), "")
       File.write!(Path.join(directory, "priv/greeting.txt"), "hi")
       # The module names its resource a second time through a link, as a
       # module reading `Application.app_dir/2` names `priv` through the
@@ -610,7 +634,8 @@ defmodule TuistEx.Analytics.CoverageTest do
       if :erlang.system_info(:emu_flavor) != :jit, do: flunk("native coverage needs the JIT")
 
       ebin = Path.join(directory, "_build/test/lib/tuist_ex_template_fixture/ebin")
-      assert {1, []} = Coverage.instrument(ebin, directory, config)
+      # The page, the Gettext fixture and its catalog module.
+      assert {3, []} = Coverage.instrument(ebin, directory, config)
       # The module says it carries the counters, so it isn't instrumented again.
       assert {0, []} = Coverage.instrument(ebin, directory, config)
       tuist_ex = :code.lib_dir(:tuist_ex) |> to_string() |> Path.join("ebin")
@@ -683,6 +708,19 @@ defmodule TuistEx.Analytics.CoverageTest do
       # Stack traces still name the template and its line.
       assert {TuistExTemplateFixture.Page, :render, 1, location} = result.frame
       assert {location[:file], location[:line]} == {~c"lib/page.html.eex", 5}
+    end
+
+    test "gives a split Gettext catalog only to the module compiled from it",
+         %{directory: directory, config: config} do
+      catalog = &Path.join(directory, "priv/gettext/#{&1}/LC_MESSAGES/dashboard_account.po")
+      plural = Path.join(directory, "priv/plural.txt")
+      resources = Coverage.resources(directory, config)
+
+      assert Enum.sort(resources[TuistExTemplateFixture.Gettext.T_zh_Hans_dashboard_account]) ==
+               Enum.sort([catalog.("zh_Hans"), catalog.("en"), plural])
+
+      assert Enum.sort(resources[TuistExTemplateFixture.Gettext]) ==
+               Enum.sort([catalog.("en"), plural])
     end
   end
 
