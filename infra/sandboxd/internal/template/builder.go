@@ -24,7 +24,28 @@ const (
 	// TemplateHostname is the hostname baked into the snapshot; configure
 	// replaces it in every sandbox.
 	TemplateHostname = "sandbox"
+	// BuildOverheadBytes is what a build may hold beyond its guest's memory:
+	// Firecracker and the jailer, and the snapshot's page cache not yet
+	// written back.
+	BuildOverheadBytes = 512 << 20
+	// BuildMarginBytes stays free in the VMs' container next to a build's
+	// cap, for vmm and the running guests while the build runs, so the
+	// build's own limit is reached before the container's.
+	BuildMarginBytes = 256 << 20
+	// MinBuildBytes is the smallest cap a build is started with; below it
+	// the build fails without booting.
+	MinBuildBytes = 256 << 20
 )
+
+// BuildCgroups holds template builds to a memory cap below what the VMs'
+// container has left (hostinfo.VMCgroups). The kubelet makes an OOM of the
+// container kill every VM in it, so a build that outgrew the room left by
+// running sandboxes used to take them down with it; capped, it fails alone.
+type BuildCgroups interface {
+	MemoryRoom() (uint64, bool)
+	OpenCapped(id string, maxBytes uint64) (*os.File, error)
+	Remove(id string) error
+}
 
 // Builder boots a template with a shape and snapshots it. Builds are
 // serialized per (template, shape); concurrent Ensure calls wait for the
@@ -57,6 +78,9 @@ type Builder struct {
 	// Balloon gives every shape snapshot firecracker.ReportingBalloon, so
 	// guests restored from it return their free memory to the host.
 	Balloon bool
+	// Cgroups, when set, spawns every build into its own capped cgroup and
+	// lets Prebuild skip a shape the container has no room for.
+	Cgroups BuildCgroups
 
 	mu     sync.Mutex
 	builds map[string]*build
@@ -107,6 +131,47 @@ func (b *Builder) Ensure(ctx context.Context, t Template, shape Shape) (Artifact
 		return Artifacts{}, bld.err
 	}
 	return t.Artifacts(shape)
+}
+
+// Prebuild is Ensure for a build nothing waits on (PREBUILD_SHAPES, a new
+// template tag): with Cgroups set it builds only when the VMs' container
+// has room for the shape's guest memory, the build overhead and the margin,
+// and otherwise answers false and leaves the shape to the first create that
+// needs it, for which the server grows the container first. Room is read
+// once; a sandbox placed meanwhile can still take it, and the cap then
+// fails the build rather than the container.
+func (b *Builder) Prebuild(ctx context.Context, t Template, shape Shape) (bool, error) {
+	if b.Cgroups != nil && !t.ShapeReady(shape) {
+		need := shapeBytes(shape) + BuildOverheadBytes + BuildMarginBytes
+		if room, ok := b.Cgroups.MemoryRoom(); ok && room < need {
+			b.logger().Info("leaving a template shape for its first create; the VMs' container has no room to build it",
+				"template", t.Name, "tag", t.Tag, "shape", shape.String(), "room_bytes", room, "needed_bytes", need)
+			return false, nil
+		}
+	}
+	if _, err := b.Ensure(ctx, t, shape); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func shapeBytes(shape Shape) uint64 {
+	return uint64(shape.MemoryMB) << 20 //nolint:gosec // Validated positive.
+}
+
+// buildCap is a build's memory.max: its guest memory plus the overhead,
+// lowered to what the container has left less the margin. It fails when
+// the container is too full to start one.
+func (b *Builder) buildCap(shape Shape) (uint64, error) {
+	limit := shapeBytes(shape) + BuildOverheadBytes
+	room, ok := b.Cgroups.MemoryRoom()
+	if !ok {
+		return limit, nil
+	}
+	if room < MinBuildBytes+BuildMarginBytes {
+		return 0, fmt.Errorf("the VMs' container has %d bytes left, too few for a template build", room)
+	}
+	return min(limit, room-BuildMarginBytes), nil
 }
 
 func (b *Builder) run(t Template, shape Shape, key string, bld *build) {
@@ -211,10 +276,32 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 		}
 	}()
 
-	inst, err := b.Launcher.Launch(ctx, vm.Spec{
+	spec := vm.Spec{
 		ID: id, JailBase: b.JailBase, FirecrackerBin: b.FirecrackerBin, JailerBin: b.JailerBin,
 		JailerEnabled: b.JailerEnabled, UID: uid, GID: uid, NetNS: ns,
-	})
+	}
+	if b.Cgroups != nil {
+		limit, err := b.buildCap(shape)
+		if err != nil {
+			return err
+		}
+		// Without a cap (no memory controller) the build runs in the
+		// container's cgroup, as before.
+		if cgroup, err := b.Cgroups.OpenCapped(id, limit); err != nil {
+			log.Warn("capping the template build's memory failed; it runs uncapped", "error", err)
+		} else {
+			defer cgroup.Close()
+			spec.Cgroup = cgroup
+			// Registered before the kill below, so it runs after it.
+			defer func() {
+				if rmErr := b.Cgroups.Remove(id); rmErr != nil {
+					log.Warn("removing the template build's cgroup failed", "error", rmErr)
+				}
+			}()
+			log.Info("template build capped", "memory_max", limit)
+		}
+	}
+	inst, err := b.Launcher.Launch(ctx, spec)
 	if err != nil {
 		return fmt.Errorf("launching firecracker: %w", err)
 	}

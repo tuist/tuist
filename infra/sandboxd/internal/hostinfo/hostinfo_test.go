@@ -316,3 +316,63 @@ func TestAdoptVMCgroupsRefusesACgroupWithoutCPU(t *testing.T) {
 		t.Fatal("adopted a cgroup that delegates no cpu controller")
 	}
 }
+
+// Room is the limit less usage, with inactive page cache counted free;
+// a cgroup at or over its limit has none.
+func TestMemoryRoomCountsInactivePageCacheAsFree(t *testing.T) {
+	for _, tc := range []struct {
+		name, max, current, stat string
+		want                     uint64
+		ok                       bool
+	}{
+		{"cache counted free", "10000", "8000", "anon 5000\ninactive_file 3000\nactive_file 0\n", 5000, true},
+		{"no stat", "10000", "8000", "", 2000, true},
+		{"over the limit", "10000", "12000", "inactive_file 1000\n", 0, true},
+		{"no limit", "max", "8000", "", 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			files := map[string]string{"memory.max": tc.max, "memory.current": tc.current}
+			if tc.stat != "" {
+				files["memory.stat"] = tc.stat
+			}
+			for name, content := range files {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, ok := memoryRoom(dir)
+			if got != tc.want || ok != tc.ok {
+				t.Fatalf("room = %d, %v; want %d, %v", got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}
+
+// A capped VM cgroup gets memory.max; without the memory controller it
+// cannot be capped and is refused.
+func TestOpenCappedSetsMemoryMax(t *testing.T) {
+	root := fakeCgroup(t, "cpu memory")
+	cgroups, err := setupVMCgroups(root, "/pod/container", daemonCgroup, 250)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := cgroups.OpenCapped("tmpl-x", 4<<30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file.Close()
+	data, _ := os.ReadFile(filepath.Join(root, "pod", "container", "vm-tmpl-x", "memory.max"))
+	if string(data) != strconv.FormatUint(4<<30, 10) {
+		t.Fatalf("memory.max = %q", data)
+	}
+
+	root = fakeCgroup(t, "cpu")
+	cgroups, err = setupVMCgroups(root, "/pod/container", daemonCgroup, 250)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cgroups.OpenCapped("tmpl-x", 4<<30); err == nil {
+		t.Fatal("capped a VM without the memory controller")
+	}
+}

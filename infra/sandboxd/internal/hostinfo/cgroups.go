@@ -196,6 +196,64 @@ func (c *VMCgroups) Open(id string, guaranteeMilli, lowBytes uint64) (*os.File, 
 	return os.Open(dir)
 }
 
+// OpenCapped creates (or reuses) a cgroup for a VM that holds nobody's
+// sandbox, a template build, and limits it to maxBytes (memory.max). The
+// kubelet sets memory.oom.group on the container's cgroup, so an OOM the
+// container's limit drives kills every VM in it; one this cgroup's own
+// limit drives kills only its processes. The caller keeps maxBytes below
+// what the container has left (MemoryRoom). It fails without the memory
+// controller, since the VM could not be held to its cap.
+func (c *VMCgroups) OpenCapped(id string, maxBytes uint64) (*os.File, error) {
+	if !c.memory {
+		return nil, errors.New("per-VM memory limits need the memory controller")
+	}
+	dir := filepath.Join(c.dir, vmCgroupPrefix+id)
+	if err := os.Mkdir(dir, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
+		return nil, err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "memory.max"), []byte(strconv.FormatUint(maxBytes, 10)), 0o644); err != nil {
+		return nil, fmt.Errorf("limiting the memory of %s: %w", filepath.Base(dir), err)
+	}
+	return os.Open(dir)
+}
+
+// MemoryRoom is what the container's cgroup can still charge before its
+// limit: memory.max less memory.current, with the inactive page cache
+// (memory.stat inactive_file) counted as free, since reclaim drops it
+// before anything OOMs. False when the container has no limit or it cannot
+// be read.
+func (c *VMCgroups) MemoryRoom() (uint64, bool) {
+	if c == nil {
+		return 0, false
+	}
+	return memoryRoom(c.dir)
+}
+
+func memoryRoom(dir string) (uint64, bool) {
+	limit, ok := ReadCgroupValue(dir, "", "memory.max", false)
+	if !ok {
+		return 0, false
+	}
+	used, ok := ReadCgroupValue(dir, "", "memory.current", false)
+	if !ok {
+		return 0, false
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "memory.stat")); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			if value, found := strings.CutPrefix(line, "inactive_file "); found {
+				if inactive, err := strconv.ParseUint(strings.TrimSpace(value), 10, 64); err == nil {
+					used -= min(inactive, used)
+				}
+				break
+			}
+		}
+	}
+	if used >= limit {
+		return 0, true
+	}
+	return limit - used, true
+}
+
 // MemoryCurrent is everything charged to the VM's cgroup (memory.current):
 // the guest memory its process touched plus the page cache its disk I/O
 // filled. False without per-VM memory accounting or a readable cgroup.

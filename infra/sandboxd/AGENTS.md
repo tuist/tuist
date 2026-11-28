@@ -801,7 +801,7 @@ agent so the manager runs end to end without KVM).
 | `FIRECRACKER_BIN`, `JAILER_BIN` | `/usr/local/bin/{firecracker,jailer}` | |
 | `JAILER_ENABLED` | `true` | `false` runs Firecracker directly under `ip netns exec` with absolute paths (debug only). |
 | `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |
-| `PREBUILD_SHAPES` | | Comma-separated shapes to build at startup, e.g. `2x4096,4x8192`. Must be a subset of `ALLOWED_SHAPES` when that is set. |
+| `PREBUILD_SHAPES` | | Comma-separated shapes to build at startup and for each new template tag, e.g. `2x4096,4x8192`. Must be a subset of `ALLOWED_SHAPES` when that is set. With per-VM memory cgroups, a prebuild runs only when the VMs' container has room for the shape's guest memory plus 768 MiB (`memory.max` less `memory.current`, inactive page cache counted free); otherwise the first create that needs the shape builds it, after the server grew the carve-out, and a new tag is switched to without it. Every template build runs in its own `vm-tmpl-*` cgroup with `memory.max` at its guest memory plus 512 MiB, lowered to the container's room less 256 MiB, so a build that outgrows it fails alone: the kubelet's `memory.oom.group` on the container kills every VM when the container's own limit is hit (the Nov 26–27 production vmm OOMKills). |
 | `ALLOWED_SHAPES` | | The only shapes `create` and template builds accept. Empty accepts any valid shape. |
 | `DISK_BUDGET_GIB` | `0` | Share of the data filesystem sandboxes may reserve, reported as `disk.budget_bytes`; the server reserves each sandbox's ceiling against it. `0` reports no budget. |
 | `DIRECT_EXEC_ADDR` | | Listen address for claims of claimed execs, e.g. `$(POD_IP):7071`. Empty disables claims. |

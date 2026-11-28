@@ -378,6 +378,11 @@ func main() {
 			}
 		},
 	}
+	// Each build gets its own capped cgroup, so a build the container has
+	// no room for fails alone instead of OOMing every VM with it.
+	if vmCgroups != nil {
+		builder.Cgroups = vmCgroups
+	}
 	// The node's runner-cache agent seeds workers' repositories from its
 	// checkout masters and takes their exports. It authorizes this Pod by
 	// name and address; without either, workers clone as before.
@@ -526,7 +531,7 @@ func main() {
 			if ctx.Err() != nil {
 				return
 			}
-			if _, err := builder.Ensure(ctx, defaultTemplate, shape); err != nil {
+			if _, err := builder.Prebuild(ctx, defaultTemplate, shape); err != nil {
 				logger.Error("prebuilding template shape", "shape", shape.String(), "error", err)
 			}
 		}
@@ -854,7 +859,9 @@ var (
 // installer completed last. The prebuilt shapes are built first, so the
 // first sandbox on the new tag does not wait for a template boot, and the
 // switch happens only once they are ready; until then creates keep using the
-// previous tag. Sandboxes already created keep their own tag. Tags nothing
+// previous tag. A shape the VMs' container has no room to build
+// (Builder.Prebuild) does not hold the switch back: the first create that
+// needs it builds it. Sandboxes already created keep their own tag. Tags nothing
 // uses any longer are removed after each switch, and report announces the
 // new default to the server.
 func followTemplate(ctx context.Context, logger *slog.Logger, store *template.Store, builder *template.Builder, manager *sandbox.Manager,
@@ -892,7 +899,9 @@ func followTemplate(ctx context.Context, logger *slog.Logger, store *template.St
 		tmpl, err := store.Get(name, tag)
 		if err == nil {
 			for _, shape := range prebuild {
-				if _, err = builder.Ensure(ctx, tmpl, shape); err != nil {
+				// A shape the container has no room for is left to its
+				// first create on the new tag.
+				if _, err = builder.Prebuild(ctx, tmpl, shape); err != nil {
 					break
 				}
 			}

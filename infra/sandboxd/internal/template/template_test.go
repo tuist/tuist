@@ -537,3 +537,116 @@ func TestPreviousTagIsTheOtherTagTheNodeRanLast(t *testing.T) {
 		t.Fatalf("previous tag of rolled-back %q %v, want current", tag, err)
 	}
 }
+
+// buildCgroups stands in for hostinfo.VMCgroups: a fixed room and the caps
+// builds were opened with.
+type buildCgroups struct {
+	mu      sync.Mutex
+	dir     string
+	room    uint64
+	known   bool
+	caps    map[string]uint64
+	removed []string
+}
+
+func (c *buildCgroups) MemoryRoom() (uint64, bool) { return c.room, c.known }
+
+func (c *buildCgroups) OpenCapped(id string, maxBytes uint64) (*os.File, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.caps == nil {
+		c.caps = map[string]uint64{}
+	}
+	c.caps[id] = maxBytes
+	return os.Open(c.dir)
+}
+
+func (c *buildCgroups) Remove(id string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.removed = append(c.removed, id)
+	return nil
+}
+
+// A build is capped at its guest memory plus overhead when the container
+// has room, and lowered to the room less the margin when it has less, so
+// the build's own limit, not the container's, is what it hits.
+func TestBuilderCapsEachBuildBelowTheContainersRoom(t *testing.T) {
+	shape := Shape{VCPUs: 2, MemoryMB: 4096}
+	full := uint64(4096)<<20 + BuildOverheadBytes
+	for _, tc := range []struct {
+		name string
+		room uint64
+		want uint64
+	}{
+		{"plenty of room", 64 << 30, full},
+		{"less room than the build", 3 << 30, 3<<30 - BuildMarginBytes},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dataDir := t.TempDir()
+			tmpl := seedTemplate(t, filepath.Join(dataDir, "templates"), "default", "t1")
+			b := newBuilder(t, dataDir, &fakevm.Launcher{}, &fakevm.Network{}, &eventSink{})
+			cg := &buildCgroups{dir: dataDir, room: tc.room, known: true}
+			b.Cgroups = cg
+			if _, err := b.Ensure(context.Background(), tmpl, shape); err != nil {
+				t.Fatal(err)
+			}
+			id := BuildID(tmpl, shape)
+			if got := cg.caps[id]; got != tc.want {
+				t.Fatalf("memory.max = %d, want %d", got, tc.want)
+			}
+			if len(cg.removed) != 1 || cg.removed[0] != id {
+				t.Fatalf("removed cgroups %v", cg.removed)
+			}
+		})
+	}
+}
+
+// A container too full for any build fails the build without booting a VM.
+func TestBuilderRefusesABuildTheContainerHasNoRoomFor(t *testing.T) {
+	dataDir := t.TempDir()
+	tmpl := seedTemplate(t, filepath.Join(dataDir, "templates"), "default", "t1")
+	launcher := &fakevm.Launcher{}
+	b := newBuilder(t, dataDir, launcher, &fakevm.Network{}, &eventSink{})
+	b.Cgroups = &buildCgroups{dir: dataDir, room: MinBuildBytes + BuildMarginBytes - 1, known: true}
+	shape := Shape{VCPUs: 2, MemoryMB: 4096}
+	if _, err := b.Ensure(context.Background(), tmpl, shape); err == nil {
+		t.Fatal("expected the build to be refused")
+	}
+	if len(launcher.Instances()) != 0 || tmpl.ShapeReady(shape) {
+		t.Fatal("a refused build booted a VM or marked the shape ready")
+	}
+}
+
+// Prebuild leaves a shape for its first create when the container cannot
+// hold the guest, the overhead and the margin, and builds it when it can.
+func TestPrebuildWaitsForRoom(t *testing.T) {
+	shape := Shape{VCPUs: 16, MemoryMB: 8192}
+	need := uint64(8192)<<20 + BuildOverheadBytes + BuildMarginBytes
+	for _, tc := range []struct {
+		name  string
+		room  uint64
+		known bool
+		built bool
+	}{
+		{"1 GiB floor, as in the production OOMs", 1 << 30, true, false},
+		{"one byte short", need - 1, true, false},
+		{"exactly enough", need, true, true},
+		{"no limit to read", 0, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dataDir := t.TempDir()
+			tmpl := seedTemplate(t, filepath.Join(dataDir, "templates"), "default", "t1")
+			launcher := &fakevm.Launcher{}
+			b := newBuilder(t, dataDir, launcher, &fakevm.Network{}, &eventSink{})
+			b.Cgroups = &buildCgroups{dir: dataDir, room: tc.room, known: tc.known}
+			built, err := b.Prebuild(context.Background(), tmpl, shape)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if built != tc.built || tmpl.ShapeReady(shape) != tc.built || (len(launcher.Instances()) > 0) != tc.built {
+				t.Fatalf("built=%v ready=%v launches=%d, want built=%v", built, tmpl.ShapeReady(shape), len(launcher.Instances()), tc.built)
+			}
+		})
+	}
+}
