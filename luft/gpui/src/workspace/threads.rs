@@ -259,15 +259,14 @@ impl ThreadsPanel {
             } else {
                 &this.prompt
             };
-            if let PromptEvent::Chosen(name) = event {
-                if let Ok(draft) = tuist_app_core::prompts::draft(
+            if let PromptEvent::Chosen(name) = event
+                && let Ok(draft) = tuist_app_core::prompts::draft(
                     &json!({"name": name, "content": input.read(cx).value()}),
-                ) {
-                    input.update(cx, |input, cx| {
-                        input
-                            .set_value(draft["content"].as_str().unwrap_or_default().to_owned(), cx)
-                    });
-                }
+                )
+            {
+                input.update(cx, |input, cx| {
+                    input.set_value(draft["content"].as_str().unwrap_or_default().to_owned(), cx)
+                });
             }
             this.picker = None;
             this.focus_composer = true;

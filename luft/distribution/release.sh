@@ -57,7 +57,7 @@ stamp() (
 )
 
 optimize_graph() (
-    local root=$1 temp id
+    local root=$1 temp id source destination
     temp=$(mktemp -d)
     trap 'rm -rf "$temp"' EXIT
     query "$root" schema cargo_dependencies | jq -e '.attrs | any(.name == "dep_rustc_flags")' >/dev/null || fail 'Struo optimization schema changed'
@@ -67,11 +67,21 @@ optimize_graph() (
     jq -e --arg binary "$BINARY" 'any(.[]; .label.id == $binary)' "$temp/targets" >/dev/null || fail 'Struo did not declare the desktop binary'
     yq -p toml -o json '.' "$root/struo.toml" > "$temp/seed"
     (cd "$root"; cargo vendor --locked --versioned-dirs third_party/rust/vendor > /dev/null)
+    # Cargo vendor omits local path patches. cargo_dependencies expects every
+    # non-workspace crate in vendor_dir, including Luft's patched GPUI crates.
+    (cd "$root"; cargo metadata --locked --format-version 1) |
+        jq -br '. as $metadata | .packages[] |
+          select(.source == null and (.id as $id | $metadata.workspace_members | index($id) | not)) |
+          [(.manifest_path | gsub("\\\\"; "/") | rtrimstr("/Cargo.toml")), (.name + "-" + .version)] | @tsv' > "$temp/paths"
+    while IFS=$'\t' read -r source destination; do
+        mkdir -p "$root/third_party/rust/vendor/$destination"
+        cp -R "$source/." "$root/third_party/rust/vendor/$destination/"
+    done < "$temp/paths"
     jq -n --slurpfile seed "$temp/seed" --slurpfile targets "$temp/targets" --argjson flags "$FLAGS" '
       {workspace:{include:["struo.toml"],exclude:["**/Cargo.toml"]}, infrastructure:{cache:{provider:"local"}},
        target: ([{name:"DesktopDependencies",kind:"cargo_dependencies",srcs:$seed[0].target[0].srcs,
          attrs:($seed[0].target[0].attrs + {dep_rustc_flags:$flags,vendor_dir:"third_party/rust/vendor"})}] +
-         [$targets[0][] | {name:.label.name,kind,srcs,deps,attrs:(.attrs + {rustc_flags:$flags})}])}' |
+         [$targets[0][] | {name:.label.name,kind,srcs,deps:(.deps // []),attrs:(.attrs + {rustc_flags:$flags})}])}' |
       toml > "$root/struo.toml"
     query "$root" validate-workspace | jq -e '.valid' >/dev/null || fail 'Invalid optimized Struo graph'
     while IFS= read -r id; do

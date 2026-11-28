@@ -41,6 +41,48 @@ yq -p toml -o json '.' "$ROOT/struo.toml" > "$temp/original"
 jq -en --slurpfile original "$temp/original" --slurpfile roundtrip "$temp/roundtrip" '$original == $roundtrip' >/dev/null
 echo 'PASS TOML source mappings round-trip'
 
+# Struo represents a target without dependencies as JSON null. TOML has no
+# null value, so those targets must survive optimization as an empty list.
+(
+    mkdir "$temp/graph"
+    cp "$ROOT/struo.toml" "$temp/graph/struo.toml"
+    mkdir -p "$temp/graph/local-patch"
+    printf 'patched source\n' > "$temp/graph/local-patch/lib.rs"
+    cargo() {
+        if test "$1" = metadata; then
+            jq -n --arg path "$PWD/local-patch/Cargo.toml" '{workspace_members:["app"],packages:[
+              {id:"app",source:null,name:"app",version:"1.0.0",manifest_path:"/unused/Cargo.toml"},
+              {id:"patched",source:null,name:"patched",version:"0.2.2",manifest_path:$path},
+              {id:"registry",source:"registry",name:"registry",version:"1.0.0",manifest_path:"/unused/Cargo.toml"}]}'
+        fi
+    }
+    query() {
+        local root=$1
+        shift
+        case "$1" in
+            schema) printf '{"attrs":[{"name":"dep_rustc_flags"}]}';;
+            target)
+                if test -f "$root/optimized"; then
+                    yq -p toml -o json '.' "$root/struo.toml" | jq '{attrs:.target[1].attrs}'
+                else
+                    jq -n --arg id "$BINARY" '{label:{id:$id,name:$id},kind:"rust_binary",srcs:["src/main.rs"],deps:null,attrs:{}}'
+                fi;;
+            validate-workspace)
+                yq -p toml -o json '.' "$root/struo.toml" |
+                    jq -e '.target[1].deps == [] and .target[1].attrs.rustc_flags == ["-C","opt-level=3","-C","debuginfo=0"]' >/dev/null
+                touch "$root/optimized"
+                printf '{"valid":true}';;
+            *STARTS*) jq -n --arg id "$BINARY" '{rows:[[$id,"rust_binary"]]}';;
+            *) jq -n --argjson flags "$FLAGS" '{rows:[["dependency",$flags]]}';;
+        esac
+    }
+    optimize_graph "$temp/graph"
+    cmp "$temp/graph/local-patch/lib.rs" "$temp/graph/third_party/rust/vendor/patched-0.2.2/lib.rs"
+    test ! -e "$temp/graph/third_party/rust/vendor/app-1.0.0"
+    test ! -e "$temp/graph/third_party/rust/vendor/registry-1.0.0"
+)
+echo 'PASS optimized graph retains dependency-free targets and local patches'
+
 pin=$(yq -p toml -r '.tools."github:tuist/struo"' "$ROOT/mise.toml")
 # shellcheck disable=SC2016
 printf '#!/usr/bin/env bash\nprintf "struo %%s\\n" "${TEST_STRUO_VERSION}"\n' > "$temp/bin/struo"
