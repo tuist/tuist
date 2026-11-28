@@ -34,7 +34,8 @@ defmodule LuftServer.FakeOpenAI do
   @doc """
   Stubs the backend for the calling test. `models` are the slugs the catalog
   lists; `respond` receives the decoded responses request and returns the
-  assistant's text, or a `Plug.Conn` to answer some other way.
+  assistant's text, or a `Plug.Conn` to answer some other way. A two-argument
+  callback also receives the request connection for custom responses.
   """
   def stub(opts \\ []) do
     models = Keyword.get(opts, :models, ["test-model"])
@@ -58,7 +59,12 @@ defmodule LuftServer.FakeOpenAI do
         "/backend-api/codex/responses" ->
           {:ok, body, conn} = read_body(conn, length: 16_000_000)
 
-          case respond.(Jason.decode!(body)) do
+          response =
+            if is_function(respond, 2),
+              do: respond.(Jason.decode!(body), conn),
+              else: respond.(Jason.decode!(body))
+
+          case response do
             %Plug.Conn{} = answered -> answered
             text when is_binary(text) -> send_resp(conn, 200, completed(text))
           end

@@ -10,6 +10,8 @@ defmodule LuftServer.Threads.Provider do
 
   import Plug.Conn
 
+  require Logger
+
   alias LuftServer.AISubscriptions.Inference
   alias LuftServer.Sessions
   alias LuftServer.Threads.ModelFence
@@ -122,8 +124,11 @@ defmodule LuftServer.Threads.Provider do
         {:ok, completion} ->
           respond(conn, 200, completion)
 
-        {:error, status, _category} when status in [400, 401, 402, 403, 409, 429] ->
-          unavailable(conn, status)
+        {:error, status, category} when is_integer(status) and is_atom(category) ->
+          # Inference has already reduced upstream failures to safe categories.
+          # Never log the raw response, request history or subscription credentials.
+          Logger.warning("thread #{thread.id} inference failed: #{category} (HTTP #{status})")
+          unavailable(conn, if(status in [400, 401, 402, 403, 409, 429], do: status, else: 503))
 
         _ ->
           unavailable(conn, 503)

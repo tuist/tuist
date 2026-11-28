@@ -228,6 +228,33 @@ defmodule LuftServer.Threads.ProviderTest do
     refute_received :inferred
   end
 
+  test "inference failures log safe categories without upstream content or credentials" do
+    {thread, run} = running()
+    stub_scope()
+    LuftServer.FakeOpenAI.connect(11)
+
+    LuftServer.FakeOpenAI.stub(
+      respond: fn _request, conn ->
+        conn
+        |> put_status(400)
+        |> Req.Test.json(%{
+          error: %{code: "context_length_exceeded", message: "private upstream content"}
+        })
+      end
+    )
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        conn = completion_conn(thread, run)
+        assert conn.status == 400
+        refute conn.resp_body =~ "private upstream content"
+      end)
+
+    assert log =~ "thread #{thread.id} inference failed: context_length (HTTP 400)"
+    refute log =~ "private upstream content"
+    refute log =~ LuftServer.FakeOpenAI.token()
+  end
+
   test "model process dies with its worker rather than inferring as an orphan" do
     {_thread, run} = running()
     stub_scope()

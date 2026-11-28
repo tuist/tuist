@@ -66,6 +66,43 @@ defmodule LuftServer.Threads.HostTest do
     {thread, run, epoch} = queued_runner_run()
     test = self()
     stub_runtime(test)
+
+    reasoning = %{
+      type: "reasoning",
+      id: "rs_1",
+      summary: [],
+      encrypted_content: "opaque reasoning"
+    }
+
+    LuftServer.FakeOpenAI.stub(
+      respond: fn request, conn ->
+        send(test, {:inference, request})
+
+        event = %{
+          type: "response.completed",
+          response: %{
+            id: "response",
+            model: "test-model",
+            status: "completed",
+            output: [
+              reasoning,
+              %{
+                type: "message",
+                content: [
+                  %{
+                    type: "output_text",
+                    text: Jason.encode!(%{reply: "durable hello", suggestions: []})
+                  }
+                ]
+              }
+            ]
+          }
+        }
+
+        send_resp(conn, 200, "data: " <> Jason.encode!(event) <> "\n\n")
+      end
+    )
+
     host = start_supervised!({Host, {thread.id, epoch}})
 
     request =
@@ -96,6 +133,27 @@ defmodule LuftServer.Threads.HostTest do
       assert :binary.match(bytes, "durable hello") == :nomatch
     end
 
+    message =
+      Repo.insert!(%Message{
+        thread_id: thread.id,
+        position: reply.position + 1,
+        kind: "human",
+        author_id: thread.owner_id,
+        author_session_id: thread.owner_session_id,
+        body: "are you there?"
+      })
+
+    followup = Repo.insert!(%Run{thread_id: thread.id, message_id: message.id, status: "queued"})
+    send(host, :work)
+    assert_receive {:inference, continued}, 5_000
+    assert Jason.decode!(Jason.encode!(reasoning)) in continued["input"]
+    assert Enum.any?(continued["input"], &(&1["role"] == "assistant"))
+
+    assert List.last(continued["input"])["content"] == [
+             %{"type" => "input_text", "text" => "are you there?"}
+           ]
+
+    eventually(fn -> Repo.get!(Run, followup.id).status == "succeeded" end, 500)
     Host.drain(host)
   end
 
