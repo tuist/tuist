@@ -464,8 +464,12 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   read them before answering: the job waits on it, and hashing alone cost the
   agent 0.6 to 1.4 s per GB of a 3.7 to 7.3 s runnersbench save (2026-11-27). Never fsync per
   block either: buildx sends 1 MiB blocks one at a time, and an fsync on the
-  loop-mounted cache costs 11 ms. Each stream starts writeback every 16 MiB and
-  at its end, and the store fsyncs once all streams staged 16 MiB, which bounds
-  dirty pages the loop device's backing file still charges to the agent. It
+  loop-mounted cache costs 11 ms. Each stream writes back and waits every 16 MiB and
+  at its end. The provisioning script turns direct I/O on for the cache's loop
+  device, so written-back pages are on disk; where it is off
+  (`LoopDirectIO`, `ActionsStore.DirectIO`), the store also fsyncs once all
+  streams staged 16 MiB, since the backing file's pages still charge the agent.
+  That fsync costs about 0.5 s per GB, and buffered loop writes 4 to 8 times
+  more than direct (staging host, 2026-11-28). It
   writes at most four streams at a time and admits only above the reserve.
   Staging never evicts masters; uploads idle for an hour are removed.

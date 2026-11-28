@@ -21,3 +21,5 @@ func FilesystemSpace(string) (uint64, uint64, error) {
 }
 
 func startWriteback(*os.File) error { return nil }
+
+func LoopDirectIO(string) bool { return false }

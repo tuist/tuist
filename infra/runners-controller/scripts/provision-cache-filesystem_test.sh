@@ -54,6 +54,7 @@ run || { cat "$scratch/output"; exit 1; }
 [[ $(cat "$root.img") == filesystem ]]
 [[ $(grep -c '^mkfs.xfs ' "$scratch/calls") == 1 ]]
 grep -q 'X-fstrim.notrim' "/etc/systemd/system/$unit"
+grep -q '^losetup --direct-io=on /dev/loop-test$' "$scratch/calls"
 run || { cat "$scratch/output"; exit 1; }
 [[ $(grep -c '^mkfs.xfs ' "$scratch/calls") == 1 ]]
 [[ $(grep -c '^fallocate ' "$scratch/calls") == 1 ]]
@@ -75,4 +76,4 @@ mv "$root.img" "$scratch/original.img"
 ln -s "$scratch/original.img" "$root.img"
 reject 'symlink backing file'
 [[ $(cat "$scratch/original.img") == filesystem ]]
-echo 'Provisioning checks passed: cold setup, retry, nonempty directory, low space, existing image of another size kept, foreign mount, symlink.'
+echo 'Provisioning checks passed: cold setup, direct I/O, retry, nonempty directory, low space, existing image of another size kept, foreign mount, symlink.'

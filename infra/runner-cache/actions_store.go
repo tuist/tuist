@@ -42,7 +42,10 @@ type ActionsStore struct {
 	Root      string
 	Reserve   uint64
 	FreeBytes func(string) (uint64, error)
-	Log       *slog.Logger
+	// DirectIO is set when the filesystem's loop device writes with direct
+	// I/O: a page written back is then on disk, so flush needs no fsync.
+	DirectIO bool
+	Log      *slog.Logger
 	// writes bounds concurrent incoming streams, each holding up to
 	// archiveWritebackBytes of dirty pages.
 	writes chan struct{}
@@ -350,8 +353,9 @@ func (s *ActionsStore) room(n uint64) error {
 	return nil
 }
 
-// flush writes file's dirty pages out and, once the store's streams staged
-// archiveWritebackBytes since the last fsync, fsyncs it. Writeback alone does
+// flush writes file's dirty pages out and, unless the loop device writes with
+// direct I/O, fsyncs it once the store's streams staged archiveWritebackBytes
+// since the last fsync. Writeback alone does
 // not bound dirty memory on the loop-mounted cache: the pages move to the
 // backing file, still charged to the agent, until an fsync flushes the loop
 // device. An fsync per block would cost the clients that send 1 MiB blocks one
@@ -361,6 +365,10 @@ func (s *ActionsStore) room(n uint64) error {
 func (s *ActionsStore) flush(file *os.File, n int64) error {
 	if err := startWriteback(file); err != nil {
 		return err
+	}
+	// The fsync costs about 0.5 s per GB staged (staging host, 2026-11-28).
+	if s.DirectIO {
+		return nil
 	}
 	if s.unflushed.Add(n) < archiveWritebackBytes {
 		return nil

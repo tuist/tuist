@@ -201,6 +201,18 @@ func FilesystemSpace(path string) (available, capacity uint64, err error) {
 	return st.Bavail * uint64(st.Bsize), st.Blocks * uint64(st.Bsize), nil
 }
 
+// LoopDirectIO reports whether path's filesystem lives on a loop device that
+// writes its backing file with direct I/O, so a page written back is on disk
+// rather than cached a second time for the backing file.
+func LoopDirectIO(path string) bool {
+	var st unix.Stat_t
+	if unix.Stat(path, &st) != nil {
+		return false
+	}
+	dio, err := os.ReadFile("/sys/dev/block/" + strconv.FormatUint(uint64(unix.Major(st.Dev)), 10) + ":" + strconv.FormatUint(uint64(unix.Minor(st.Dev)), 10) + "/loop/dio")
+	return err == nil && strings.TrimSpace(string(dio)) == "1"
+}
+
 // startWriteback writes file's dirty pages out and waits for them, without the
 // journal commit and device flush of an fsync.
 func startWriteback(file *os.File) error {

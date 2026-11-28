@@ -377,6 +377,7 @@ func main() {
 		// Uploads are staged on the cache filesystem, above its reserve, until
 		// they are copied to the store.
 		actions := &cachevolumes.ActionsStore{Root: filepath.Join(*root, "actions-cache"), Reserve: backend.MinFreeBytes, Log: metrics.logger,
+			DirectIO:  cachevolumes.LoopDirectIO(*root),
 			FreeBytes: func(root string) (uint64, error) { return space.free(context.Background(), root) }}
 		pods := &runnerPods{kube: kube, namespace: *namespace, node: *node}
 		index := &cachevolumes.ActionsServer{URL: strings.TrimSuffix(*url, "/authorize") + "/actions-cache", Node: *node, Token: agentToken(*tokenPath), Client: client, Log: metrics.logger}

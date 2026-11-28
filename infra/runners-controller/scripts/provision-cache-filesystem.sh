@@ -61,4 +61,10 @@ UNIT
 systemctl daemon-reload
 systemctl enable --now "$unit"
 findmnt --mountpoint "$root" --types xfs >/dev/null
+# Write the backing file with direct I/O, also on hosts mounted before this
+# line existed: without it every cached page is held twice, once for XFS and
+# once for the backing file. A device that refuses keeps buffered I/O, which
+# the agent reads from sysfs.
+losetup --direct-io=on "$(findmnt -n -o SOURCE --mountpoint "$root")" ||
+  echo 'Cache loop device keeps buffered I/O.' >&2
 printf 'Cache filesystem ready at %s\n' "$root"
