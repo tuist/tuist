@@ -1088,6 +1088,49 @@ build {
     ]
   }
 
+  # Git LFS filters, configured for every repository `runner` touches, as
+  # GitHub-hosted macOS images do. The base installs git-lfs but never runs
+  # `git lfs install`, so a step that clones or checks out without its own
+  # `git lfs install --local` left pointer files in the tree. Written twice:
+  # - to runner's ~/.gitconfig, which every git reads, including Apple's
+  #   (/usr/bin/git, which Xcode and SwiftPM run). Apple's keeps its system
+  #   file inside the selected Xcode bundle, which `select-xcode.sh` can
+  #   switch at claim time, so `--system` cannot reach it.
+  # - with `--system`, for the git on runner's PATH (Homebrew's), so it still
+  #   applies when a step replaces HOME or sets GIT_CONFIG_GLOBAL. `sudo`
+  #   resets PATH, so runner's is passed through; otherwise `git` would be
+  #   Apple's.
+  #
+  # The check asserts the behaviour, not the config: as `runner`, both the
+  # PATH git and Apple's must store a file matched by an LFS attribute as an
+  # LFS pointer, and the PATH git must also do so from its system file alone.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo -u runner -H /bin/zsh -lc 'git lfs install --skip-repo'",
+      "sudo -u runner -H /bin/zsh -lc 'sudo env PATH=\"$PATH\" git lfs install --system --skip-repo'",
+      "sudo -u runner -H /bin/zsh -lc 'set -e; tmp=$(mktemp -d); trap \"rm -rf $tmp\" EXIT; for g in git /usr/bin/git; do rm -rf $tmp/r; $g init -q $tmp/r; echo \"*.bin filter=lfs diff=lfs merge=lfs -text\" > $tmp/r/.gitattributes; echo lfs-sanity > $tmp/r/a.bin; $g -C $tmp/r add .gitattributes a.bin; $g -C $tmp/r cat-file -p :a.bin | grep -q \"^version https://git-lfs.github.com/spec/v1\" || { echo \"sanity check: $g did not store an LFS pointer for runner; global Git LFS filters are missing\" >&2; exit 1; }; done'",
+      "sudo -u runner -H /bin/zsh -lc 'set -e; export GIT_CONFIG_GLOBAL=/dev/null; tmp=$(mktemp -d); trap \"rm -rf $tmp\" EXIT; git init -q $tmp/r; echo \"*.bin filter=lfs diff=lfs merge=lfs -text\" > $tmp/r/.gitattributes; echo lfs-sanity > $tmp/r/a.bin; git -C $tmp/r add .gitattributes a.bin; git -C $tmp/r cat-file -p :a.bin | grep -q \"^version https://git-lfs.github.com/spec/v1\" || { echo \"sanity check: git on runner PATH did not store an LFS pointer without ~/.gitconfig; system Git LFS filters are missing\" >&2; exit 1; }'"
+    ]
+  }
+
+  # Trust every repository regardless of its owner, as GitHub-hosted macOS
+  # images do (`git config --global --add safe.directory "*"`). Without it a
+  # checkout another user wrote, such as one made under `sudo`, is refused as
+  # "dubious ownership" by every git command `runner` runs in it. Written to
+  # runner's ~/.gitconfig so Apple's git reads it too (see the Git LFS
+  # provisioner above for why its system file is out of reach).
+  #
+  # The check asserts the behaviour: as `runner`, both the PATH git and
+  # Apple's must accept a repository owned by root.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo -u runner -H /bin/zsh -lc 'git config --global --add safe.directory \"*\"'",
+      "sudo -u runner -H /bin/zsh -lc 'set -e; tmp=$(sudo mktemp -d); trap \"sudo rm -rf $tmp\" EXIT; sudo chmod 755 $tmp; sudo /usr/bin/git init -q $tmp/r; for g in git /usr/bin/git; do $g -C $tmp/r rev-parse --git-dir >/dev/null || { echo \"sanity check: $g refused a root-owned repository for runner; safe.directory is not set\" >&2; exit 1; }; done'"
+    ]
+  }
+
   # Workflows mount tuist/cache-volume over ~/.local/share/mise, which requires
   # the path to be absent or an empty directory. Build steps that run mise as
   # runner (the Tuist wrapper's pin check, for one) leave its bookkeeping
