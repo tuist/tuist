@@ -24,7 +24,7 @@ for ENVIRONMENT in staging canary production; do
   case "$ENVIRONMENT" in
     staging) VRACK=pn-2023588; REPLICAS=1 ;;
     canary) VRACK=pn-2024092; REPLICAS=1 ;;
-    production) VRACK=pn-2024093; REPLICAS=10 ;;
+    production) VRACK=pn-2024093; REPLICAS=11 ;;
   esac
   jq -e --arg environment "$ENVIRONMENT" --arg vrack "$VRACK" --argjson replicas "$REPLICAS" '
     any(.[]; .kind == "OVHDedicatedMachineTemplate" and

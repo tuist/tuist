@@ -68,13 +68,43 @@ url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-windows-amd64.
 version = "0.31.0"
 backend = "aqua:kubernetes-sigs/kind"
 
+[tools.kind."platforms.linux-arm64"]
+checksum = "sha256:8e1014e87c34901cc422a1445866835d1e666f2a61301c27e722bdeab5a1f7e4"
+checksum_source = "mise-versions"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.31.0/kind-linux-arm64"
+url_api = "https://api.github.com/repos/kubernetes-sigs/kind/releases/assets/330009872"
+
+[tools.kind."platforms.linux-arm64-musl"]
+checksum = "sha256:8e1014e87c34901cc422a1445866835d1e666f2a61301c27e722bdeab5a1f7e4"
+checksum_source = "mise-versions"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.31.0/kind-linux-arm64"
+url_api = "https://api.github.com/repos/kubernetes-sigs/kind/releases/assets/330009872"
+
 [tools.kind."platforms.linux-x64"]
 checksum = "sha256:eb244cbafcc157dff60cf68693c14c9a75c4e6e6fedaf9cd71c58117cb93e3fa"
 url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.31.0/kind-linux-amd64"
 
+[tools.kind."platforms.linux-x64-musl"]
+checksum = "sha256:eb244cbafcc157dff60cf68693c14c9a75c4e6e6fedaf9cd71c58117cb93e3fa"
+checksum_source = "mise-versions"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.31.0/kind-linux-amd64"
+url_api = "https://api.github.com/repos/kubernetes-sigs/kind/releases/assets/330009836"
+
 [tools.kind."platforms.macos-arm64"]
 checksum = "sha256:88bf554fe9da6311c9f8c2d082613c002911a476f6b5090e9420b35d84e70c5c"
 url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.31.0/kind-darwin-arm64"
+
+[tools.kind."platforms.macos-x64"]
+checksum = "sha256:a8b3cf77b2ad77aec5bf710d1a2589d9117576132af812885cad41e9dede4d4e"
+checksum_source = "mise-versions"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.31.0/kind-darwin-amd64"
+url_api = "https://api.github.com/repos/kubernetes-sigs/kind/releases/assets/330009808"
+
+[tools.kind."platforms.windows-x64"]
+checksum = "sha256:2c3a9ff954de16244380778683cf99e271bfc2fac9c6c4e797e4623c45e59d9d"
+checksum_source = "mise-versions"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.31.0/kind-windows-amd64"
+url_api = "https://api.github.com/repos/kubernetes-sigs/kind/releases/assets/330009913"
 
 [[tools.kubectl]]
 version = "1.36.1"
