@@ -359,6 +359,11 @@ build {
       # first (about 3 s of a 9 s `brew install sysbench fio`). Runs before the
       # filter below, so the filtered store is the upgraded ca-certificates.
       "HOMEBREW_NO_ASK=1 /opt/homebrew/bin/brew upgrade --formula",
+      # Libraries GitHub's macOS 26 image preinstalls (`brew.common_packages`
+      # in actions/runner-images' toolset-26.json). Each formula a job's
+      # `brew install` pours costs it about 0.6 s, so a dependency it already
+      # finds installed is time saved; libpq brings icu4c and krb5 with it.
+      "HOMEBREW_NO_ASK=1 /opt/homebrew/bin/brew install --formula libpq libsodium openssl@3 openssl@4 zstd gmp",
       "/opt/homebrew/bin/brew cleanup --prune=all",
       "bash /tmp/tuist-pem-store.sh filter /opt/homebrew/etc/ca-certificates/cert.pem /tmp/tuist-homebrew-roots.pem",
       "sudo install -m 0644 /tmp/tuist-homebrew-roots.pem /opt/homebrew/etc/ca-certificates/cert.pem",
