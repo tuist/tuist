@@ -173,8 +173,9 @@ public struct TargetRunner: TargetRunning {
             Logger.current
                 .debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
             Logger.current.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
-            try await simulatorController.installApp(at: appPath, device: simulator.device)
-            try await simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
+            let device = try await simulatorController.booted(device: simulator.device)
+            try await simulatorController.installApp(at: appPath, device: device)
+            try await simulatorController.launchApp(bundleId: bundleId, device: device, arguments: arguments)
         }
     }
 }

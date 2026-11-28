@@ -360,6 +360,86 @@ struct SimulatorControllerTests {
         #expect(commandRunner.called(installCommand) == true)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func booted_should_bootSimulatorIfNotBooted() async throws {
+        // Given
+        let device = try #require(createSystemStubs(devices: true, runtimes: true).first?.device)
+        let udid = device.udid
+        let bootCommand = ["/usr/bin/xcrun", "simctl", "boot", udid]
+        commandRunner.succeedCommand(bootCommand)
+
+        // When
+        let bootedDevice = try await subject.booted(device: device)
+
+        // Then
+        #expect(commandRunner.called(bootCommand) == true)
+        #expect(bootedDevice.state == "Booted")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func booted_should_notThrowError_when_simctlReportsAlreadyBooted() async throws {
+        // Given
+        let device = try #require(createSystemStubs(devices: true, runtimes: true).first?.device)
+        let udid = device.udid
+        let bootCommand = ["/usr/bin/xcrun", "simctl", "boot", udid]
+        commandRunner.errorCommand(bootCommand, error: "Unable to boot device in current state: Booted")
+
+        // When
+        let bootedDevice = try await subject.booted(device: device)
+
+        // Then
+        #expect(commandRunner.called(bootCommand) == true)
+        #expect(bootedDevice.state == "Booted")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func booted_should_throwError_when_simctlFailsWithOtherError() async throws {
+        // Given
+        let device = try #require(createSystemStubs(devices: true, runtimes: true).first?.device)
+        let udid = device.udid
+        let bootCommand = ["/usr/bin/xcrun", "simctl", "boot", udid]
+        commandRunner.errorCommand(bootCommand, error: "An error occurred creating a Cocoa PString")
+
+        // When / Then
+        await #expect(throws: Error.self) {
+            _ = try await subject.booted(device: device)
+        }
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func launchApp_should_notThrowError_when_simulatorIsAlreadyBooted() async throws {
+        // Given
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        let xcode = try await createXcode(simulatorApp: true)
+        given(xcodeControllerMock)
+            .selected()
+            .willReturn(xcode)
+        let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
+        let bundleId = "bundleId"
+        let udid = deviceAndRuntime.device.udid
+        let bootCommand = ["/usr/bin/xcrun", "simctl", "boot", udid]
+        commandRunner.errorCommand(bootCommand, error: "Unable to boot device in current state: Booted")
+        let openSimAppCommand = [
+            "/usr/bin/open",
+            "-a",
+            xcode.path.appending(components: "Contents", "Developer", "Applications", "Simulator.app").pathString,
+        ]
+        commandRunner.succeedCommand(openSimAppCommand)
+        let launchCommand = ["/usr/bin/xcrun", "simctl", "launch", udid, bundleId]
+        commandRunner.succeedCommand(launchCommand)
+
+        // When
+        try await subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: [])
+
+        // Then
+        #expect(commandRunner.called(launchCommand) == true)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedXcodeController) func launchApp_should_bootSimulatorIfNotBooted() async throws {
         // Given
         let xcodeControllerMock = try #require(XcodeController.mocked)
