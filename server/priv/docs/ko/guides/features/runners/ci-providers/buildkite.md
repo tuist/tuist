@@ -7,8 +7,6 @@
 ---
 # Buildkite {#buildkite}
 
-<!-- @snippet: ./_invite-only -->
-
 Tuist는 Buildkite 클러스터의 자체 호스팅 큐를 모니터링하고, 발견한 작업을 플릿에서 실행합니다. 파이프라인은 Buildkite에서 계속 실행되며, 컴퓨팅 리소스만 변경됩니다. 플릿에서 작업을 실행하려면 세 가지 변경이 필요합니다: 클러스터를 연결하고, Tuist <.localized_link href="/guides/features/runners/profiles">프로필</.localized_link> 이름으로 큐를 지정하며, 단계에서 해당 큐를 대상으로 설정합니다.
 
 1. **클러스터를 연결하세요.** Buildkite에서 클러스터를 열고 **Agent Tokens**으로 이동하여 토큰을 생성하세요. 토큰은 `bkct_`로 시작합니다. Tuist 대시보드에서 **Settings → Integrations**으로 이동하고, Buildkite 카드에서 **Connect**를 선택한 후 조직 슬러그와 토큰을 입력하세요. 토큰은 암호화되어 저장되며 다시 표시되지 않습니다. 나중에 조직을 변경하거나 토큰을 교체하려면 카드의 필드를 편집하고 **Save changes**를 선택하세요. Tuist는 1분 이내에 클러스터 모니터링을 시작합니다.

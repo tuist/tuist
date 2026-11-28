@@ -7,8 +7,6 @@
 ---
 # GitHub Actions {#github-actions}
 
-<!-- @snippet: ./_invite-only -->
-
 სამი ცვლილებაა საჭირო, რომ სამუშაო გაეშვას ფლოტზე: დააკავშირეთ GitHub, მიმართეთ `runs-on` Tuist-ის <.localized_link href="/guides/features/runners/profiles">პროფილზე</.localized_link> და შეასრულეთ push.
 
 1. **დააკავშირეთ GitHub.** დარწმუნდით, რომ თქვენი პროექტი <.localized_link href="/guides/integrations/gitforge/github">დაკავშირებულია თქვენს GitHub ორგანიზაციასთან</.localized_link>. Tuist იღებს `workflow_job` მოვლენებს ამ ორგანიზაციისთვის და ანაწილებს შესაბამის სამუშაოებს ფლოტზე. ამ კავშირის გარეშე, არცერთი სამუშაო ვერ მიაღწევს თქვენს რანერებს.

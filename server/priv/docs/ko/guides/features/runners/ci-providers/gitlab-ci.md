@@ -7,8 +7,6 @@
 ---
 # GitLab CI {#gitlab-ci}
 
-<!-- @snippet: ./_invite-only -->
-
 파이프라인은 GitLab에 유지됩니다. Tuist는 각 작업에 대해 격리된 Linux 또는 macOS 머신을 제공하고, 로그와 결과를 GitLab 및 Tuist 대시보드에 보고합니다. GitLab 19.3 이상 버전이 필요합니다. 공개 HTTPS로 접근 가능한 GitLab.com 및 자체 관리 인스턴스가 지원됩니다.
 
 1. **GitLab 러너를 생성하세요.** 프로젝트의 **Settings → CI/CD → Runners**에서 프로젝트 러너를 생성하세요. 그룹 러너를 사용할 수도 있습니다. 러너 태그로 사용할 모든 Tuist 프로필 라벨(예: `tuist-linux` 및 `tuist-macos`)을 추가하고 **Run untagged jobs**를 비활성화하세요. GitLab이 표시하는 인증 토큰(`glrt-`로 시작)을 보관하세요. 자체 머신에 러너를 설치할 필요는 없습니다.

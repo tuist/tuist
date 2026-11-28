@@ -7,7 +7,7 @@
 ---
 # Bitrise {#bitrise}
 
-<!-- @snippet: ./_invite-only -->
+
 
 > [!WARNING]
 > **只限私人儲存庫**

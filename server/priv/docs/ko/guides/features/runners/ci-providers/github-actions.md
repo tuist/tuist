@@ -7,8 +7,6 @@
 ---
 # GitHub Actions {#github-actions}
 
-<!-- @snippet: ./_invite-only -->
-
 플릿에서 작업을 실행하려면 세 가지 변경이 필요합니다: GitHub 연결, `runs-on`를 Tuist <.localized_link href="/guides/features/runners/profiles">프로필</.localized_link>로 지정, 그리고 푸시.
 
 1. **GitHub를 연결하세요.** 프로젝트가 <.localized_link href="/guides/integrations/gitforge/github">GitHub 조직에 연결되어 있는지</.localized_link> 확인하세요. Tuist는 해당 조직의 `workflow_job` 이벤트를 수신하고 일치하는 작업을 플릿으로 디스패치합니다. 이 연결이 없으면 작업이 러너에 도달하지 않습니다.

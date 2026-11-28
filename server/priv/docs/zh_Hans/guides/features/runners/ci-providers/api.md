@@ -7,8 +7,6 @@
 ---
 # API {#api}
 
-<!-- @snippet: ./_invite-only -->
-
 没有自有 Runner 协议的 Git 代码托管平台、合并队列和智能体编排器可以直接在 Tuist Runners 上运行作业。你只需发起一个请求即可创建作业，一台使用你所选<.localized_link href="/guides/features/runners/profiles">配置文件</.localized_link>的 Tuist 机器会检出提交并执行你的脚本，然后 Tuist 将结果报告给你的 Webhook 端点。
 
 ## 运行作业 {#run-a-job}

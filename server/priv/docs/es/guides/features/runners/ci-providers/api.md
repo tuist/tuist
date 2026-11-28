@@ -7,8 +7,6 @@
 ---
 # API {#api}
 
-<!-- @snippet: ./_invite-only -->
-
 Los forges de Git, las colas de merge y los orquestadores de agentes que no tienen su propio protocolo de runner pueden ejecutar jobs directamente en Tuist Runners. Creas un job con una sola solicitud, una máquina de Tuist del <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> que elijas hace checkout del commit y ejecuta tu script, y Tuist informa del resultado a tu endpoint de webhook.
 
 ## Ejecutar un job {#run-a-job}

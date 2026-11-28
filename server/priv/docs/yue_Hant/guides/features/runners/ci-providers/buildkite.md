@@ -7,7 +7,7 @@
 ---
 # Buildkite {#buildkite}
 
-<!-- @snippet: ./_invite-only -->
+
 
 Tuist 會監察你 Buildkite 叢集中的自託管佇列，並喺機隊上執行搵到嘅工作。你嘅 pipeline 會繼續喺 Buildkite 上運行；只有運算資源會改變。要喺機隊上執行工作，需要三個步驟：連接你嘅叢集、將佇列命名為對應 Tuist <.localized_link href="/guides/features/runners/profiles">設定檔</.localized_link>，並喺步驟中指定該佇列。
 

@@ -7,8 +7,6 @@
 ---
 # GitHub Actions {#github-actions}
 
-<!-- @snippet: ./_invite-only -->
-
 Fleet üzerinde bir iş çalıştırmak üç değişiklik gerektirir: GitHub’ı bağlayın, `runs-on` öğesini bir Tuist <.localized_link href="/guides/features/runners/profiles">profiline</.localized_link> yönlendirin ve push yapın.
 
 1. **GitHub’ı bağlayın.** Projenizin <.localized_link href="/guides/integrations/gitforge/github">GitHub kuruluşunuza bağlı</.localized_link> olduğundan emin olun. Tuist, bu kuruluş için `workflow_job` olaylarını alır ve eşleşen işleri filoya gönderir. Bu bağlantı olmadan hiçbir iş runner’larınıza ulaşmaz.

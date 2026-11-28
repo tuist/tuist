@@ -7,8 +7,6 @@
 ---
 # GitLab CI {#gitlab-ci}
 
-<!-- @snippet: ./_invite-only -->
-
 Pipeline'larınız GitLab'da kalır. Tuist, her iş için izole bir Linux veya macOS makinesi sağlar ve günlüklerini ile sonucunu GitLab'a ve Tuist kontrol paneline bildirir. GitLab 19.3 veya daha yeni bir sürüm gereklidir. GitLab.com ve herkese açık HTTPS üzerinden erişilebilen kendi kendine barındırılan örnekler desteklenir.
 
 1. **GitLab runner oluşturun.** Projenizin **Ayarlar → CI/CD → Runner'lar** bölümünde bir proje runner'ı oluşturun. Grup runner'ı da kullanabilirsiniz. Kullanmak istediğiniz tüm Tuist profil etiketlerini runner etiketi olarak ekleyin, örneğin `tuist-linux` ve `tuist-macos`, ardından **Etiketsiz işleri çalıştır** seçeneğini devre dışı bırakın. GitLab'in gösterdiği, `glrt-` ile başlayan kimlik doğrulama jetonunu saklayın. Kendi makinenize bir runner kurmanıza gerek yoktur.

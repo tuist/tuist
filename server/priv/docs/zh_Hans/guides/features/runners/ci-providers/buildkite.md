@@ -7,8 +7,6 @@
 ---
 # Buildkite {#buildkite}
 
-<!-- @snippet: ./_invite-only -->
-
 Tuist 会监控你 Buildkite 集群中的自托管队列，并在其计算资源池中运行找到的作业。你的流水线继续在 Buildkite 上运行；仅计算资源发生变化。要在计算资源池上运行作业，需要进行三项更改：连接你的集群、以 Tuist <.localized_link href="/guides/features/runners/profiles">配置文件</.localized_link> 命名队列，并在步骤中指定该队列。
 
 1. **连接你的集群。** 在 Buildkite 中，打开你的集群，进入**Agent Tokens**并创建一个令牌；它以`bkct_`开头。在 Tuist 仪表板中，进入**Settings → Integrations**，在 Buildkite 卡片上选择**Connect**，然后输入你的组织 slug 和令牌。令牌以加密方式存储，之后不再显示。如需稍后更改组织或轮换令牌，请编辑卡片上的字段并选择**Save changes**。Tuist 将在一分钟内开始监控该集群。

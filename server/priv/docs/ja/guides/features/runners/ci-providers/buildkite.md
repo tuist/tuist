@@ -7,8 +7,6 @@
 ---
 # Buildkite {#buildkite}
 
-<!-- @snippet: ./_invite-only -->
-
 Tuist は、Buildkite クラスター内のセルフホストキューを監視し、見つかったジョブをフリート上で実行します。パイプラインは Buildkite 上で引き続き動作し、変更されるのはコンピューティングリソースのみです。フリートでジョブを実行するには、次の 3 つの変更が必要です。クラスターを接続し、Tuist の <.localized_link href="/guides/features/runners/profiles">プロファイル</.localized_link> に合わせてキューに名前を付け、ステップからそのキューをターゲットとして指定します。
 
 1. **クラスターを接続する。** Buildkite でクラスターを開き、**Agent Tokens** に移動してトークンを作成します。トークンは `bkct_` で始まります。Tuist ダッシュボードで **Settings → Integrations** に移動し、Buildkite カードの **Connect** を選択して、組織のスラッグとトークンを入力します。トークンは暗号化されて保存され、二度と表示されることはありません。後で組織を変更したりトークンを更新する場合は、カードのフィールドを編集して **Save changes** を選択します。Tuist は 1 分以内にクラスターの監視を開始します。

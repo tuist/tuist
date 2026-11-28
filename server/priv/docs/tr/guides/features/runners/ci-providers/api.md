@@ -7,8 +7,6 @@
 ---
 # API {#api}
 
-<!-- @snippet: ./_invite-only -->
-
 Kendi çalıştırıcı protokolü olmayan Git forjları, birleştirme kuyrukları ve ajan orkestratörleri işleri doğrudan Tuist Runners üzerinde çalıştırabilir. Tek bir istekle bir iş oluşturursunuz; seçtiğiniz <.localized_link href="/guides/features/runners/profiles">profil</.localized_link>deki bir Tuist makinesi commit’i çeker ve betiğinizi çalıştırır, Tuist ise sonucu webhook uç noktanıza bildirir.
 
 ## Bir iş çalıştırın {#run-a-job}

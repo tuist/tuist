@@ -7,7 +7,7 @@
 ---
 # GitHub Actions {#github-actions}
 
-<!-- @snippet: ./_invite-only -->
+
 
 喺集群上執行作業需要三個改動：連接 GitHub、將 `runs-on` 指向 Tuist <.localized_link href="/guides/features/runners/profiles">設定檔</.localized_link>，然後推送。
 

@@ -7,8 +7,6 @@
 ---
 # Buildkite {#buildkite}
 
-<!-- @snippet: ./_invite-only -->
-
 Tuist, Buildkite kümenizdeki kendi barındırdığınız kuyrukları izler ve bulduğu işleri filoda çalıştırır. Boru hatlarınız Buildkite üzerinde çalışmaya devam eder; yalnızca hesaplama kaynağı değişir. Bir işi filoda çalıştırmak üç değişiklik gerektirir: kümenizi bağlayın, bir kuyruğa bir Tuist <.localized_link href="/guides/features/runners/profiles">profil</.localized_link> adı verin ve bir adımdan bu kuyruğu hedefleyin.
 
 1. **Kümenizi bağlayın.** Buildkite’ta kümenizi açın, **Agent Tokens** bölümüne gidin ve bir token oluşturun; bu token `bkct_` ile başlar. Tuist panonuzda **Ayarlar → Entegrasyonlar** bölümüne gidin, Buildkite kartındaki **Bağlan** seçeneğini belirleyin ve kuruluş slug’unuzu ile token’ı girin. Token şifrelenerek saklanır ve bir daha gösterilmez. Kuruluşu değiştirmek veya token’ı ileride yenilemek için karttaki alanları düzenleyip **Değişiklikleri kaydet** seçeneğini belirleyin. Tuist, bir dakika içinde kümeyi izlemeye başlar.

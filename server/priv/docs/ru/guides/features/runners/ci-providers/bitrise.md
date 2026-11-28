@@ -7,8 +7,6 @@
 ---
 # Bitrise {#bitrise}
 
-<!-- @snippet: ./_invite-only -->
-
 > [!WARNING]
 > **Только для приватных репозиториев**
 >

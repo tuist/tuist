@@ -7,8 +7,6 @@
 ---
 # Bitrise {#bitrise}
 
-<!-- @snippet: ./_invite-only -->
-
 > [!WARNING]
 > **仅限私有仓库**
 >
