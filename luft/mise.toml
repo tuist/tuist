@@ -11,7 +11,7 @@ kotlin = "2.4.10"
 # Signed device and macOS preview publication only; CI installs them only in those jobs.
 "1password-cli" = "2.32.0"
 # update-tuist-cli.yml keeps tuist in sync with the root mise.toml, which this workspace ignores.
-tuist = "4.220.0-canary.35"
+tuist = "4.220.0-canary.39"
 
 # Desktop tool installation must not run the monorepo's CLI bootstrap hook.
 [hooks]
