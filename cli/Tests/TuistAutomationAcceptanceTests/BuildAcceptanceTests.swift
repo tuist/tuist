@@ -121,6 +121,63 @@ struct BuildAcceptanceTestAppWithBuildableFolders {
 }
 
 @Suite(.coverageAttribution)
+struct BuildAcceptanceTestAppWithDeclaredBuildableFolderContents {
+    @Test(
+        .withFixture("generated_app_with_declared_buildable_folder_contents"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func app_with_declared_buildable_folder_contents() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let xcodeprojPath = fixtureDirectory.appending(components: "App.xcodeproj", "project.pbxproj")
+        let libraryGenerated = fixtureDirectory.appending(components: "Library", "Generated")
+
+        // The declared folder doesn't exist until generation creates it.
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        #expect(try await fileSystem.exists(libraryGenerated, isDirectory: true))
+        let coldProject = try await fileSystem.readFile(at: xcodeprojPath)
+
+        // What a build phase script or a tool would write after `tuist generate`.
+        try await fileSystem.writeText(
+            """
+            import Foundation
+            public enum Greeting {
+                public static var message: String? {
+                    Bundle.module.url(forResource: "greeting", withExtension: "json")
+                        .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+                }
+            }
+            """,
+            at: libraryGenerated.appending(component: "Greeting.swift")
+        )
+        try await fileSystem.writeText("\"Hello\"", at: libraryGenerated.appending(component: "greeting.json"))
+        let deepest = libraryGenerated.appending(components: "a", "b", "c", "d", "e", "f", "g")
+        try await fileSystem.makeDirectory(at: deepest)
+        try await fileSystem.writeText("{}", at: deepest.appending(component: "deepest.json"))
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        #expect(try await fileSystem.readFile(at: xcodeprojPath) == coldProject)
+
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+
+        let products = temporaryDirectory.appending(components: "Build", "Products", "Debug")
+        let appResources = products.appending(components: "App.app", "Contents", "Resources")
+        let libraryBundle = appResources.appending(component: "App_Library.bundle")
+        let bundleResources = libraryBundle.appending(components: "Contents", "Resources")
+        let frameworkResources = products.appending(components: "Library.framework", "Versions", "A", "Resources")
+        #expect(try await !fileSystem.exists(libraryBundle.appending(components: "Contents", "MacOS")))
+        for resource in ["greeting.json", "deepest.json"] {
+            #expect(try await fileSystem.exists(bundleResources.appending(component: resource)))
+            #expect(try await !fileSystem.exists(frameworkResources.appending(component: resource)))
+        }
+    }
+}
+
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestWithTemplates {
     @Test(.disabled(), .inTemporaryDirectory, .withMockedDependencies())
     func with_templates() async throws {

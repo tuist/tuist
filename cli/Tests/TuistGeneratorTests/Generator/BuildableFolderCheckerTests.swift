@@ -1,4 +1,5 @@
 import FileSystem
+import Path
 import Testing
 import TuistGenerator
 import XcodeGraph
@@ -63,6 +64,42 @@ struct BuildableFolderCheckerTests {
         )])
 
         #expect(got == false)
+    }
+
+    static let declaredContentsCases: [(Set<BuildableFolderContent>, Bool, Bool)] = [
+        ([], false, false),
+        ([.sources], true, false),
+        ([.resources], false, true),
+        ([.sources, .resources], true, true),
+    ]
+
+    @Test(arguments: declaredContentsCases)
+    func declaredContents_ignoreFilesOnDisk(
+        contents: Set<BuildableFolderContent>,
+        sources: Bool,
+        resources: Bool
+    ) async throws {
+        let folderPath = try AbsolutePath(validating: "/project/Generated")
+        let empty = BuildableFolder(
+            path: folderPath,
+            exceptions: BuildableFolderExceptions(exceptions: []),
+            resolvedFiles: [],
+            contents: contents
+        )
+        let filled = BuildableFolder(
+            path: folderPath,
+            exceptions: BuildableFolderExceptions(exceptions: []),
+            resolvedFiles: [
+                BuildableFolderFile(path: folderPath.appending(component: "A.swift"), compilerFlags: nil),
+                BuildableFolderFile(path: folderPath.appending(component: "A.json"), compilerFlags: nil),
+            ],
+            contents: contents
+        )
+
+        for folder in [empty, filled] {
+            #expect(try await subject.containsSources([folder]) == sources)
+            #expect(try await subject.containsResources([folder]) == resources)
+        }
     }
 }
 

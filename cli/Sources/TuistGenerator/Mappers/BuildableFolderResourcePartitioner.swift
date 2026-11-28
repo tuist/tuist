@@ -15,6 +15,9 @@ struct BuildableFolderResourcePartition {
 
     /// Folders (or per-folder views) that move to the companion resource bundle.
     var bundleTargetFolders: [BuildableFolder] = []
+
+    /// Folders on both targets whose files `DeclaredBuildableFolderRouting` routes by type.
+    var declaredMixedFolders: [AbsolutePath] = []
 }
 
 struct BuildableFolderResourcePartitioner {
@@ -33,6 +36,9 @@ struct BuildableFolderResourcePartitioner {
                 }
                 if let bundle = partition.bundleTargetFolder {
                     result.bundleTargetFolders.append(bundle)
+                }
+                if folder.contents?.isSuperset(of: [.sources, .resources]) == true {
+                    result.declaredMixedFolders.append(folder.path)
                 }
             }
         }
@@ -64,11 +70,15 @@ extension BuildableFolder {
         return BuildableFolder(
             path: path,
             exceptions: exceptions.addingExcluded(paths: excluded),
-            resolvedFiles: resolvedFiles.filter { !paths.contains($0.path) }
+            resolvedFiles: resolvedFiles.filter { !paths.contains($0.path) },
+            contents: contents
         )
     }
 
     fileprivate func partitioned() -> SingleFolderPartition? {
+        if let contents {
+            return declaredContentsPartition(contents)
+        }
         if let folderLevel = folderLevelPartition() {
             return folderLevel
         }
@@ -92,6 +102,21 @@ extension BuildableFolder {
             bundleEntries: split.bundleOnly,
             sharedEntries: split.shared
         )
+    }
+
+    /// Narrows the declared contents to what each target takes.
+    private func declaredContentsPartition(_ contents: Set<BuildableFolderContent>) -> SingleFolderPartition {
+        guard contents.contains(.resources) else {
+            return SingleFolderPartition(originalTargetFolder: self, bundleTargetFolder: nil)
+        }
+        var bundle = self
+        bundle.contents = [.resources]
+        guard contents.contains(.sources) else {
+            return SingleFolderPartition(originalTargetFolder: nil, bundleTargetFolder: bundle)
+        }
+        var original = self
+        original.contents = [.sources]
+        return SingleFolderPartition(originalTargetFolder: original, bundleTargetFolder: bundle)
     }
 
     /// When the folder name itself signals a pure-resource folder (e.g. `Foo.xcassets`), route

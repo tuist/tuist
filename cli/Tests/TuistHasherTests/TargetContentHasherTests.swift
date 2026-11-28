@@ -426,6 +426,36 @@ struct TargetContentHasherTests {
         #expect(gotWithDSStore.subhashes == gotWithoutDSStore.subhashes)
     }
 
+    @Test func hash_with_buildable_folders_changes_with_declared_contents() async throws {
+        // Given
+        func target(contents: Set<BuildableFolderContent>?) throws -> GraphTarget {
+            GraphTarget.test(target: .test(buildableFolders: [
+                BuildableFolder(
+                    path: try AbsolutePath(validating: "/test/Generated"),
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [],
+                    contents: contents
+                ),
+            ]), project: .test())
+        }
+
+        // When
+        var hashes: [String?] = []
+        for contents: Set<BuildableFolderContent>? in [nil, [.sources], [.sources, .resources]] {
+            hashes.append(try await subject.contentHash(
+                for: try target(contents: contents),
+                hashedTargets: [:],
+                hashedPaths: [:],
+                destination: nil,
+                additionalStrings: []
+            ).subhashes.buildableFolders)
+        }
+
+        // Then
+        #expect(hashes[0] == nil)
+        #expect(Set(hashes).count == 3)
+    }
+
     @Test func hash_changes_when_embedded_product_references_differ() async throws {
         // Given
         let target = GraphTarget.test(project: .test())
