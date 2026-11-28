@@ -50,8 +50,9 @@ func renderHostSensorsScript(cfg Config) string {
 	return renderHostSensorsInstallScript()
 }
 
-// renderHostSensorsUninstallScript removes the job and its last readings,
-// which node_exporter would otherwise keep serving as current. The directory
+// renderHostSensorsUninstallScript removes the job, its last readings, which
+// node_exporter would otherwise keep serving as current, and the disk I/O
+// totals it carries between runs. The directory
 // stays: node_exporter's textfile collector reads it on every host.
 func renderHostSensorsUninstallScript() string {
 	return fmt.Sprintf(`set -euo pipefail
@@ -59,7 +60,7 @@ PLIST=/Library/LaunchDaemons/%[1]s.plist
 sudo launchctl bootout system "$PLIST" 2>/dev/null || true
 sudo rm -f "$PLIST"
 sudo rm -f %[2]s
-sudo rm -f %[3]s/host_sensors.prom
+sudo rm -f %[3]s/host_sensors.prom %[3]s/disk_io_state.json
 `, hostSensorsLabel, hostSensorsBinaryPath, hostSensorsDir)
 }
 

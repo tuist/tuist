@@ -59,6 +59,8 @@ node_exporter never reads it half written.
 | `macos_host_uptime_seconds` | | seconds since `kern.boottime` |
 | `macos_host_tcp_time_wait` | | IPv4 and IPv6 TCP sockets in TIME_WAIT |
 | `macos_host_health_collection_success` | | 1 when both system info and TCP collection succeeded, otherwise 0 |
+| `macos_process_disk_written_bytes_total` | `group` | bytes the host's processes wrote to disk, by process group (counter) |
+| `macos_process_disk_read_bytes_total` | `group` | bytes they read (counter) |
 
 Host health uses read-only `sysctl` and `netstat`, each with a three-second
 deadline, independently of the hardware frameworks. Failed readings are omitted,
@@ -67,6 +69,24 @@ even while the textfile stays fresh. The monitoring allow-list must keep all fou
 families. OS version and uptime identify hosts needing a maintenance wave;
 TIME_WAIT accumulation is a diagnostic signal, not proof of a frozen TCP clock.
 See the [TCP clock runbook](../cluster-api-provider-tuist/macos-tcp-clock.md).
+
+Process disk I/O comes from libproc's `proc_pid_rusage` (`RUSAGE_INFO_V2`
+`ri_diskio_bytesread`/`byteswritten`), which needs root for other users'
+processes; the launchd daemon runs as root. Each run adds what every process
+read and wrote since the previous run to its group's total and saves the
+totals and per-process counters in `disk_io_state.json` beside the readings
+(the textfile collector reads only `*.prom`). A process is keyed by PID and
+start time, so a reused PID counts from zero; a process new since the last
+run counts whole; the first run only seeds and reports nothing, so a host's
+days of history are not one burst. What a process does between the last run
+and its exit is lost, at most 30 seconds. The groups are fixed (`vm`,
+`tart-kubelet`, `tart`, `disk-images`, `kernel`, `other`): a runner VM's disk
+is written by `com.apple.Virtualization.VirtualMachine`, not by `tart run`.
+Compare them with `node_disk_written_bytes_total{device="disk0"}`: APFS
+copy-on-write, the page cache and the kernel's own metadata writes keep the
+sum and the device apart. Verified 2026-11-28 in a VM on larch-runner-a04: a
+process named `tart` writing 1 GiB showed exactly 1,073,741,824 bytes under
+`group="tart"`.
 
 node_exporter adds `node_textfile_mtime_seconds`, which is how old the sample
 is. Alert on its age rather than on missing series.

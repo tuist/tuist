@@ -9,3 +9,7 @@ import "errors"
 func Read() (Readings, []error) {
 	return Readings{}, []error{errors.New("hardware sensors are only read on macOS")}
 }
+
+func readProcessIO() ([]ProcessIO, error) {
+	return nil, errors.New("process disk I/O is only read on macOS")
+}

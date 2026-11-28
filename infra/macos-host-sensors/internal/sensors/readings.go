@@ -30,6 +30,9 @@ type Readings struct {
 	// macOS thermal pressure: 0 nominal, 1 moderate, 2 heavy, 3 trapping,
 	// 4 sleeping.
 	ThermalPressure *uint64
+	// DiskIO is the disk I/O per process group since the counters started
+	// (AccountDiskIO); nil until a second sample.
+	DiskIO map[string]DiskIO
 }
 
 // Fan is one fan as the SMC reports it.
@@ -103,6 +106,12 @@ func Format(r Readings) string {
 			"macOS thermal pressure: 0 nominal, 1 moderate, 2 heavy, 3 trapping, 4 sleeping.")
 		fmt.Fprintf(&b, "macos_thermal_pressure_level %d\n", *r.ThermalPressure)
 	}
+	if r.DiskIO != nil {
+		diskIOMetric(&b, r.DiskIO, "macos_process_disk_read_bytes_total",
+			"Bytes the host's processes read from disk, by process group.", func(d DiskIO) uint64 { return d.Read })
+		diskIOMetric(&b, r.DiskIO, "macos_process_disk_written_bytes_total",
+			"Bytes the host's processes wrote to disk, by process group.", func(d DiskIO) uint64 { return d.Written })
+	}
 	return b.String()
 }
 
@@ -118,6 +127,13 @@ func fanMetric(b *strings.Builder, fans []Fan, name, help string, value func(Fan
 			wrote = true
 		}
 		fmt.Fprintf(b, "%s{fan=\"%d\"} %s\n", name, f.Index, number(*v))
+	}
+}
+
+func diskIOMetric(b *strings.Builder, groups map[string]DiskIO, name, help string, value func(DiskIO) uint64) {
+	fmt.Fprintf(b, "# HELP %s %s\n# TYPE %s counter\n", name, help, name)
+	for _, g := range DiskIOGroups {
+		fmt.Fprintf(b, "%s{group=\"%s\"} %d\n", name, g, value(groups[g]))
 	}
 }
 
