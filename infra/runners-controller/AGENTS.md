@@ -66,9 +66,11 @@ cancellable and leaves the reserve intact. See
 
   The server also learns a floor per pool (`learned_warm_floor`,
   `Tuist.Runners.LearnedWarmFloors`): the burst its jobs arrive in, while
-  the pool has had a job in the last day. The pool keeps that many runners
-  idle above load, capped by `maxLearnedWarmPoolFloor` (0, the default,
-  turns it off), and the allocator funds it in the floor tier alongside
+  the pool has had a job in the last day. While the pool is in use (work now
+  or a job in the last hour) it keeps that many runners idle above load,
+  capped by `maxLearnedWarmPoolFloor` (0, the default, turns it off); a quiet
+  pool keeps one (`LearnedSpare`), so one fan-out does not hold its burst's
+  seats for a day. The allocator funds it in the floor tier alongside
   `minWarmPoolFloor`. Set the cap to what an idle pool may cost; the
   learned value follows demand, so floors need no hand-tuning when demand
   moves between pools. `tuist_runners_autoscaler_learned_warm_floor_replicas`

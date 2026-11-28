@@ -856,7 +856,7 @@ func TestAutoscaler_LearnedSpareOutranksSiblingHeadroom(t *testing.T) {
 		Build()
 
 	signalsByFleet := map[string]scaling.Signals{
-		"macos-learned": {Fleet: "macos-learned", LearnedWarmFloor: 3},
+		"macos-learned": {Fleet: "macos-learned", P95ConcurrentLastHour: 1, LearnedWarmFloor: 3},
 		"macos-peak":    {Fleet: "macos-peak", P95ConcurrentLastHour: 4},
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

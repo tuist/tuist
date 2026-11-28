@@ -112,10 +112,24 @@ type PolicyKnobs struct {
 // LearnedSpare is the idle runners the pool keeps above its load for the
 // next burst: the server's learned floor, capped by the pool's
 // `maxLearnedWarmPoolFloor`.
+//
+// The whole burst is kept only while the pool is in use (`InUse`: work now
+// or a job in the last hour). A quiet pool keeps one: the server learns the
+// floor for any pool with a job in the last day, so a pool that ran one
+// fan-out held its burst for the next 24 hours. On 2026-11-27 that was 8
+// runners on 26.3 (no job after 21:56 the day before), 7 on 27.0 and, from
+// 23:00, 7 on 27.2 with macOS 27, about half the 46-seat rack, while the
+// warm runners of 26.0.1 and 26.5, pools with a job every few hours, sat
+// Pending for six to nine hours. A burst on a quiet pool now boots cold
+// past its first runner, on seats left free rather than ones preemption has
+// to retire first.
 func LearnedSpare(s Signals, k PolicyKnobs) int32 {
 	spare := s.LearnedWarmFloor
 	if spare > k.MaxLearnedWarmPoolFloor {
 		spare = k.MaxLearnedWarmPoolFloor
+	}
+	if spare > 1 && !s.InUse() {
+		spare = 1
 	}
 	if spare < 0 {
 		return 0

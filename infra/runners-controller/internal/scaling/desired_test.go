@@ -119,10 +119,16 @@ func TestDesiredReplicas(t *testing.T) {
 			want:    30,
 		},
 		{
-			name:    "an idle pool keeps its learned burst warm",
-			signals: Signals{LearnedWarmFloor: 3},
+			name:    "a pool with a job in the last hour keeps its learned burst warm",
+			signals: Signals{P95ConcurrentLastHour: 1, LearnedWarmFloor: 3},
 			knobs:   PolicyKnobs{MinWarmPoolFloor: 0, MaxLearnedWarmPoolFloor: 3, MaxReplicas: 30},
 			want:    3,
+		},
+		{
+			name:    "a quiet pool keeps one learned runner, not its burst",
+			signals: Signals{LearnedWarmFloor: 8},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 0, MaxLearnedWarmPoolFloor: 8, MaxReplicas: 30},
+			want:    1,
 		},
 		{
 			name:    "the learned burst is kept above current load",
