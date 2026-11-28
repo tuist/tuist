@@ -87,13 +87,13 @@ pair() {
   local a="$1" b="$2" rep="${3:-}" round tag
   for tag in idle pressure; do
     round="$tag${rep:+-$rep}"
-    gx "$a" "bash '/Volumes/My Shared Files/custom-cache/guest.sh' $round" > "$WORK/$a-$b-$round-a.log" 2>&1 &
+    gx "$a" "bash '/Volumes/My Shared Files/custom-cache/guest.sh' $round '${FORMATS:-sparse}'" > "$WORK/$a-$b-$round-a.log" 2>&1 &
     local ja=$!
-    gx "$b" "bash '/Volumes/My Shared Files/custom-cache/guest.sh' $round" > "$WORK/$a-$b-$round-b.log" 2>&1 &
+    gx "$b" "bash '/Volumes/My Shared Files/custom-cache/guest.sh' $round '${FORMATS:-sparse}'" > "$WORK/$a-$b-$round-b.log" 2>&1 &
     local jb=$!
     wait "$ja" "$jb"
-    sed -E "s/^RESULT /RESULT [$a with $b] /" "$WORK/$a-$b-$round-a.log" | grep '^RESULT' > "$WORK/$a-$b-$round.log"
-    sed -E "s/^RESULT /RESULT [$b with $a] /" "$WORK/$a-$b-$round-b.log" | grep '^RESULT' >> "$WORK/$a-$b-$round.log"
+    sed -E "s/^(RESULT|TIMING) /\1 [$a with $b] /" "$WORK/$a-$b-$round-a.log" | grep -E '^(RESULT|TIMING)' > "$WORK/$a-$b-$round.log"
+    sed -E "s/^(RESULT|TIMING) /\1 [$b with $a] /" "$WORK/$a-$b-$round-b.log" | grep -E '^(RESULT|TIMING)' >> "$WORK/$a-$b-$round.log"
     cat "$WORK/$a-$b-$round.log"
   done
 }

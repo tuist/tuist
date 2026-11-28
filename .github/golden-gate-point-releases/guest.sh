@@ -31,16 +31,35 @@ if [ "${round%%-*}" = pressure ]; then
 fi
 
 img="$share/x-$round"; mkdir -p "$img"
+# FORMATS lists the image kinds to try in turn, three of each, interleaved so
+# every kind sees the same host load:
+#   sparse     the production format, created on the share (the control)
+#   udrw       read-write UDIF created on the guest's disk, copied to the share
+#   udrw-share read-write UDIF created directly on the share
+formats="${2:-sparse}"
+make_image() { # kind n -> path
+  case "$1" in
+    sparse) hdiutil create -size 100g -fs APFS -volname T -type SPARSE -quiet "$img/s$2.sparseimage" && echo "$img/s$2.sparseimage" ;;
+    udrw) diskutil image create blank --fs APFS --format UDRW --size 2G --volumeName T "/tmp/u$2.dmg" >/dev/null 2>&1 \
+            && ditto "/tmp/u$2.dmg" "$img/u$2.dmg" && rm -f "/tmp/u$2.dmg" && echo "$img/u$2.dmg" ;;
+    udrw-share) diskutil image create blank --fs APFS --format UDRW --size 2G --volumeName T "$img/w$2.dmg" >/dev/null 2>&1 && echo "$img/w$2.dmg" ;;
+  esac
+}
 for n in 1 2 3; do
-  f="$img/s$n.sparseimage"; m="/tmp/gg-m$n"; mkdir -p "$m"
-  hdiutil create -size 100g -fs APFS -volname T -type SPARSE -quiet "$f" || { echo "RESULT $ver $round | sparseimage #$n: create failed"; continue; }
-  if hdiutil attach "$f" -owners off -nobrowse -mountpoint "$m" -quiet; then
-    run_into "$m" "sparseimage #$n on share"
-    hdiutil detach "$m" -force -quiet
-  else
-    echo "RESULT $ver $round | sparseimage #$n: attach failed"
-  fi
-  rm -f "$f"
+  for kind in $formats; do
+    m="/tmp/gg-m-$kind-$n"; mkdir -p "$m"
+    f=$(make_image "$kind" "$n") || { echo "RESULT $ver $round | $kind #$n: create failed"; continue; }
+    t0=$(perl -MTime::HiRes=time -e 'printf "%.2f", time')
+    if hdiutil attach "$f" -owners off -nobrowse -mountpoint "$m" -quiet; then
+      t1=$(perl -MTime::HiRes=time -e 'printf "%.2f", time')
+      echo "TIMING $ver $round | $kind #$n attach $(echo "$t1-$t0" | bc)s"
+      run_into "$m" "$kind #$n on share"
+      hdiutil detach "$m" -force -quiet
+    else
+      echo "RESULT $ver $round | $kind #$n: attach failed"
+    fi
+    rm -f "$f"
+  done
 done
 run_into "$img/plain" "plain files on share"
 run_into "/tmp/gg-root" "root disk"
