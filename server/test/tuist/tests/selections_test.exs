@@ -468,6 +468,38 @@ defmodule Tuist.Tests.SelectionsTest do
       assert {[%{path: "docs/README.md"}], _meta} = Selections.changed_files(project, run, diff, search: "readme")
       assert Selections.get_diff(%{run | baseline_sha: nil}) == nil
     end
+
+    test "credit a tracked-file fallback's tests to each tracked file, which stores no decision", %{
+      project: project
+    } do
+      %{run: run} =
+        run(project,
+          outcome: "fallback",
+          reason: "tracked_file_changed",
+          matched_path: "App/Project.swift",
+          selected: [],
+          requested_count: 7,
+          selected_count: 3,
+          skipped_count: 4
+        )
+
+      TestSelectionFixtures.diff_fixture(
+        project_id: project.id,
+        changed_files: [
+          %{path: "App/Project.swift"},
+          %{path: "Sources/Search/Search.swift"},
+          %{path: "Tuist/Package.swift"}
+        ]
+      )
+
+      {rows, _meta} = Selections.changed_files(project, run, Selections.get_diff(run))
+
+      assert Enum.map(rows, &{&1.path, &1.tracked, &1.selected_tests_count}) == [
+               {"App/Project.swift", true, 3},
+               {"Tuist/Package.swift", true, 3},
+               {"Sources/Search/Search.swift", false, 0}
+             ]
+    end
   end
 
   describe "counted_by_module?/1 and module_counts/1" do

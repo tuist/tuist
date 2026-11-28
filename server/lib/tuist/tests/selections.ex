@@ -408,7 +408,7 @@ defmodule Tuist.Tests.Selections do
       Map.merge(file, %{
         tracked: not is_nil(match),
         matched_pattern: match && match.pattern,
-        selected_tests_count: Map.get(counts, file.path, 0)
+        selected_tests_count: selected_tests_count(run, counts, file.path, match)
       })
     end)
     |> Enum.filter(
@@ -428,6 +428,14 @@ defmodule Tuist.Tests.Selections do
   end
 
   defp tracked_matcher(project, run), do: TrackedFiles.matcher(project, run.tracked_files)
+
+  # A tracked-file fallback decides no test, so it stores no decision rows to
+  # count: every test it ran is down to its tracked files, any one of which
+  # alone runs them all (the run records only the first, in path order).
+  defp selected_tests_count(%Run{reason: "tracked_file_changed"} = run, _counts, path, match)
+       when not is_nil(match) or path == run.matched_path, do: run.selected_count
+
+  defp selected_tests_count(_run, counts, path, _match), do: Map.get(counts, path, 0)
 
   # Read off the decision's bitmaps, keyed by the path that selected them.
   defp selected_counts_by_path(%Run{} = run) do
