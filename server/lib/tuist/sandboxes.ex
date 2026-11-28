@@ -2233,15 +2233,17 @@ defmodule Tuist.Sandboxes do
   # for the grace period, as one is after a residency ends. Each new use
   # replaces the pending pause, and a residency starting meanwhile bumps
   # the epoch, which turns the pending pause into a no-op.
-  defp schedule_idle_pause({:ok, %Sandbox{} = sandbox}) do
-    schedule_idle_pause(sandbox)
+  defp schedule_idle_pause(sandbox_or_result, after_work \\ nil)
+
+  defp schedule_idle_pause({:ok, %Sandbox{} = sandbox}, after_work) do
+    schedule_idle_pause(sandbox, after_work)
     {:ok, sandbox}
   end
 
-  defp schedule_idle_pause({:error, _reason} = error), do: error
+  defp schedule_idle_pause({:error, _reason} = error, _after_work), do: error
 
-  defp schedule_idle_pause(%Sandbox{state: :running, residency_work_id: nil} = sandbox) do
-    case schedule_pause(sandbox) do
+  defp schedule_idle_pause(%Sandbox{state: :running, residency_work_id: nil} = sandbox, after_work) do
+    case schedule_pause(sandbox, after_work) do
       {:ok, _job} ->
         :ok
 
@@ -2251,38 +2253,48 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  defp schedule_idle_pause(%Sandbox{}), do: :ok
+  defp schedule_idle_pause(%Sandbox{}, _after_work), do: :ok
 
   defp record_activity(%Sandbox{id: id}) do
     timestamp = now()
     query = from(s in Sandbox, where: s.id == ^id and s.state == :running, select: s)
 
     case Repo.update_all(query, set: [last_active_at: timestamp, updated_at: timestamp]) do
-      {1, [sandbox]} -> schedule_idle_pause(sandbox)
+      {1, [sandbox]} -> schedule_idle_pause(sandbox, :exec)
       {0, []} -> :ok
     end
   end
 
-  defp schedule_pause(%Sandbox{} = sandbox, ended_residency \\ nil) do
+  # `after_work` is the residency that just ended, or `:exec` after an exec
+  # outside any residency.
+  defp schedule_pause(%Sandbox{} = sandbox, after_work \\ nil) do
     %{sandbox_id: sandbox.id, residency_epoch: sandbox.residency_epoch}
     |> PauseSandboxWorker.new(
-      schedule_in: pause_delay_seconds(sandbox, ended_residency),
+      schedule_in: pause_delay_seconds(sandbox, after_work),
       replace: [scheduled: [:args, :scheduled_at], available: [:args, :scheduled_at]]
     )
     |> Oban.insert()
   end
 
   # Hosts shared with CI get their memory back at once, except after the
-  # last command ends on Linux: commands come in runs, such as a sync and
-  # then a build, and a command started while its sandbox pauses waits for
-  # the pause and a resume. CI pressure pauses an idle sandbox before its
-  # grace is up. A macOS sandbox's commands residency already outlived its
-  # last command by the session lease (`Tuist.Sandboxes.Commands`).
-  defp pause_delay_seconds(%Sandbox{} = sandbox, ended_residency) do
+  # last command or an exec ends on Linux: commands come in runs, such as a
+  # sync and then a build, and their clients read output and write stdin
+  # between them, each an exec. Anything started while its sandbox pauses
+  # waits for the pause and a resume, so pausing after every exec turned a
+  # client polling an ended command's logs into a pause and resume per read.
+  # CI pressure pauses an idle sandbox before its grace is up. A macOS
+  # sandbox's commands residency already outlived its last command by the
+  # session lease (`Tuist.Sandboxes.Commands`).
+  defp pause_delay_seconds(%Sandbox{} = sandbox, after_work) do
     cond do
-      not (sandbox.platform == :darwin or Capacity.shared_node?(sandbox.node_name)) -> pause_grace_seconds(sandbox)
-      ended_residency == Commands.residency() and sandbox.platform != :darwin -> @shared_command_pause_grace_seconds
-      true -> 0
+      not (sandbox.platform == :darwin or Capacity.shared_node?(sandbox.node_name)) ->
+        pause_grace_seconds(sandbox)
+
+      after_work in [Commands.residency(), :exec] and sandbox.platform != :darwin ->
+        @shared_command_pause_grace_seconds
+
+      true ->
+        0
     end
   end
 

@@ -710,8 +710,9 @@ serialization are specified in [`fleet-sharing.md`](../../../../infra/sandboxd/f
 `ReclaimCapacityWorker` applies pressure after the allocation is committed.
 Shared-node idle pauses (all macOS hosts too) have zero grace and enqueue
 shrink work, except 20 s after the last command ends on Linux (`Commands`
-residency), so a command run such as a sync then a build does not wait out a
-pause and a resume; CI pressure still pauses that idle sandbox at once. CI demand never pauses or evicts a running macOS VM: there the grant
+residency) or after an exec outside a residency (such as a read of an ended
+command's logs), so a command run such as a sync then a build, and its
+client's reads, do not wait out a pause and a resume; CI pressure still pauses that idle sandbox at once. CI demand never pauses or evicts a running macOS VM: there the grant
 gates only creates and resumes. On
 macOS the `Commands` residency itself outlives the last command as the
 session's ten-minute lease (see `Commands` below). Active residencies and

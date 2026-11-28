@@ -58,7 +58,7 @@ The priority order is:
 3. CI warm floors and recent-demand headroom. Idle, unclaimed warm runners can
    be retired for a deferred sandbox growth even while CI is queued. There is
    no extra sandbox warm pool, p95 buffer or post-turn grace on shared nodes,
-   except 20 seconds after a sandbox's last command (see below), and on macOS
+   except 20 seconds after a sandbox's last command or exec (see below), and on macOS
    the commands session lease.
 
 Admission is opportunistic, not a global FIFO queue or a guaranteed resource
@@ -120,7 +120,7 @@ must conflict if a newer resize or Pod replacement already landed.
 Every accepted observation transactionally queues an idempotent Oban reclaim job.
 Busy sandbox locks are skipped rather than waited on; the next observation retries
 them. Shared-node pauses have zero extra grace and enqueue a shrink immediately,
-except the pause after a sandbox's last command ends, which waits 20 seconds so
+except the pause after a sandbox's last command or exec ends, which waits 20 seconds so
 the next command of a run (a sync, then a build) finds it running. The sandbox
 holds no residency meanwhile, so pressure from an observation pauses it at once.
 There is no three-minute warm hold on Linux. On macOS the commands

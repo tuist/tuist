@@ -248,7 +248,7 @@ defmodule Tuist.Sandboxes.CommandsTest do
       assert [_pause] = all_enqueued(worker: PauseSandboxWorker)
     end
 
-    test "on a node shared with CI, pauses 20 seconds after the last command, and at once after other work" do
+    test "on a node shared with CI, pauses 20 seconds after the last command or a read, and at once after other work" do
       Repo.insert!(%Tuist.Sandboxes.SandboxNode{
         name: "node-a",
         pod_name: "sandboxd-a",
@@ -260,6 +260,15 @@ defmodule Tuist.Sandboxes.CommandsTest do
 
       expect(Nodes, :call, guest_read("exited 0 0 0 -", ""))
       assert {:ok, %{status: "exited"}} = Commands.read(sandbox, command.id)
+
+      assert [%Oban.Job{scheduled_at: scheduled_at}] = all_enqueued(worker: PauseSandboxWorker)
+      assert DateTime.diff(scheduled_at, DateTime.utc_now()) in 15..20
+
+      # The client reads the ended command's output again, an exec outside
+      # any residency: pausing at once made every read resume the sandbox.
+      stub(Nodes, :lookup, fn "node-a" -> {:ok, self(), %{}} end)
+      expect(Nodes, :call, guest_read("exited 0 0 0 -", ""))
+      assert {:ok, %{status: "exited"}} = Commands.read(Repo.reload!(sandbox), command.id)
 
       assert [%Oban.Job{scheduled_at: scheduled_at}] = all_enqueued(worker: PauseSandboxWorker)
       assert DateTime.diff(scheduled_at, DateTime.utc_now()) in 15..20
