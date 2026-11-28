@@ -288,4 +288,77 @@ final class GraphExtrasTests: XCTestCase {
         XCTAssertFalse(names.contains("OtherApp"), "Filtered out by targetsToFilter")
         XCTAssertFalse(names.contains("SwiftCompilerPlugin"), "Filtered out by skipMacroSupportTargets")
     }
+
+    func test_filter_targetsToFilter_with_tag_query_keeps_tagged_targets_and_their_dependencies() throws {
+        // Given
+        let projectPath: AbsolutePath = "/Project"
+
+        let appTarget = Target.test(name: "MyApp", product: .app)
+        let searchTarget = Target.test(name: "Search", product: .framework, metadata: .test(tags: ["feature"]))
+        let profileTarget = Target.test(name: "Profile", product: .framework, metadata: .test(tags: ["feature"]))
+        let coreTarget = Target.test(name: "Core", product: .framework)
+
+        let project = Project.test(path: projectPath, targets: [appTarget, searchTarget, profileTarget, coreTarget])
+
+        let graph = XcodeGraph.Graph.test(
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "MyApp", path: projectPath): [
+                    .target(name: "Search", path: projectPath),
+                    .target(name: "Profile", path: projectPath),
+                ],
+                .target(name: "Search", path: projectPath): [.target(name: "Core", path: projectPath)],
+                .target(name: "Profile", path: projectPath): [],
+                .target(name: "Core", path: projectPath): [],
+            ]
+        )
+
+        // When
+        let result = graph.filter(
+            skipTestTargets: false,
+            skipExternalDependencies: false,
+            skipMacroSupportTargets: false,
+            platformToFilter: nil,
+            targetsToFilter: ["tag:feature"]
+        )
+
+        // Then
+        let names = Set(result.keys.map(\.target.name))
+        XCTAssertEqual(names, ["Search", "Profile", "Core"])
+    }
+
+    func test_filter_targetsToFilter_combines_name_and_tag_queries() throws {
+        // Given
+        let projectPath: AbsolutePath = "/Project"
+
+        let appTarget = Target.test(name: "MyApp", product: .app)
+        let searchTarget = Target.test(name: "Search", product: .framework, metadata: .test(tags: ["feature"]))
+        let coreTarget = Target.test(name: "Core", product: .framework, metadata: .test(tags: ["foundation"]))
+        let otherAppTarget = Target.test(name: "OtherApp", product: .app)
+
+        let project = Project.test(path: projectPath, targets: [appTarget, searchTarget, coreTarget, otherAppTarget])
+
+        let graph = XcodeGraph.Graph.test(
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "MyApp", path: projectPath): [],
+                .target(name: "Search", path: projectPath): [],
+                .target(name: "Core", path: projectPath): [],
+                .target(name: "OtherApp", path: projectPath): [],
+            ]
+        )
+
+        // When
+        let result = graph.filter(
+            skipTestTargets: false,
+            skipExternalDependencies: false,
+            skipMacroSupportTargets: false,
+            platformToFilter: nil,
+            targetsToFilter: ["MyApp", "tag:feature"]
+        )
+
+        // Then
+        let names = Set(result.keys.map(\.target.name))
+        XCTAssertEqual(names, ["MyApp", "Search"])
+    }
 }

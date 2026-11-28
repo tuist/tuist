@@ -69,7 +69,7 @@ public struct GraphCommand: AsyncParsableCommand, ProjectPathProviding {
     var layoutAlgorithm: GraphViz.LayoutAlgorithm = .dot
 
     @Argument(
-        help: "A list of targets to filter. Those and their dependent targets will be showed in the graph.",
+        help: "A list of targets to filter, by name or by tag with the tag: prefix (e.g. tag:feature). Those and their dependent targets will be showed in the graph.",
         envKey: .graphTargets
     )
     var targets: [String] = []
