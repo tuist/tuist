@@ -29,6 +29,17 @@ name: macOS + Xcode Image
 # and a stranded macOS profile queues its jobs forever. Newest
 # dispatch wins the channel.
 #
+# Bundles (several Xcodes in one image) are built by chaining: dispatch
+# with `bundle_tag` and `base_image` set to the bundle so far, and this
+# run adds `xcode_version` to it. Measured on Tahoe, chaining keeps more of
+# the previous image than rebuilding from the macOS base, so hosts download
+# less when an Xcode joins. It publishes the moving `:<bundle_tag>` and the
+# immutable `:<bundle_tag>-<xcode dashes>`, for the Xcode just added:
+#   bundle_tag=bundle-27, base_image=…:27-0,      xcode_version=27.1
+#     → :bundle-27-27-1 and :bundle-27
+#   bundle_tag=bundle-27, base_image=…:bundle-27, xcode_version=27.2
+#     → :bundle-27-27-2 and :bundle-27
+#
 # Publishing here does not put a tag in front of customers: the
 # active set is `profiles.json` crossed with
 # `runnersFleet.xcodeVersions`. Runbook in
@@ -57,13 +68,19 @@ on:
         description: "Base Tart image to layer Xcode onto. Empty uses the Cirrus Labs base of macos_version."
         required: false
         default: ""
+      bundle_tag:
+        description: "Publish a multi-Xcode bundle under this tag (e.g. bundle-27) instead of the Xcode's own tag. Set base_image to the bundle so far; this run adds xcode_version to it. Empty builds a single-Xcode image."
+        required: false
+        default: ""
 
 concurrency:
   # Different Xcode versions can build in parallel (different push
   # tags, no shared state). Same Xcode re-dispatched cancels the
   # in-flight build — it would publish to the same tag and the
   # second dispatch always represents the more recent intent.
-  group: macos-xcode-image-${{ inputs.macos_version || '26' }}-${{ inputs.xcode_version }}
+  # A bundle build has its own group: it publishes other tags than the
+  # single-Xcode build of the same version.
+  group: macos-xcode-image-${{ inputs.macos_version || '26' }}-${{ inputs.bundle_tag || inputs.xcode_version }}
   cancel-in-progress: true
 
 permissions:
@@ -221,8 +238,21 @@ jobs:
         working-directory: infra/macos-xcode-image
         env:
           XCODE_VERSION: ${{ inputs.xcode_version }}
+          BUNDLE_TAG: ${{ inputs.bundle_tag }}
+          BASE_IMAGE: ${{ steps.guest.outputs.base }}
         run: |
           set -euo pipefail
+          if [ -n "$BUNDLE_TAG" ]; then
+            if ! [[ "$BUNDLE_TAG" =~ ^bundle-[a-z0-9-]+$ ]]; then
+              echo "::error::bundle_tag must look like bundle-27, not ${BUNDLE_TAG}"; exit 1
+            fi
+            # A bundle grows an image that already holds Xcode, never the
+            # bare Cirrus base, so a forgotten base_image fails here.
+            case "$BASE_IMAGE" in
+              ghcr.io/tuist/*) ;;
+              *) echo "::error::bundle_tag needs base_image set to the bundle so far (ghcr.io/tuist/...)"; exit 1 ;;
+            esac
+          fi
           docker_config="$HOME/.docker/config.json"
           docker_config_backup=""
           restore_docker_config() {
@@ -244,6 +274,7 @@ jobs:
             -var "xcode_xip_path=${{ steps.xcode_xip.outputs.path }}" \
             -var "xcode_version=${XCODE_VERSION}" \
             -var "disk_size_gb=${{ steps.guest.outputs.disk_size_gb }}" \
+            -var "bundle=$([ -n "$BUNDLE_TAG" ] && echo true || echo false)" \
             macos-xcode.pkr.hcl
 
           # Tag is the full version with dots → dashes:
@@ -255,6 +286,14 @@ jobs:
           # this tag, so a 26.4.0 → 26.4.1 Apple bump is a *new* tag
           # (`:26-4-1`), not a same-tag replacement.
           TAG=$(echo "${XCODE_VERSION}" | tr '.' '-')
+          if [ -n "$BUNDLE_TAG" ]; then
+            # The moving bundle tag is what profiles.json names; the
+            # immutable one records which Xcode was added last.
+            echo "tag=${BUNDLE_TAG}-${TAG}" >> "$GITHUB_OUTPUT"
+            echo "channel_tag=${BUNDLE_TAG}" >> "$GITHUB_OUTPUT"
+            echo "Publishing :${BUNDLE_TAG}-${TAG} and moving :${BUNDLE_TAG} onto it"
+            exit 0
+          fi
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
           # Prereleases also publish a channel tag with the beta

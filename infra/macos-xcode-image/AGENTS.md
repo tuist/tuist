@@ -7,15 +7,19 @@ workflow_dispatch (we trigger it whenever Apple ships a new Xcode
 and we want it in the fleet, regardless of whether Cirrus has
 caught up).
 
-Per-Xcode image model — one Xcode per image, profile-selectable
-downstream. This mirrors Namespace's UX: each customer-facing
-profile (`runs-on: tuist-macos-xcode-26-4`, "Tahoe with Xcode
-26.4.x", etc.) maps onto a single image variant produced here.
-GitHub-hosted bakes ~6 Xcodes into one giant image so customers
-can `xcode-select` between them at job time; we explicitly didn't
-want that, because the choice happens at job-routing time, not
-xcode-select time, and a per-Xcode image is smaller, faster to
-pull, and faster to build.
+Two image models live side by side while runners move to the second:
+
+- **Per-Xcode images**, one Xcode each, which every active profile uses
+  today. Each customer-facing profile ("Tahoe with Xcode 26.4.x") maps
+  onto one image variant produced here.
+- **Bundles**, a few Xcodes of one macOS in one image
+  (`:bundle-<name>`, e.g. `bundle-27` holding 27.0, 27.1 and 27.2).
+  Profiles still store one Xcode; the runner selects it when a job
+  claims the VM or a sandbox is created
+  (`infra/runner-image/select-xcode.sh`), so jobs never need
+  `xcode-select`. Fewer, shared pools keep more runners warm than one
+  small pool per Xcode. A three-Xcode bundle is about 101 GB on GHCR.
+  See "Building a bundle" below.
 
 Published to `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`:
 
@@ -74,7 +78,8 @@ thin runtime on top — ~2 min instead of ~30.
 
 ## What's in the image
 
-- One Xcode at `/Applications/Xcode_<xcode_version>.app`. When
+- One Xcode at `/Applications/Xcode_<xcode_version>.app` (a bundle
+  holds several, one per build that added one). When
   `xcode_version` is three-segment (has a patch), an additional
   `/Applications/Xcode_<major>.<minor>.app` symlink resolves to
   the same bundle.
@@ -239,6 +244,31 @@ channel tag (`27.0-beta-6` also moves `:27-0-beta`), which is what
 `profiles.json` names while a beta is active, so a beta bump needs
 no repo edit. Promotion is covered by the
 two sections below.
+
+## Building a bundle
+
+A bundle is built by chaining: each run clones the bundle so far
+(`base_image`) and adds one Xcode to it, skipping the developer tools
+and certificates the base already has. Start from a single-Xcode image:
+
+```
+gh workflow run macos-xcode-image.yml -f bundle_tag=bundle-27 \
+  -f base_image=ghcr.io/tuist/macos-tahoe-xcode:27-0 -f xcode_version=27.1
+gh workflow run macos-xcode-image.yml -f bundle_tag=bundle-27 \
+  -f base_image=ghcr.io/tuist/macos-tahoe-xcode:bundle-27 -f xcode_version=27.2
+```
+
+Each run publishes the immutable `:bundle-27-<xcode dashes>` for the
+Xcode it added and moves `:bundle-27` onto it. Run them one after the
+other: the second clones what the first published. The last Xcode added
+is the image's `xcode-select` default.
+
+Chaining was measured against rebuilding the bundle from the macOS base
+(experiment branch `exp/xcode-bundle-tahoe-27`): adding 27.2 changed
+about 75 of 112 GB of the disk when chained, against about 95 of 113 GB
+rebuilt. Either way a host downloads tens of GB when an Xcode joins a
+bundle, so add Xcodes to a bundle rarely and start a new bundle for a new
+major. Bundles are not yet in `profiles.json`; no pool runs one.
 
 ## Promoting a new Xcode to customer runners
 

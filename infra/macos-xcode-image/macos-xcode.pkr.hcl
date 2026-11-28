@@ -92,6 +92,12 @@ variable "xcode_version" {
   description = "Xcode version slug installed from the .xip (e.g. \"26.4.1\", \"26.5\", \"27.0-beta-6\"). Drives the bundle path /Applications/Xcode_<version>.app and the major-minor alias (only when the slug isn't already in major-minor form)."
 }
 
+variable "bundle" {
+  type        = bool
+  default     = false
+  description = "Add this Xcode to an image that already holds Xcode (a bundle, see macos-xcode-image.yml). Skips the developer tools and certificates the base image already installed."
+}
+
 variable "cpu_count" {
   type    = number
   default = 4
@@ -172,7 +178,9 @@ build {
   # `-downloadAllPlatforms` pulls iOS / tvOS / watchOS / visionOS
   # simulator runtimes at image build so the first job on a fresh
   # VM doesn't pay the runtime download cost. Matches what
-  # GitHub-hosted's macos-26 image ships.
+  # GitHub-hosted's macos-26 image ships. It is retried: Apple's simulator
+  # catalog fails transiently ("general networking error"), and a bundle
+  # build runs it once per Xcode it adds.
   # `-downloadComponent MetalToolchain` then installs the optional
   # Metal compiler toolchain required by Xcode 26 and newer. It runs
   # without sudo: on Xcode 26.1 a toolchain installed as root is not
@@ -201,7 +209,7 @@ build {
       "sudo xcode-select -s /Applications/Xcode_${var.xcode_version}.app",
       "sudo xcodebuild -license accept",
       "sudo xcodebuild -runFirstLaunch",
-      "sudo xcodebuild -downloadAllPlatforms",
+      "for attempt in 1 2 3 4 5; do sudo xcodebuild -downloadAllPlatforms && break; [ $attempt -lt 5 ] || exit 1; echo \"downloadAllPlatforms failed (attempt $attempt), retrying\" >&2; sleep 60; done",
       "XCODE_BUILD=$(xcodebuild -version | awk '/^Build version/ {print $3}')",
       "INDEX=$(mktemp)",
       "curl -fsSL https://devimages-cdn.apple.com/downloads/xcode/simulators/index2.dvtdownloadableindex -o \"$INDEX\"",
@@ -250,6 +258,7 @@ build {
     inline = [
       "set -euo pipefail",
       "source ~/.zprofile",
+      "if ${var.bundle}; then echo 'Bundle: developer tools already installed'; exit 0; fi",
       "brew install libimobiledevice ideviceinstaller ios-deploy carthage",
       "brew install xcbeautify swiftformat swiftlint swiftgen licenseplist mint",
       "brew install fastlane cocoapods"
@@ -265,6 +274,7 @@ build {
     inline = [
       "set -euo pipefail",
       "source ~/.zprofile",
+      "if ${var.bundle}; then echo 'Bundle: certificates already installed'; exit 0; fi",
       "cd /tmp",
       "curl -fsSL -o AppleWWDRCAG3.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer",
       "curl -fsSL -o DeveloperIDG2CA.cer https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer",

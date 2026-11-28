@@ -513,7 +513,9 @@ build {
   # The base installs the Metal Toolchain as `admin`, and Xcode 26.1
   # only exposes a downloaded toolchain to the user that installed
   # it. Running the download as `runner` registers it for the user
-  # jobs run as.
+  # jobs run as. It runs for every installed Xcode (the
+  # `Xcode_<major.minor>.app` aliases are symlinks and skipped), so each
+  # Xcode of a bundle image has its toolchain, whichever one a job selects.
   #
   # The toolchain build is passed explicitly: without it `xcodebuild`
   # asks Apple for a toolchain under the Xcode's own build, and Apple
@@ -524,14 +526,17 @@ build {
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "XCODE_BUILD=$(xcodebuild -version | awk '/^Build version/ {print $3}')",
       "INDEX=$(mktemp)",
       "curl -fsSL https://devimages-cdn.apple.com/downloads/xcode/simulators/index2.dvtdownloadableindex -o \"$INDEX\"",
-      "METAL_BUILD=''",
-      "for i in $(seq 0 $(($(plutil -extract xcodeToOtherDownloadablesMappings raw -o - \"$INDEX\") - 1))); do if [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetType raw -o - \"$INDEX\")\" = metalToolchain ] && [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.xcodeBuildUpdate raw -o - \"$INDEX\")\" = \"$XCODE_BUILD\" ]; then METAL_BUILD=$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetBuildUpdate raw -o - \"$INDEX\"); fi; done",
-      "rm -f \"$INDEX\"",
-      "[ -n \"$METAL_BUILD\" ] || { echo \"Apple's downloadable index maps no Metal Toolchain to Xcode build $XCODE_BUILD\" >&2; exit 1; }",
-      "echo 'admin' | sudo -S -u runner -H /bin/zsh -lc \"xcodebuild -downloadComponent MetalToolchain -buildVersion $METAL_BUILD\""
+      "for APP in /Applications/Xcode_*.app; do",
+      "  [ -L \"$APP\" ] && continue",
+      "  XCODE_BUILD=$(DEVELOPER_DIR=\"$APP/Contents/Developer\" xcodebuild -version | awk '/^Build version/ {print $3}')",
+      "  METAL_BUILD=''",
+      "  for i in $(seq 0 $(($(plutil -extract xcodeToOtherDownloadablesMappings raw -o - \"$INDEX\") - 1))); do if [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetType raw -o - \"$INDEX\")\" = metalToolchain ] && [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.xcodeBuildUpdate raw -o - \"$INDEX\")\" = \"$XCODE_BUILD\" ]; then METAL_BUILD=$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetBuildUpdate raw -o - \"$INDEX\"); fi; done",
+      "  [ -n \"$METAL_BUILD\" ] || { echo \"Apple's downloadable index maps no Metal Toolchain to Xcode build $XCODE_BUILD ($APP)\" >&2; exit 1; }",
+      "  echo 'admin' | sudo -S -u runner -H /bin/zsh -lc \"DEVELOPER_DIR=$APP/Contents/Developer xcodebuild -downloadComponent MetalToolchain -buildVersion $METAL_BUILD\"",
+      "done",
+      "rm -f \"$INDEX\""
     ]
   }
 
